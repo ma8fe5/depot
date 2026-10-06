@@ -335,6 +335,7 @@ async function kurseHolen() {
       // Tagesreihe in Euro, bei USD mit dem Wechselkurs des jeweiligen Tages
       let reihe = null;
       if (Array.isArray(k.reihe)) {
+        k.reihe = splitBereinigt(k.reihe);
         reihe = p.waehrung === 'USD'
           ? (fx.reihe ? k.reihe.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || fx.schluss)]) : null)
           : k.reihe;
@@ -391,6 +392,20 @@ function kursAm(reihe, datum, richtung) {
   }
   for (const [d, k] of reihe) if (d >= datum) return k;
   return null;
+}
+
+// Rechnet Aktiensplits aus einer Kursreihe heraus (EODHD liefert unbereinigte Schlusskurse).
+// Ein Sprung um mehr als Faktor 3 von einem Tag zum nächsten gilt als Split.
+function splitBereinigt(reihe) {
+  const out = reihe.map(([d, k]) => [d, k]);
+  let faktor = 1;
+  for (let i = out.length - 1; i > 0; i--) {
+    const q = reihe[i - 1][1] / reihe[i][1];
+    if (q > 3) faktor *= Math.round(q);
+    else if (q < 1 / 3) faktor /= Math.round(1 / q);
+    out[i - 1][1] = reihe[i - 1][1] / faktor;
+  }
+  return out;
 }
 
 const ZEITRAEUME = {
