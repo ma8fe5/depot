@@ -7,276 +7,430 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Depot">
-<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Depot</title>
 <style>
+  /* ---------- Design-Tokens ---------- */
   :root {
-    --bg: #f4f5f7; --card: #ffffff; --text: #16181d; --muted: #6b7280; --line: #e5e7eb;
-    --pos: #0f7b3f; --neg: #c0262d; --accent: #2563eb; --warn-bg: #fff4d6; --warn-text: #6b4e00;
+    color-scheme: light dark;
+    --bg: #f2f2f7;
+    --flaeche: #ffffff;
+    --flaeche-2: #f4f4f8;
+    --text: #0b0b10;
+    --text-2: #6c6c75;
+    --text-3: #a3a3ad;
+    --linie: rgba(60, 60, 67, 0.12);
+    --pos: #1a9e4b;
+    --neg: #e0393e;
+    --akzent: #5b57e0;
+    --pos-weich: rgba(26, 158, 75, 0.11);
+    --neg-weich: rgba(224, 57, 62, 0.10);
+    --akzent-weich: rgba(91, 87, 224, 0.10);
+    --akzent-glanz: rgba(91, 87, 224, 0.16);
+    --hinweis: #fff6dc;
+    --hinweis-text: #6a4b00;
+    --schatten: 0 1px 1px rgba(16, 16, 32, 0.03), 0 6px 22px rgba(16, 16, 32, 0.06);
+    --rand: transparent;
+    --glas: rgba(242, 242, 247, 0.78);
+    --radius: 22px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #111214; --card: #1c1d21; --text: #f3f4f6; --muted: #9ca3af; --line: #2c2e33;
-      --pos: #4ade80; --neg: #f87171; --accent: #60a5fa; --warn-bg: #3a3012; --warn-text: #fcd977;
+      --bg: #000000;
+      --flaeche: #121215;
+      --flaeche-2: #1d1d22;
+      --text: #f5f5f7;
+      --text-2: #a0a0aa;
+      --text-3: #64646d;
+      --linie: rgba(255, 255, 255, 0.08);
+      --pos: #34d058;
+      --neg: #ff5b55;
+      --akzent: #8f8bff;
+      --pos-weich: rgba(52, 208, 88, 0.14);
+      --neg-weich: rgba(255, 91, 85, 0.14);
+      --akzent-weich: rgba(143, 139, 255, 0.12);
+      --akzent-glanz: rgba(143, 139, 255, 0.22);
+      --hinweis: #2a2310;
+      --hinweis-text: #f3d27a;
+      --schatten: none;
+      --rand: rgba(255, 255, 255, 0.06);
+      --glas: rgba(0, 0, 0, 0.72);
     }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 520px; margin: 0 auto;
-    padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px); }
-  header { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; }
-  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
-  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 8px; }
-  .card { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
-  .gross { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-  .mittel { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .unter { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Grundlagen ---------- */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 17px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1;
+  }
+  main { max-width: 540px; margin: 0 auto;
+    padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 32px); }
+  [hidden] { display: none !important; }
+  .ansicht { animation: rein 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes rein { from { opacity: 0; transform: translateY(10px); } }
+  @media (prefers-reduced-motion: reduce) { .ansicht { animation: none; } * { transition: none !important; } }
+
+  /* ---------- Kopfbereich ---------- */
+  .kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 10px 2px 18px; }
+  .kopf .datum { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-2); margin-bottom: 2px; }
+  h1 { font-size: 34px; line-height: 1.1; font-weight: 750; letter-spacing: -0.03em; margin: 0; }
+  .kopf-knoepfe { display: flex; gap: 8px; padding-bottom: 4px; }
+  .rund { width: 38px; height: 38px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
+    background: var(--flaeche); color: var(--akzent); box-shadow: var(--schatten); outline: 1px solid var(--rand); }
+  .rund svg { width: 19px; height: 19px; }
+  .rund.dreht svg { animation: drehen 0.9s linear infinite; }
+  @keyframes drehen { to { transform: rotate(360deg); } }
+
+  .navi { position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top) + 6px) 8px 6px;
+    margin: calc(-1 * (env(safe-area-inset-top) + 8px)) -16px 0;
+    background: var(--glas); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+  .zurueck { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; color: var(--akzent);
+    font: inherit; font-size: 17px; padding: 6px 8px; cursor: pointer; }
+  .zurueck svg { width: 12px; height: 20px; }
+  .titel { margin: 6px 2px 16px; }
+  .titel .unterzeile { color: var(--text-2); font-size: 15px; margin-top: 4px; }
+
+  /* ---------- Karten ---------- */
+  .karte { background: var(--flaeche); border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+    box-shadow: var(--schatten); outline: 1px solid var(--rand); outline-offset: -1px; }
+  .etikett { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 6px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .etikett .chevron { color: var(--text-3); width: 8px; height: 13px; flex-shrink: 0; }
+  .abschnitt { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-2);
+    margin: 26px 18px 8px; }
+  .tippbar { cursor: pointer; transition: transform 0.18s ease, opacity 0.18s ease; }
+  .tippbar:active { transform: scale(0.985); opacity: 0.85; }
+
+  .held { position: relative; overflow: hidden; padding: 20px 20px 22px;
+    background: radial-gradient(120% 120% at 100% 0%, var(--akzent-glanz), transparent 55%), var(--flaeche); }
+  .held .betrag { font-size: 46px; font-weight: 750; letter-spacing: -0.04em; line-height: 1.05; margin: 4px 0 10px; }
+  .betrag .cent { font-size: 0.55em; font-weight: 650; color: var(--text-2); letter-spacing: -0.02em; margin-left: 1px; }
+  .unter { color: var(--text-2); font-size: 15px; }
+
+  .paar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 14px; }
+  .paar .karte { margin-bottom: 0; padding: 16px; display: flex; flex-direction: column; }
+  .paar .wert { font-size: min(23px, 5.6vw); font-weight: 700; letter-spacing: -0.025em; white-space: nowrap; margin: 2px 0 10px; }
+  .paar .pill { align-self: flex-start; margin-top: auto; }
+
   .pos { color: var(--pos); } .neg { color: var(--neg); }
-  .zwei .card { min-width: 0; }
-  .paar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
-  .paar .card { margin-bottom: 0; }
-  .paar .mittel { font-size: min(22px, 5.2vw); white-space: nowrap; }
-  ul.rang { list-style: none; margin: 0; padding: 0; }
-  ul.rang li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 15px; }
-  ul.rang li + li { border-top: 1px solid var(--line); }
-  ul.rang .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ul.rang .wert { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
-  .tippbar { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .tippbar:active { opacity: 0.7; }
-  .pfeil { float: right; font-size: 20px; line-height: 14px; color: var(--muted); }
-  .segmente { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 2px; margin-bottom: 12px;
-    background: var(--line); border-radius: 10px; }
-  .segmente button { background: transparent; color: var(--text); font-size: 14px; font-weight: 500; padding: 7px 2px; border-radius: 8px; }
-  .segmente button.aktiv { background: var(--card); font-weight: 650; }
-  ul.rang .wert small { display: block; text-align: right; font-weight: 400; font-size: 13px; }
-  .hinweis { background: var(--warn-bg); color: var(--warn-text); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
-  .hinweis button { margin-top: 10px; }
-  .fuss { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
-  .fuss a { color: var(--muted); }
-  button { font: inherit; border: 0; border-radius: 12px; padding: 10px 14px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
-  button.leise { background: transparent; color: var(--accent); padding: 8px 4px; }
-  button.zweit { background: var(--line); color: var(--text); }
-  .knoepfe { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  .fehler { color: var(--neg); font-size: 14px; }
-  .ansicht[hidden] { display: none; }
-  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-  input[type=text], input[type=date], input[type=url] { width: 100%; font: inherit; padding: 9px 10px; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); }
-  .feld { margin-bottom: 10px; }
-  .raster { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
-  .posname { font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-  .posname small { color: var(--muted); font-weight: 400; }
-  .check-zeile { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); margin: 0 0 10px; }
-  .check-zeile input { width: 20px; height: 20px; }
-  .card.aus .raster { opacity: 0.4; }
-  .chart { position: relative; }
+  .pill { display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 999px;
+    font-size: 13px; font-weight: 650; background: var(--flaeche-2); color: var(--text-2); white-space: nowrap; }
+  .pill.pos { background: var(--pos-weich); color: var(--pos); }
+  .pill.neg { background: var(--neg-weich); color: var(--neg); }
+
+  /* ---------- Listen ---------- */
+  .liste { list-style: none; margin: 0; padding: 0; }
+  .karte.liste-karte { padding: 4px 0; }
+  .liste li { display: flex; align-items: center; gap: 12px; padding: 13px 18px; position: relative; min-height: 52px; }
+  .liste li + li::before { content: ''; position: absolute; top: 0; left: 18px; right: 0; border-top: 1px solid var(--linie); }
+  .liste li.mit-rang + li::before { left: 58px; }
+  .liste .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+  .liste .wert { text-align: right; font-weight: 600; font-size: 16px; flex-shrink: 0; }
+  .liste .wert small { display: block; font-weight: 500; font-size: 13px; margin-top: 1px; }
+  .liste li.tippbar::after { content: ''; width: 7px; height: 7px; border-right: 2px solid var(--text-3); border-top: 2px solid var(--text-3);
+    transform: rotate(45deg); margin-left: 2px; flex-shrink: 0; }
+  .liste li.tippbar:active { background: var(--flaeche-2); transform: none; }
+  .rang { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+    background: var(--flaeche-2); color: var(--text-2); font-size: 13px; font-weight: 700; }
+  .rang.pos { background: var(--pos-weich); color: var(--pos); }
+  .rang.neg { background: var(--neg-weich); color: var(--neg); }
+  .ranglisten .karte { padding: 14px 0 4px; }
+  .ranglisten .etikett { padding: 0 18px; margin-bottom: 2px; }
+
+  /* ---------- Hinweise ---------- */
+  .hinweis { display: flex; gap: 12px; align-items: flex-start; background: var(--hinweis); color: var(--hinweis-text);
+    border-radius: 18px; padding: 14px 16px; margin-bottom: 14px; font-size: 15px; }
+  .hinweis svg { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; }
+  .hinweis .knopf { margin-top: 10px; padding: 8px 14px; font-size: 15px; background: var(--hinweis-text); color: var(--hinweis); }
+
+  /* ---------- Knöpfe & Formulare ---------- */
+  .knopf { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 13px 18px; cursor: pointer;
+    background: var(--akzent); color: #fff; transition: transform 0.15s ease, opacity 0.15s ease; }
+  .knopf:active { transform: scale(0.97); opacity: 0.9; }
+  .knopf.breit { width: 100%; padding: 15px; font-size: 17px; }
+  .knopf.zweit { background: var(--akzent-weich); color: var(--akzent); }
+  .knoepfe { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .knoepfe .knopf { flex: 1; }
+  .textknopf { border: 0; background: none; color: var(--akzent); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px; }
+
+  label.feldname { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 5px 2px; }
+  input[type=text], input[type=date], input[type=url], select {
+    width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 12px; border: 0;
+    background: var(--flaeche-2); color: var(--text); outline: 1px solid transparent; transition: outline-color 0.15s;
+    -webkit-appearance: none; appearance: none; min-height: 44px; }
+  input:focus, select:focus { outline: 2px solid var(--akzent); }
+  .raster { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .feld { margin-bottom: 12px; }
+  .posname { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .posname span { font-weight: 650; font-size: 17px; }
+  .posname small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
+  .karte.aus .raster { opacity: 0.35; pointer-events: none; }
+
+  .schalter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; font-size: 15px; color: var(--text-2); }
+  .schalter input { -webkit-appearance: none; appearance: none; width: 51px; height: 31px; border-radius: 999px; margin: 0;
+    background: var(--linie); position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; outline: 0; }
+  .schalter input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2); transition: transform 0.22s cubic-bezier(0.3, 0.7, 0.3, 1); }
+  .schalter input:checked { background: var(--pos); }
+  .schalter input:checked::after { transform: translateX(20px); }
+
+  /* ---------- Segment-Schalter ---------- */
+  .segmente { --idx: 0; position: relative; display: grid; grid-template-columns: repeat(4, 1fr);
+    padding: 3px; margin-bottom: 14px; background: var(--flaeche-2); border-radius: 12px; outline: 1px solid var(--rand); }
+  .segmente::before { content: ''; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 4);
+    border-radius: 9px; background: var(--flaeche); box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    transform: translateX(calc(var(--idx) * 100%)); transition: transform 0.32s cubic-bezier(0.3, 0.8, 0.2, 1); }
+  .segmente button { position: relative; z-index: 1; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 500;
+    color: var(--text-2); padding: 8px 2px; cursor: pointer; transition: color 0.2s; }
+  .segmente button.aktiv { color: var(--text); font-weight: 650; }
+
+  /* ---------- Charts ---------- */
+  .chart { position: relative; margin: 6px -4px 0; }
   .chart svg { display: block; width: 100%; height: auto; touch-action: pan-y; overflow: visible; }
-  .chart .achse { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .chart .gitter { stroke: var(--line); stroke-width: 1; }
-  .chart .linie { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-  .chart .s0 { stroke: var(--accent); } .chart .p0 { fill: var(--accent); }
-  .chart .s1 { stroke: var(--muted); stroke-dasharray: 5 4; } .chart .p1 { fill: var(--muted); }
-  .chart .kauf { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
-  .chart .kreuz { stroke: var(--muted); stroke-width: 1; }
-  .chart .punkt { stroke: var(--card); stroke-width: 2; }
-  .chart .tip { position: absolute; top: 0; pointer-events: none; background: var(--card); color: var(--text);
-    border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.35;
-    box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .chart .achse { fill: var(--text-3); font-size: 10px; font-weight: 500; }
+  .chart .gitter { stroke: var(--linie); stroke-width: 1; stroke-dasharray: 2 4; }
+  .chart .linie { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .s0 { stroke: var(--akzent); }
+  .chart .s1 { stroke: var(--text-3); stroke-width: 1.6; stroke-dasharray: 4 4; }
+  .chart .flaeche { stroke: none; }
+  .chart .p0 { fill: var(--akzent); } .chart .p1 { fill: var(--text-3); }
+  .chart .ende { fill: var(--akzent); }
+  .chart .halo { fill: var(--akzent); opacity: 0.18; animation: puls 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes puls { 50% { transform: scale(1.6); opacity: 0.05; } }
+  .chart .kauf { fill: var(--flaeche); stroke: var(--akzent); stroke-width: 2; }
+  .chart .kreuz { stroke: var(--text-3); stroke-width: 1; }
+  .chart .punkt { stroke: var(--flaeche); stroke-width: 2.5; }
+  .chart .tip { position: absolute; top: -10px; transform: translateY(-100%); pointer-events: none; z-index: 2;
+    background: var(--flaeche); color: var(--text); border-radius: 12px; padding: 8px 10px; font-size: 12px; line-height: 1.45;
+    box-shadow: 0 8px 28px rgba(0,0,0,.18); outline: 1px solid var(--linie); white-space: nowrap; }
+  .chart .tip b { font-weight: 650; color: var(--text-2); }
+  .chart .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--akzent); }
+  .chart .tip i.b { background: var(--text-3); }
   .chart .tip[hidden] { display: none; }
-  .legende { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--muted); }
-  .legende span::before { content: ''; display: inline-block; width: 16px; height: 0; margin-right: 6px; vertical-align: middle;
-    border-top: 2px solid var(--accent); }
-  .legende span.l1::before { border-top: 2px dashed var(--muted); }
-  .legende span.lk::before { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--accent); }
-  .zeilen { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 15px; }
-  .zeilen dt { color: var(--muted); } .zeilen dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-  ul.rang li.tippbar { align-items: center; cursor: pointer; }
-  ul.rang li.tippbar .name { flex: 1; }
-  ul.rang li.tippbar::after { content: '›'; color: var(--muted); margin-left: 2px; font-size: 18px; }
-  select { width: 100%; font: inherit; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .legende { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--text-2); }
+  .legende span { display: inline-flex; align-items: center; gap: 7px; }
+  .legende span::before { content: ''; width: 16px; border-top: 2.2px solid var(--akzent); border-radius: 2px; }
+  .legende span.l1::before { border-top: 1.6px dashed var(--text-3); }
+  .legende span.lk::before { width: 8px; height: 8px; border: 2px solid var(--akzent); border-radius: 50%; }
+
+  /* ---------- Kennzahlen (Detail) ---------- */
+  .zeilen { margin: 0; }
+  .zeilen div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 18px; position: relative; font-size: 16px; }
+  .zeilen div + div::before { content: ''; position: absolute; top: 0; left: 18px; right: 0; border-top: 1px solid var(--linie); }
+  .zeilen dt { color: var(--text-2); } .zeilen dd { margin: 0; text-align: right; font-weight: 600; }
+
+  /* ---------- Fuß & Laden ---------- */
+  .fuss { color: var(--text-3); font-size: 12px; text-align: center; margin: 22px 0 0; line-height: 1.6; }
+  .fuss a { color: var(--text-3); }
+  .fehler { color: var(--neg); }
+  .skelett { color: transparent !important; border-radius: 10px; display: inline-block; min-width: 60%;
+    background: linear-gradient(90deg, var(--flaeche-2) 0%, var(--linie) 50%, var(--flaeche-2) 100%); background-size: 200% 100%;
+    animation: schimmer 1.3s ease-in-out infinite; }
+  .skelett * { visibility: hidden; }
+  @keyframes schimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  .leer-zustand { text-align: center; padding: 34px 20px; }
+  .leer-zustand .symbol { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px; display: grid; place-items: center;
+    background: var(--akzent-weich); color: var(--akzent); }
+  .leer-zustand .symbol svg { width: 30px; height: 30px; }
+  .leer-zustand h2 { font-size: 20px; margin: 0 0 6px; }
 </style>
 </head>
 <body>
+
+<!-- Symbole -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-zahnrad" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="i-neu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+  <symbol id="i-zurueck" viewBox="0 0 12 20"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M10 2 2 10l8 8"/></symbol>
+  <symbol id="i-weiter" viewBox="0 0 8 13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m1.5 1.5 5 5-5 5"/></symbol>
+  <symbol id="i-kalender" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-wolke" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.3 9.6 4.5 4.5 0 0 0 7 18.5Z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12 16v-5m-2.2 2.2L12 11l2.2 2.2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3.5 16.5 5-5 4 3.5 8-8.5M15 6.5h5.5V12"/></symbol>
+</svg>
+
 <main>
 
   <!-- Startansicht: noch keine Daten -->
   <section id="ansicht-leer" class="ansicht" hidden>
-    <header><h1>Depot</h1></header>
-    <div class="card">
-      <p>Noch keine Depotdaten auf diesem Gerät.</p>
-      <p class="unter">Wähle deine Datei <b>depot-daten.json</b> aus, zum Beispiel aus OneDrive.</p>
-      <div class="knoepfe"><button data-aktion="import">Daten importieren</button></div>
+    <div class="kopf"><div><h1>Depot</h1></div></div>
+    <div class="karte leer-zustand">
+      <div class="symbol"><svg><use href="#i-chart"/></svg></div>
+      <h2>Willkommen</h2>
+      <p class="unter">Noch keine Depotdaten auf diesem iPhone. Wähle deine Datei <b>depot-daten.json</b>, zum Beispiel aus OneDrive.</p>
+      <div class="knoepfe"><button class="knopf breit" data-aktion="import">Daten importieren</button></div>
     </div>
   </section>
 
   <!-- Hauptansicht -->
   <section id="ansicht-haupt" class="ansicht" hidden>
-    <header>
-      <h1>Depot</h1>
-      <button class="leise" data-aktion="einstellungen">Einstellungen</button>
-    </header>
+    <div class="kopf">
+      <div>
+        <div class="datum" id="heute-datum"></div>
+        <h1>Depot</h1>
+      </div>
+      <div class="kopf-knoepfe">
+        <button class="rund" id="knopf-neu" data-aktion="aktualisieren" aria-label="Kurse aktualisieren"><svg><use href="#i-neu"/></svg></button>
+        <button class="rund" data-aktion="einstellungen" aria-label="Einstellungen"><svg><use href="#i-zahnrad"/></svg></button>
+      </div>
+    </div>
 
     <div id="check-hinweis" class="hinweis" hidden>
-      <b>Monats-Check:</b> <span id="check-anzahl"></span> Bitte prüfen und bestätigen.
-      <div><button data-aktion="check">Jetzt prüfen</button></div>
+      <svg><use href="#i-kalender"/></svg>
+      <div><b>Monats-Check</b> · <span id="check-anzahl"></span><br>
+        <button class="knopf" data-aktion="check">Jetzt prüfen</button></div>
     </div>
 
     <div id="backup-hinweis" class="hinweis" hidden>
-      <b>Backup:</b> <span id="backup-text"></span> Bitte in OneDrive sichern.
-      <div><button data-aktion="export">Backup sichern</button></div>
+      <svg><use href="#i-wolke"/></svg>
+      <div><b>Backup</b> · <span id="backup-text"></span><br>
+        <button class="knopf" data-aktion="export">In OneDrive sichern</button></div>
     </div>
 
-    <div class="card tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
-      <h2>Gesamtvermögen <span class="pfeil">›</span></h2>
-      <div id="vermoegen" class="gross">–</div>
-      <div id="investiert" class="unter">–</div>
+    <div class="karte held tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
+      <div class="etikett">Gesamtvermögen <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div id="vermoegen" class="betrag skelett">00.000,00 €</div>
+      <div id="investiert" class="unter">&nbsp;</div>
     </div>
 
     <div class="paar">
-      <div class="card tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
-        <h2>Gewinn seit Eröffnung <span class="pfeil">›</span></h2>
-        <div id="gewinn-eur" class="mittel">–</div>
-        <div id="gewinn-pct" class="unter">–</div>
+      <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
+        <div class="etikett">Gewinn seit Eröffnung <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div id="gewinn-eur" class="wert skelett">+0.000 €</div>
+        <span id="gewinn-pct" class="pill">–</span>
       </div>
-      <div class="card">
-        <h2>Veränderung zum Vortag</h2>
-        <div id="tag-eur" class="mittel">–</div>
-        <div id="tag-pct" class="unter">–</div>
+      <div class="karte">
+        <div class="etikett">Zum Vortag</div>
+        <div id="tag-eur" class="wert skelett">+000 €</div>
+        <span id="tag-pct" class="pill">–</span>
       </div>
     </div>
 
-    <div class="zwei">
-      <div class="card"><h2>Top 3</h2><ul id="top" class="rang"></ul></div>
-      <div class="card"><h2>Low 3</h2><ul id="low" class="rang"></ul></div>
+    <div class="ranglisten">
+      <div class="karte"><div class="etikett">Top 3 heute</div><ul id="top" class="liste"></ul></div>
+      <div class="karte"><div class="etikett">Low 3 heute</div><ul id="low" class="liste"></ul></div>
     </div>
 
     <p id="status" class="fuss"></p>
-    <p class="fuss">
-      <button class="leise" data-aktion="aktualisieren">Kurse aktualisieren</button><br>
-      Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> ·
-      Übrige Kurse: Schlusskurse von EODHD
-    </p>
+    <p class="fuss">Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · Übrige Kurse: Schlusskurse von EODHD</p>
   </section>
 
   <!-- Vermögen je Position -->
   <section id="ansicht-vermoegen" class="ansicht" hidden>
-    <header>
-      <h1>Vermögen</h1>
-      <button class="leise" data-aktion="zurueck">Zurück</button>
-    </header>
-    <div class="card">
-      <h2>Verlauf seit Jahresbeginn</h2>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="titel"><h1>Vermögen</h1><div class="unterzeile" id="vermoegen-summe"></div></div>
+    <div class="karte">
+      <div class="etikett">Verlauf seit Jahresbeginn</div>
       <div id="vermoegen-chart" class="chart"></div>
       <div class="legende"><span>Dein Depot</span><span class="l1">Gleiche Einzahlungen im MSCI World</span></div>
     </div>
-    <div class="card"><ul id="vermoegen-positionen" class="rang"></ul></div>
+    <div class="abschnitt">Positionen</div>
+    <div class="karte liste-karte"><ul id="vermoegen-positionen" class="liste"></ul></div>
   </section>
 
   <!-- Detail einer Position -->
   <section id="ansicht-detail" class="ansicht" hidden>
-    <header>
-      <h1 id="detail-name" style="font-size: 24px"></h1>
-      <button class="leise" data-aktion="detail-zurueck">Zurück</button>
-    </header>
-    <div class="card">
-      <dl class="zeilen" id="detail-werte"></dl>
+    <div class="navi"><button class="zurueck" data-aktion="detail-zurueck"><svg><use href="#i-zurueck"/></svg> <span id="detail-zurueck-text">Zurück</span></button></div>
+    <div class="titel"><h1 id="detail-name"></h1><div class="unterzeile" id="detail-depot"></div></div>
+    <div class="karte held">
+      <div class="etikett">Wert</div>
+      <div id="detail-wert" class="betrag"></div>
+      <span id="detail-gewinn" class="pill"></span>
     </div>
-    <div class="card">
-      <h2>Kurs seit Jahresbeginn</h2>
+    <div class="karte">
+      <div class="etikett">Kurs seit Jahresbeginn</div>
       <div id="detail-chart" class="chart"></div>
-      <div class="legende"><span>Kurs (€)</span><span class="lk">deine Käufe</span></div>
+      <div class="legende"><span>Kurs in €</span><span class="lk">Deine Käufe</span></div>
     </div>
+    <div class="abschnitt">Kennzahlen</div>
+    <div class="karte liste-karte"><dl class="zeilen" id="detail-werte"></dl></div>
     <p id="detail-hinweis" class="fuss"></p>
   </section>
 
   <!-- Gewinn je Position und Zeitraum -->
   <section id="ansicht-gewinn" class="ansicht" hidden>
-    <header>
-      <h1>Gewinn</h1>
-      <button class="leise" data-aktion="zurueck">Zurück</button>
-    </header>
-    <div class="segmente">
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="titel"><h1>Gewinn</h1></div>
+    <div class="segmente" id="segmente">
       <button data-zeitraum="eroeffnung">Eröffnung</button>
       <button data-zeitraum="jahr">Jahr</button>
       <button data-zeitraum="monat">Monat</button>
       <button data-zeitraum="gestern">Gestern</button>
     </div>
-    <div class="card">
-      <h2 id="gewinn-zeitraum"></h2>
-      <div id="gewinn-gesamt" class="mittel">–</div>
-      <div id="gewinn-gesamt-pct" class="unter">–</div>
-      <div id="gewinn-benchmark" class="unter" style="margin-top: 6px"></div>
+    <div class="karte held">
+      <div class="etikett" id="gewinn-zeitraum"></div>
+      <div id="gewinn-gesamt" class="betrag"></div>
+      <span id="gewinn-gesamt-pct" class="pill"></span>
+      <div id="gewinn-benchmark" class="unter" style="margin-top: 14px"></div>
     </div>
-    <div class="card"><ul id="gewinn-positionen" class="rang"></ul></div>
+    <div class="abschnitt">Positionen</div>
+    <div class="karte liste-karte"><ul id="gewinn-positionen" class="liste"></ul></div>
     <p id="gewinn-meldung" class="fuss"></p>
   </section>
 
   <!-- Monats-Check -->
   <section id="ansicht-check" class="ansicht" hidden>
-    <header>
-      <h1>Monats-Check</h1>
-      <button class="leise" data-aktion="zurueck">Abbrechen</button>
-    </header>
-    <p class="unter">Vorbelegt sind die geplanten Sparraten und Gebühren zum aktuellen Kurs. Trage die echten Werte aus deinen Depots ein. Ändert sich Betrag oder Kurs, wird die Stückzahl neu berechnet.</p>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Abbrechen</button></div>
+    <div class="titel"><h1>Monats-Check</h1>
+      <div class="unterzeile">Vorbelegt mit den geplanten Sparraten und Gebühren zum aktuellen Kurs. Trage die echten Werte aus deinen Depots ein – die Stückzahl rechnet sich mit.</div></div>
     <div id="check-liste"></div>
-    <div class="card">
-      <h2>Gebühr nachtragen</h2>
-      <p class="unter" style="margin-top: 0">Für Gebühren, die als Anteilsverkauf abgezogen wurden.</p>
+    <div class="abschnitt">Gebühr nachtragen</div>
+    <div class="karte">
+      <p class="unter" style="margin: 0 0 12px">Für Gebühren, die als Anteilsverkauf abgezogen wurden.</p>
       <div class="feld"><select id="gebuehr-pos"></select></div>
-      <button class="zweit" data-aktion="gebuehr-neu">+ Gebühr</button>
+      <button class="knopf zweit breit" data-aktion="gebuehr-neu">Gebühr hinzufügen</button>
     </div>
-    <div class="knoepfe"><button data-aktion="check-bestaetigen">Alles bestätigen</button></div>
+    <div class="knoepfe"><button class="knopf breit" data-aktion="check-bestaetigen">Alles bestätigen</button></div>
   </section>
 
   <!-- Nach dem Check: Backup -->
   <section id="ansicht-backup" class="ansicht" hidden>
-    <header><h1>Gespeichert</h1></header>
-    <div class="card">
-      <p>Deine Daten sind auf dem iPhone aktualisiert.</p>
-      <p class="unter">Sichere jetzt das Backup in OneDrive: Im Teilen-Menü <b>„In Dateien sichern“</b> wählen, dann deinen OneDrive-Ordner.</p>
+    <div class="kopf"><div><h1>Gespeichert</h1></div></div>
+    <div class="karte leer-zustand">
+      <div class="symbol"><svg><use href="#i-wolke"/></svg></div>
+      <h2>Fast fertig</h2>
+      <p class="unter">Deine Daten sind auf dem iPhone aktualisiert. Sichere jetzt das Backup: im Teilen-Menü <b>„In Dateien sichern“</b> und dann deinen OneDrive-Ordner wählen.</p>
       <div class="knoepfe">
-        <button data-aktion="export">Backup sichern</button>
-        <button class="zweit" data-aktion="zurueck">Später</button>
+        <button class="knopf breit" data-aktion="export">Backup sichern</button>
+        <button class="textknopf" style="width:100%" data-aktion="zurueck">Später</button>
       </div>
     </div>
   </section>
 
   <!-- Einstellungen -->
   <section id="ansicht-einstellungen" class="ansicht" hidden>
-    <header>
-      <h1>Einstellungen</h1>
-      <button class="leise" data-aktion="zurueck">Fertig</button>
-    </header>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="titel"><h1>Einstellungen</h1></div>
 
-    <div class="card">
-      <h2>Monats-Check</h2>
-      <p class="unter" id="check-info"></p>
-      <div class="knoepfe"><button class="zweit" data-aktion="check">Check jetzt öffnen</button></div>
+    <div class="abschnitt">Monats-Check</div>
+    <div class="karte">
+      <p class="unter" id="check-info" style="margin: 0"></p>
+      <div class="knoepfe"><button class="knopf zweit" data-aktion="check">Check jetzt öffnen</button></div>
     </div>
 
-    <div class="card">
-      <h2>Backup (OneDrive)</h2>
-      <p class="unter" id="backup-info"></p>
+    <div class="abschnitt">Backup in OneDrive</div>
+    <div class="karte">
+      <p class="unter" id="backup-info" style="margin: 0"></p>
       <div class="knoepfe">
-        <button data-aktion="export">Backup sichern</button>
-        <button class="zweit" data-aktion="import">Backup laden</button>
+        <button class="knopf" data-aktion="export">Sichern</button>
+        <button class="knopf zweit" data-aktion="import">Laden</button>
       </div>
     </div>
 
-    <h2 style="margin: 18px 0 8px">Positionen korrigieren</h2>
-    <p class="unter" style="margin-top: 0">Stückzahl und investierter Betrag, wie in deinem Depot. Offene, noch nicht bestätigte Sparraten sind hier nicht enthalten.</p>
+    <div class="abschnitt">Positionen korrigieren</div>
+    <p class="unter" style="margin: -2px 18px 12px">Stückzahl und investierter Betrag wie in deinem Depot. Offene, noch nicht bestätigte Buchungen sind hier nicht enthalten.</p>
     <div id="positionen-liste"></div>
-    <div class="knoepfe"><button data-aktion="positionen-speichern">Änderungen speichern</button></div>
-    <p id="positionen-meldung" class="unter"></p>
+    <div class="knoepfe"><button class="knopf breit" data-aktion="positionen-speichern">Änderungen speichern</button></div>
+    <p id="positionen-meldung" class="fuss"></p>
 
-    <div class="card" style="margin-top: 18px">
-      <h2>Kurs-Vermittler</h2>
+    <div class="abschnitt">Kurs-Vermittler</div>
+    <div class="karte">
       <div class="feld"><input type="url" id="vermittler" autocomplete="off"></div>
-      <div class="knoepfe"><button class="zweit" data-aktion="vermittler-speichern">Speichern</button></div>
+      <button class="knopf zweit breit" data-aktion="vermittler-speichern">Speichern</button>
     </div>
   </section>
 
@@ -292,7 +446,7 @@ const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
 const BACKUP_TAGE = 30;
 
 let daten = null;
-let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum } } }
+let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum, reihe } }, benchmark }
 
 // ---------- Hilfsfunktionen ----------
 
@@ -301,6 +455,38 @@ const zahl = (n, stellen) => new Intl.NumberFormat('de-DE', { minimumFractionDig
 const pct = (n) => (n > 0 ? '+' : '') + zahl(n, 2) + ' %';
 const mitVorzeichen = (n) => (n > 0 ? '+' : '') + eur.format(n);
 const klasse = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+const pfeil = (n) => (n > 0 ? '▲ ' : n < 0 ? '▼ ' : '');
+
+// Betrag mit zurückgenommenen Cent: „14.267“ groß, „,49 €“ klein
+function betragHTML(v, vorzeichen) {
+  const s = (vorzeichen && v > 0 ? '+' : '') + eur.format(v);
+  const i = s.lastIndexOf(',');
+  return i < 0 ? s : `${s.slice(0, i)}<span class="cent">${s.slice(i)}</span>`;
+}
+
+function setzePill(el, wert, text) {
+  el.className = 'pill ' + klasse(wert);
+  el.textContent = pfeil(wert) + text;
+}
+
+// Zählt einen Betrag sanft vom letzten angezeigten Wert hoch
+function zaehle(el, ziel, vorzeichen) {
+  const vorher = Number(el.dataset.wert);
+  const start = Number.isFinite(vorher) ? vorher : ziel * 0.92;
+  el.dataset.wert = ziel;
+  if (start === ziel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.innerHTML = betragHTML(ziel, vorzeichen);
+    return;
+  }
+  const t0 = performance.now(), dauer = 700;
+  const schritt = (t) => {
+    const f = Math.min(1, (t - t0) / dauer);
+    const e = 1 - Math.pow(1 - f, 3);
+    el.innerHTML = betragHTML(start + (ziel - start) * e, vorzeichen);
+    if (f < 1) requestAnimationFrame(schritt);
+  };
+  requestAnimationFrame(schritt);
+}
 
 function parseZahl(text) {
   let s = String(text).trim().replace(/\s/g, '').replace(/€/g, '');
@@ -422,7 +608,9 @@ function checkFaellig() {
 
 async function kurseHolen() {
   const status = document.getElementById('status');
+  const knopf = document.getElementById('knopf-neu');
   status.textContent = 'Kurse werden geladen …';
+  knopf.classList.add('dreht');
   const preise = {};
   const fehler = [];
 
@@ -497,6 +685,7 @@ async function kurseHolen() {
     benchmark: benchmark || (kurse && kurse.benchmark) || null,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
+  knopf.classList.remove('dreht');
   hauptRendern();
 }
 
@@ -607,43 +796,46 @@ function gewinnListe(zeitraum) {
 }
 
 function gewinnAnzeigen() {
+  const reihenfolge = Object.keys(ZEITRAEUME);
+  document.getElementById('segmente').style.setProperty('--idx', reihenfolge.indexOf(gewinnZeitraum));
   document.querySelectorAll('#ansicht-gewinn [data-zeitraum]').forEach((el) => {
     el.classList.toggle('aktiv', el.dataset.zeitraum === gewinnZeitraum);
   });
   const titel = document.getElementById('gewinn-zeitraum');
   titel.textContent = ZEITRAEUME[gewinnZeitraum] +
-    (gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat' ? ` (Stichtag ${deDatum(stichtag(gewinnZeitraum))})` : '');
+    (gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat' ? ` · Stichtag ${deDatum(stichtag(gewinnZeitraum))}` : '');
 
   const liste = document.getElementById('gewinn-positionen');
   liste.innerHTML = '';
   const meldung = document.getElementById('gewinn-meldung');
   meldung.textContent = '';
+  const sichtbar = !document.getElementById('ansicht-gewinn').hidden;
+  if (!sichtbar) zeige('ansicht-gewinn');
   if (!kurse) {
     meldung.textContent = 'Noch keine Kurse geladen.';
-  } else {
-    const { zeilen, fehlend } = gewinnListe(gewinnZeitraum);
-    const summe = zeilen.reduce((s, z) => s + z.gewinn, 0);
-    const basis = zeilen.reduce((s, z) => s + z.basis, 0);
-    const gesamt = document.getElementById('gewinn-gesamt');
-    gesamt.textContent = mitVorzeichen(summe);
-    gesamt.className = 'mittel ' + klasse(summe);
-    document.getElementById('gewinn-gesamt-pct').textContent = pct(basis ? (summe / basis) * 100 : 0);
-    const bm = benchmarkGewinn(gewinnZeitraum, zeilen);
-    document.getElementById('gewinn-benchmark').textContent = bm
-      ? `Mit deinen Einzahlungen im ${BENCHMARK.name}: ${mitVorzeichen(bm.gewinn)} (${pct(bm.pct)})`
-      : (gewinnZeitraum === 'eroeffnung' ? `Vergleich mit dem ${BENCHMARK.name} bei Jahr, Monat und Gestern.` : '');
-    for (const z of zeilen) {
-      const li = document.createElement('li');
-      li.className = 'tippbar';
-      li.dataset.pos = z.id;
-      const p = z.basis ? (z.gewinn / z.basis) * 100 : 0;
-      li.innerHTML = `<span class="name"></span><span class="wert ${klasse(z.gewinn)}">${mitVorzeichen(z.gewinn)}<small>${pct(p)}</small></span>`;
-      li.querySelector('.name').textContent = z.name;
-      liste.appendChild(li);
-    }
-    if (fehlend.length) meldung.textContent = `Ohne Kursdaten für diesen Zeitraum: ${fehlend.join(', ')}`;
+    return;
   }
-  zeige('ansicht-gewinn');
+  const { zeilen, fehlend } = gewinnListe(gewinnZeitraum);
+  const summe = zeilen.reduce((s, z) => s + z.gewinn, 0);
+  const basis = zeilen.reduce((s, z) => s + z.basis, 0);
+  const gesamt = document.getElementById('gewinn-gesamt');
+  gesamt.className = 'betrag ' + klasse(summe);
+  zaehle(gesamt, summe, true);
+  setzePill(document.getElementById('gewinn-gesamt-pct'), summe, pct(basis ? (summe / basis) * 100 : 0));
+  const bm = benchmarkGewinn(gewinnZeitraum, zeilen);
+  document.getElementById('gewinn-benchmark').textContent = bm
+    ? `Mit deinen Einzahlungen im ${BENCHMARK.name} wären es ${mitVorzeichen(bm.gewinn)} (${pct(bm.pct)}).`
+    : (gewinnZeitraum === 'eroeffnung' ? `Den Vergleich mit dem ${BENCHMARK.name} findest du bei Jahr, Monat und Gestern.` : '');
+  for (const z of zeilen) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.pos = z.id;
+    const p = z.basis ? (z.gewinn / z.basis) * 100 : 0;
+    li.innerHTML = `<span class="name"></span><span class="wert ${klasse(z.gewinn)}">${mitVorzeichen(z.gewinn)}<small>${pct(p)}</small></span>`;
+    li.querySelector('.name').textContent = z.name;
+    liste.appendChild(li);
+  }
+  if (fehlend.length) meldung.textContent = `Ohne Kursdaten für diesen Zeitraum: ${fehlend.join(', ')}`;
 }
 
 // „Was wäre, wenn“: Wert am Stichtag und jede spätere Einzahlung im Vergleichsindex angelegt
@@ -702,7 +894,9 @@ function vermoegenAnzeigen() {
     liste.innerHTML = '<li>Noch keine Kurse geladen.</li>';
     return;
   }
-  for (const e of bewertung().werte.sort((a, b) => b.wert - a.wert)) {
+  const b = bewertung();
+  document.getElementById('vermoegen-summe').textContent = `${eur.format(b.wert)} in ${b.werte.length} Positionen`;
+  for (const e of b.werte.sort((a, b) => b.wert - a.wert)) {
     const li = document.createElement('li');
     li.className = 'tippbar';
     li.dataset.pos = e.id;
@@ -771,44 +965,56 @@ function vermoegensVerlauf() {
 // ---------- Charts ----------
 
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+let chartNr = 0;
 
-// Einfacher Linienchart (SVG) mit Fadenkreuz und Tooltip.
+// Linienchart (SVG) mit Verlaufsfläche, pulsierendem Endpunkt, Fadenkreuz und Tooltip.
 // serien: [{ name, punkte: [[iso, wert], ...] }], alle mit denselben Tagen; opt.marker: [[iso, wert], ...]
 function linienChart(el, serien, opt) {
   serien = serien.filter((s) => s.punkte && s.punkte.length);
   if (!serien.length) return;
-  const W = 340, H = 170, L = 52, R = 8, T = 8, B = 20;
+  const W = 340, H = 180, L = 4, R = 46, T = 10, B = 22;
   const tage = serien[0].punkte.map((p) => p[0]);
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
-  const rand = (max - min) * 0.08 || max * 0.05 || 1;
+  const rand = (max - min) * 0.1 || max * 0.05 || 1;
   min -= rand; max += rand;
   const x = (i) => L + (i / Math.max(1, tage.length - 1)) * (W - L - R);
   const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const kurz = (v) => opt.formatKurz ? opt.formatKurz(v) : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
+  const gid = `verlauf-${++chartNr}`;
 
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--akzent)" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="var(--akzent)" stop-opacity="0"/>
+    </linearGradient></defs>`;
   for (let g = 0; g <= 3; g++) {
     const v = min + ((max - min) * g) / 3;
     svg += `<line class="gitter" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
-    svg += `<text class="achse" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${kurz(v)}</text>`;
+    svg += `<text class="achse" x="${W - R + 6}" y="${y(v) + 3}">${kurz(v)}</text>`;
   }
   // Monatsname am ersten Datenpunkt jedes Monats (nicht jeder Monat beginnt mit einem Handelstag)
   tage.forEach((t, i) => {
     if (i > 0 && t.slice(5, 7) !== tage[i - 1].slice(5, 7)) {
-      svg += `<text class="achse" x="${x(i)}" y="${H - 4}" text-anchor="middle">${MONATE[Number(t.slice(5, 7)) - 1]}</text>`;
+      svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${MONATE[Number(t.slice(5, 7)) - 1]}</text>`;
     }
   });
-  serien.forEach((s, si) => {
+  // zuerst die Vergleichslinie, darüber die Hauptlinie mit Fläche
+  [...serien.keys()].reverse().forEach((si) => {
+    const s = serien[si];
     const d = s.punkte.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join('');
+    if (si === 0) svg += `<path class="flaeche" fill="url(#${gid})" d="${d}L${x(tage.length - 1).toFixed(1)},${H - B}L${x(0).toFixed(1)},${H - B}Z"/>`;
     svg += `<path class="linie s${si}" d="${d}"/>`;
   });
   for (const [t, v] of opt.marker || []) {
     const i = tage.indexOf(t);
-    if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="4"/>`;
+    if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`;
   }
+  const letzter = serien[0].punkte[tage.length - 1][1];
+  svg += `<circle class="halo" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
+  svg += `<circle class="ende" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
   svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
-  serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4" visibility="hidden"/>`; });
+  serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4.5" visibility="hidden"/>`; });
   svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
   el.innerHTML = svg;
 
@@ -826,12 +1032,11 @@ function linienChart(el, serien, opt) {
       punkte[si].setAttribute('cx', x(i)); punkte[si].setAttribute('cy', y(s.punkte[i][1]));
       punkte[si].setAttribute('visibility', 'visible');
     });
-    tip.innerHTML = `<b>${deDatum(tage[i])}</b>` + serien.map((s) => `<br>${s.name}: ${opt.format(s.punkte[i][1])}`).join('');
+    tip.innerHTML = `<b>${deDatum(tage[i])}</b>` +
+      serien.map((s, si) => `<br><i class="${si ? 'b' : ''}"></i>${s.name}: ${opt.format(s.punkte[i][1])}`).join('');
     tip.hidden = false;
     const links = (x(i) / W) * box.width;
     tip.style.left = Math.min(Math.max(0, links - tip.offsetWidth / 2), box.width - tip.offsetWidth) + 'px';
-    tip.style.top = '-8px';
-    tip.style.transform = 'translateY(-100%)';
   };
   const verstecken = () => {
     kreuz.setAttribute('visibility', 'hidden');
@@ -855,23 +1060,29 @@ function detailAnzeigen(posId) {
   const wert = stueck * k.eur;
   const gewinn = wert - inv;
   document.getElementById('detail-name').textContent = p.name;
+  document.getElementById('detail-depot').textContent = p.depot;
+  document.getElementById('detail-zurueck-text').textContent = detailHerkunft === 'gewinn' ? 'Gewinn' : 'Vermögen';
+  document.getElementById('detail-wert').innerHTML = betragHTML(wert);
+  setzePill(document.getElementById('detail-gewinn'), gewinn,
+    `${mitVorzeichen(gewinn)} · ${pct(inv ? (gewinn / inv) * 100 : 0)} seit Eröffnung`);
+
   const zeilen = [
-    ['Depot', p.depot],
-    ['Kurs', `${eur.format(k.eur)}${k.datum ? ' · ' + deDatum(k.datum) : ''}`],
-    ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–'],
+    ['Kurs', eur.format(k.eur)],
+    ['Kursdatum', k.datum ? deDatum(k.datum) : '–'],
+    ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–', k.vorherEur ? k.eur - k.vorherEur : 0],
     ['Stück', zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
-    ['Wert', eur.format(wert)],
     ['Investiert', eur.format(inv)],
-    ['Gewinn seit Eröffnung', `${mitVorzeichen(gewinn)} (${pct(inv ? (gewinn / inv) * 100 : 0)})`],
-    ['Sparplan', p.sparplan ? `${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}. des Monats` : '–'],
+    ['Sparplan', p.sparplan ? `${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}.` : '–'],
   ];
   const dl = document.getElementById('detail-werte');
   dl.innerHTML = '';
-  for (const [a, b] of zeilen) {
+  for (const [a, b, farbe] of zeilen) {
+    const reihe = document.createElement('div');
     const dt = document.createElement('dt'); dt.textContent = a;
     const dd = document.createElement('dd'); dd.textContent = b;
-    if (a.startsWith('Gewinn')) dd.className = klasse(gewinn);
-    dl.append(dt, dd);
+    if (farbe) dd.className = klasse(farbe);
+    reihe.append(dt, dd);
+    dl.append(reihe);
   }
 
   const chartEl = document.getElementById('detail-chart');
@@ -898,12 +1109,13 @@ function detailAnzeigen(posId) {
 
 function rangliste(el, eintraege) {
   el.innerHTML = '';
-  for (const e of eintraege) {
+  eintraege.forEach((e, i) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span class="name"></span><span class="wert ${klasse(e.aend)}">${pct(e.aend)}</span>`;
+    li.className = 'mit-rang';
+    li.innerHTML = `<span class="rang ${klasse(e.aend)}">${i + 1}</span><span class="name"></span><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span>`;
     li.querySelector('.name').textContent = e.name;
     el.appendChild(li);
-  }
+  });
 }
 
 function hauptAnzeigen() {
@@ -912,6 +1124,9 @@ function hauptAnzeigen() {
 }
 
 function hauptRendern() {
+  document.getElementById('heute-datum').textContent =
+    new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+
   const offen = offeneBuchungen();
   const hinweis = document.getElementById('check-hinweis');
   hinweis.hidden = !checkFaellig();
@@ -929,18 +1144,20 @@ function hauptRendern() {
 
   const b = bewertung();
   const gewinn = b.wert - b.investiert;
-  document.getElementById('vermoegen').textContent = eur.format(b.wert);
+  const vEl = document.getElementById('vermoegen');
+  vEl.classList.remove('skelett');
+  zaehle(vEl, b.wert, false);
   document.getElementById('investiert').textContent = `${eur.format(b.investiert)} investiert`;
 
   const gEl = document.getElementById('gewinn-eur');
-  gEl.textContent = mitVorzeichen(gewinn);
-  gEl.className = 'mittel ' + klasse(gewinn);
-  document.getElementById('gewinn-pct').textContent = pct(b.investiert ? (gewinn / b.investiert) * 100 : 0);
+  gEl.className = 'wert ' + klasse(gewinn);
+  gEl.innerHTML = betragHTML(gewinn, true);
+  setzePill(document.getElementById('gewinn-pct'), gewinn, pct(b.investiert ? (gewinn / b.investiert) * 100 : 0));
 
   const tEl = document.getElementById('tag-eur');
-  tEl.textContent = mitVorzeichen(b.tagAend);
-  tEl.className = 'mittel ' + klasse(b.tagAend);
-  document.getElementById('tag-pct').textContent = pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0);
+  tEl.className = 'wert ' + klasse(b.tagAend);
+  tEl.innerHTML = betragHTML(b.tagAend, true);
+  setzePill(document.getElementById('tag-pct'), b.tagAend, pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0));
 
   const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
   rangliste(document.getElementById('top'), sortiert.slice(0, 3));
@@ -950,7 +1167,7 @@ function hauptRendern() {
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
   const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
   status.innerHTML = '';
-  status.append(`Abgerufen ${zeit}${schluss}`);
+  status.append(`Aktualisiert ${zeit}${schluss}`);
   if (kurse.fehler && kurse.fehler.length) {
     const f = document.createElement('div');
     f.className = 'fehler';
@@ -966,7 +1183,7 @@ function checkAnzeigen() {
   liste.innerHTML = '';
   const offen = offeneBuchungen().sort((a, b) => a.geplant.localeCompare(b.geplant));
   if (offen.length === 0) {
-    liste.innerHTML = '<div class="card leer">Keine offenen Buchungen. Alles bestätigt.</div>';
+    liste.innerHTML = '<div class="karte leer unter">Keine offenen Buchungen – alles bestätigt.</div>';
   }
   for (const b of offen) liste.appendChild(checkKarte(b));
 
@@ -987,16 +1204,16 @@ function checkKarte(b) {
   const betrag = gebuehr ? b.gebuehrEur : b.betrag;
   const kurs = kurse && kurse.preise[p.id] ? kurse.preise[p.id].eur : null;
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'karte';
   card.dataset.id = b.id;
   card.innerHTML = `
-    <div class="posname"><span></span><small>${gebuehr ? 'Gebühr · ' : ''}geplant ${deDatum(b.geplant)}</small></div>
-    <label class="check-zeile"><input type="checkbox" class="c-aus" checked> wurde ${gebuehr ? 'abgezogen' : 'ausgeführt'}</label>
+    <div class="posname"><span></span><small>${gebuehr ? 'Gebühr · ' : ''}${deDatum(b.geplant)}</small></div>
+    <label class="schalter">${gebuehr ? 'Wurde abgezogen' : 'Wurde ausgeführt'}<input type="checkbox" class="c-aus" checked></label>
     <div class="raster">
-      <div><label>Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
-      <div><label>${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
-      <div><label>Kurs (€)</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
-      <div><label>${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, 6) : ''}"></div>
+      <div><label class="feldname">Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
+      <div><label class="feldname">${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
+      <div><label class="feldname">Kurs (€)</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
+      <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, 6) : ''}"></div>
     </div>`;
   card.querySelector('.posname span').textContent = p.name;
   const neuRechnen = () => {
@@ -1027,7 +1244,7 @@ function gebuehrHinzufuegen() {
 }
 
 function checkBestaetigen() {
-  const karten = [...document.querySelectorAll('#check-liste .card[data-id]')];
+  const karten = [...document.querySelectorAll('#check-liste .karte[data-id]')];
   // erst alles prüfen, dann übernehmen
   const eingaben = [];
   for (const card of karten) {
@@ -1072,23 +1289,23 @@ function einstellungenAnzeigen() {
   let naechster = ersterSamstag(h.getFullYear(), h.getMonth());
   if (daten.letzterCheck === monatKey(h) || naechster < h) naechster = ersterSamstag(h.getFullYear(), h.getMonth() + 1);
   document.getElementById('check-info').textContent =
-    `Offene Sparraten: ${offeneBuchungen().length}. Nächster Check: ${naechster.toLocaleDateString('de-DE')}.`;
+    `Offene Buchungen: ${offeneBuchungen().length} · nächster Check am ${naechster.toLocaleDateString('de-DE')}`;
   document.getElementById('backup-info').textContent = daten.letztesBackup
-    ? `Letztes Backup: ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
-    : 'Noch kein Backup von diesem Gerät.';
+    ? `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
+    : 'Noch kein Backup von diesem iPhone.';
   document.getElementById('vermittler').value = daten.vermittler || '';
 
   const liste = document.getElementById('positionen-liste');
   liste.innerHTML = '';
   for (const p of daten.positionen) {
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'karte';
     card.dataset.id = p.id;
     card.innerHTML = `
       <div class="posname"><span></span><small></small></div>
       <div class="raster">
-        <div><label>Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 6)}"></div>
-        <div><label>Investiert (€)</label><input type="text" inputmode="decimal" class="e-inv" value="${zahl(p.investiert, 2)}"></div>
+        <div><label class="feldname">Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 6)}"></div>
+        <div><label class="feldname">Investiert (€)</label><input type="text" inputmode="decimal" class="e-inv" value="${zahl(p.investiert, 2)}"></div>
       </div>`;
     card.querySelector('.posname span').textContent = p.name;
     card.querySelector('.posname small').textContent = p.depot;
@@ -1099,7 +1316,7 @@ function einstellungenAnzeigen() {
 }
 
 function positionenSpeichern() {
-  const karten = [...document.querySelectorAll('#positionen-liste .card')];
+  const karten = [...document.querySelectorAll('#positionen-liste .karte')];
   const neu = [];
   for (const card of karten) {
     const stueck = parseZahl(card.querySelector('.e-stueck').value);
@@ -1129,6 +1346,7 @@ async function exportieren() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
+  if (!document.getElementById('ansicht-haupt').hidden) hauptRendern();
 }
 
 function importieren(datei) {
@@ -1172,8 +1390,8 @@ document.addEventListener('click', (e) => {
     'check-bestaetigen': checkBestaetigen,
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
-    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gewinnAnzeigen(); },
-    'detail-zurueck': () => (detailHerkunft === 'gewinn' ? gewinnAnzeigen() : vermoegenAnzeigen()),
+    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
+    'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
