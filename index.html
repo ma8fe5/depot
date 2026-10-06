@@ -73,6 +73,31 @@
   .check-zeile { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); margin: 0 0 10px; }
   .check-zeile input { width: 20px; height: 20px; }
   .card.aus .raster { opacity: 0.4; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; touch-action: pan-y; overflow: visible; }
+  .chart .achse { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .chart .gitter { stroke: var(--line); stroke-width: 1; }
+  .chart .linie { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .s0 { stroke: var(--accent); } .chart .p0 { fill: var(--accent); }
+  .chart .s1 { stroke: var(--muted); stroke-dasharray: 5 4; } .chart .p1 { fill: var(--muted); }
+  .chart .kauf { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
+  .chart .kreuz { stroke: var(--muted); stroke-width: 1; }
+  .chart .punkt { stroke: var(--card); stroke-width: 2; }
+  .chart .tip { position: absolute; top: 0; pointer-events: none; background: var(--card); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.35;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .chart .tip[hidden] { display: none; }
+  .legende { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .legende span::before { content: ''; display: inline-block; width: 16px; height: 0; margin-right: 6px; vertical-align: middle;
+    border-top: 2px solid var(--accent); }
+  .legende span.l1::before { border-top: 2px dashed var(--muted); }
+  .legende span.lk::before { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--accent); }
+  .zeilen { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 15px; }
+  .zeilen dt { color: var(--muted); } .zeilen dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  ul.rang li.tippbar { align-items: center; cursor: pointer; }
+  ul.rang li.tippbar .name { flex: 1; }
+  ul.rang li.tippbar::after { content: '›'; color: var(--muted); margin-left: 2px; font-size: 18px; }
+  select { width: 100%; font: inherit; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
 </style>
 </head>
 <body>
@@ -98,6 +123,11 @@
     <div id="check-hinweis" class="hinweis" hidden>
       <b>Monats-Check:</b> <span id="check-anzahl"></span> Bitte prüfen und bestätigen.
       <div><button data-aktion="check">Jetzt prüfen</button></div>
+    </div>
+
+    <div id="backup-hinweis" class="hinweis" hidden>
+      <b>Backup:</b> <span id="backup-text"></span> Bitte in OneDrive sichern.
+      <div><button data-aktion="export">Backup sichern</button></div>
     </div>
 
     <div class="card tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
@@ -138,7 +168,29 @@
       <h1>Vermögen</h1>
       <button class="leise" data-aktion="zurueck">Zurück</button>
     </header>
+    <div class="card">
+      <h2>Verlauf seit Jahresbeginn</h2>
+      <div id="vermoegen-chart" class="chart"></div>
+      <div class="legende"><span>Dein Depot</span><span class="l1">Gleiche Einzahlungen im MSCI World</span></div>
+    </div>
     <div class="card"><ul id="vermoegen-positionen" class="rang"></ul></div>
+  </section>
+
+  <!-- Detail einer Position -->
+  <section id="ansicht-detail" class="ansicht" hidden>
+    <header>
+      <h1 id="detail-name" style="font-size: 24px"></h1>
+      <button class="leise" data-aktion="detail-zurueck">Zurück</button>
+    </header>
+    <div class="card">
+      <dl class="zeilen" id="detail-werte"></dl>
+    </div>
+    <div class="card">
+      <h2>Kurs seit Jahresbeginn</h2>
+      <div id="detail-chart" class="chart"></div>
+      <div class="legende"><span>Kurs (€)</span><span class="lk">deine Käufe</span></div>
+    </div>
+    <p id="detail-hinweis" class="fuss"></p>
   </section>
 
   <!-- Gewinn je Position und Zeitraum -->
@@ -157,6 +209,7 @@
       <h2 id="gewinn-zeitraum"></h2>
       <div id="gewinn-gesamt" class="mittel">–</div>
       <div id="gewinn-gesamt-pct" class="unter">–</div>
+      <div id="gewinn-benchmark" class="unter" style="margin-top: 6px"></div>
     </div>
     <div class="card"><ul id="gewinn-positionen" class="rang"></ul></div>
     <p id="gewinn-meldung" class="fuss"></p>
@@ -168,8 +221,14 @@
       <h1>Monats-Check</h1>
       <button class="leise" data-aktion="zurueck">Abbrechen</button>
     </header>
-    <p class="unter">Vorbelegt sind die geplanten Sparraten zum aktuellen Kurs. Trage die echten Werte aus deinen Depots ein. Ändert sich Betrag oder Kurs, wird die Stückzahl neu berechnet.</p>
+    <p class="unter">Vorbelegt sind die geplanten Sparraten und Gebühren zum aktuellen Kurs. Trage die echten Werte aus deinen Depots ein. Ändert sich Betrag oder Kurs, wird die Stückzahl neu berechnet.</p>
     <div id="check-liste"></div>
+    <div class="card">
+      <h2>Gebühr nachtragen</h2>
+      <p class="unter" style="margin-top: 0">Für Gebühren, die als Anteilsverkauf abgezogen wurden.</p>
+      <div class="feld"><select id="gebuehr-pos"></select></div>
+      <button class="zweit" data-aktion="gebuehr-neu">+ Gebühr</button>
+    </div>
     <div class="knoepfe"><button data-aktion="check-bestaetigen">Alles bestätigen</button></div>
   </section>
 
@@ -229,6 +288,8 @@
 
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
+const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
+const BACKUP_TAGE = 30;
 
 let daten = null;
 let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum } } }
@@ -288,18 +349,67 @@ function offeneBuchungenErzeugen() {
       const geplant = new Date(d.getFullYear(), d.getMonth(), pos.sparplan.tag);
       if (geplant > h) continue;
       const monat = monatKey(d);
-      if (daten.buchungen.some((b) => b.posId === pos.id && b.monat === monat)) continue;
+      if (daten.buchungen.some((b) => b.posId === pos.id && b.monat === monat && (b.art || 'sparrate') === 'sparrate')) continue;
       daten.buchungen.push({
         id: `${pos.id}-${monat}`, posId: pos.id, monat, geplant: isoDatum(geplant),
         betrag: pos.sparplan.betrag, status: 'offen',
       });
     }
   }
+  // Gebühren, die regelmäßig als Anteilsverkauf abgezogen werden
+  for (const pos of daten.positionen) {
+    const plan = gebuehrenPlan(pos);
+    if (!plan) continue;
+    for (let d = new Date(sy, sm - 1, 1); d <= h; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      if (!plan.monate.includes(d.getMonth() + 1)) continue;
+      const geplant = new Date(d.getFullYear(), d.getMonth(), plan.tag);
+      if (geplant > h) continue;
+      const monat = monatKey(d);
+      const id = `${pos.id}-g-${monat}`;
+      if (daten.buchungen.some((b) => b.id === id)) continue;
+      daten.buchungen.push({
+        id, posId: pos.id, monat, art: 'gebuehr', geplant: isoDatum(geplant),
+        betrag: 0, gebuehrEur: plan.betrag, status: 'offen',
+      });
+    }
+  }
   speichern();
+}
+
+// Leitet den Gebührenrhythmus aus den Gebühren der letzten 13 Monate ab (Monate, spätester Tag, letzter Betrag).
+function gebuehrenPlan(pos) {
+  const grenze = isoDatum(new Date(Date.now() - 400 * 864e5));
+  const gebuehren = daten.buchungen
+    .filter((b) => b.posId === pos.id && b.art === 'gebuehr' && (b.status === 'historie' || b.status === 'bestaetigt') && b.datum >= grenze)
+    .sort((a, b) => a.datum.localeCompare(b.datum));
+  if (gebuehren.length < 2) return null;
+  return {
+    monate: [...new Set(gebuehren.map((b) => Number(b.datum.slice(5, 7))))],
+    tag: Math.max(...gebuehren.map((b) => Number(b.datum.slice(8, 10)))),
+    betrag: gebuehren[gebuehren.length - 1].gebuehrEur,
+  };
 }
 
 function offeneBuchungen() {
   return daten.buchungen.filter((b) => b.status === 'offen');
+}
+
+// Wirkung einer offenen Buchung zum aktuellen Kurs: Sparrate = Kauf, Gebühr = Anteilsverkauf ohne Einzahlung
+function wirkung(b, k) {
+  if (b.art === 'gebuehr') return { stueck: -b.gebuehrEur / k.eur, betrag: 0 };
+  return { stueck: b.betrag / k.eur, betrag: b.betrag };
+}
+
+// Bestand inklusive offener (noch nicht bestätigter) Buchungen
+function aktuellerBestand(p, k) {
+  let stueck = p.stueck, inv = p.investiert;
+  for (const b of offeneBuchungen()) {
+    if (b.posId !== p.id) continue;
+    const w = wirkung(b, k);
+    stueck += w.stueck;
+    inv += w.betrag;
+  }
+  return { stueck, inv };
 }
 
 function checkFaellig() {
@@ -317,7 +427,10 @@ async function kurseHolen() {
   const fehler = [];
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
-  const symbole = [...new Set(eodPos.map((p) => p.symbol).concat(eodPos.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : []))];
+  const symbole = [...new Set(eodPos.map((p) => p.symbol)
+    .concat(eodPos.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : [])
+    .concat([BENCHMARK.symbol]))];
+  let benchmark = null;
 
   try {
     const r = await fetch(`${daten.vermittler.replace(/\/$/, '')}/quotes?s=${symbole.join(',')}`);
@@ -341,6 +454,10 @@ async function kurseHolen() {
           : k.reihe;
       }
       preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum, reihe };
+    }
+    const bk = j.kurse[BENCHMARK.symbol];
+    if (bk && !bk.fehler && Array.isArray(bk.reihe)) {
+      benchmark = { eur: bk.schluss, vorherEur: bk.vorher, reihe: splitBereinigt(bk.reihe) };
     }
   } catch (e) {
     eodPos.forEach((p) => fehler.push(p.name));
@@ -375,7 +492,10 @@ async function kurseHolen() {
 
   // Bei Teilausfall alte Kurse für die fehlenden Positionen behalten
   const alt = (kurse && kurse.preise) || {};
-  kurse = { abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler };
+  kurse = {
+    abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler,
+    benchmark: benchmark || (kurse && kurse.benchmark) || null,
+  };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   hauptRendern();
 }
@@ -428,13 +548,13 @@ function stichtag(zeitraum) {
 function kaeufeNach(p, k, stichtagIso) {
   const kaeufe = [];
   const bestaetigt = daten.buchungen.filter((b) => b.posId === p.id && b.status === 'bestaetigt');
-  for (const b of bestaetigt) if (b.datum > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.stueck });
+  for (const b of bestaetigt) if (b.datum > stichtagIso) kaeufe.push({ datum: b.datum, betrag: b.betrag, stueck: b.stueck });
   for (const b of offeneBuchungen()) {
-    if (b.posId === p.id && b.geplant > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.betrag / k.eur });
+    if (b.posId === p.id && b.geplant > stichtagIso) kaeufe.push({ datum: b.geplant, ...wirkung(b, k) });
   }
   // echte Umsätze aus der Depot-Historie (z. B. FNZ): Sparraten, Gebühren (Betrag 0, Stück negativ), Umschichtungen
   for (const b of daten.buchungen) {
-    if (b.posId === p.id && b.status === 'historie' && b.datum > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.stueck });
+    if (b.posId === p.id && b.status === 'historie' && b.datum > stichtagIso) kaeufe.push({ datum: b.datum, betrag: b.betrag, stueck: b.stueck });
   }
   if (p.sparplan && k.reihe && !p.historieVollstaendig) {
     // höchstens so viele Raten, wie das Start-Investment hergibt
@@ -446,7 +566,7 @@ function kaeufeNach(p, k, stichtagIso) {
       if (geplant <= stichtagIso) break;
       if (geplant > heuteIso) continue;
       const kurs = kursAm(k.reihe, geplant, 'ab');
-      if (kurs) kaeufe.push({ betrag: p.sparplan.betrag, stueck: p.sparplan.betrag / kurs });
+      if (kurs) kaeufe.push({ datum: geplant, betrag: p.sparplan.betrag, stueck: p.sparplan.betrag / kurs, geschaetzt: true });
     }
   }
   return kaeufe;
@@ -454,19 +574,14 @@ function kaeufeNach(p, k, stichtagIso) {
 
 // Gewinn je Position im Zeitraum: Wert heute − Wert am Stichtag − Einzahlungen seitdem
 function gewinnListe(zeitraum) {
-  const offen = offeneBuchungen();
   const zeilen = [];
   const fehlend = [];
   for (const p of daten.positionen) {
     const k = kurse && kurse.preise[p.id];
     if (!k) { fehlend.push(p.name); continue; }
-    let stueck = p.stueck, inv = p.investiert;
-    for (const b of offen.filter((b) => b.posId === p.id)) {
-      stueck += b.betrag / k.eur;
-      inv += b.betrag;
-    }
+    const { stueck, inv } = aktuellerBestand(p, k);
     const wertJetzt = stueck * k.eur;
-    let gewinn, basis;
+    let gewinn, basis, wertSt = 0, einz = [];
     if (zeitraum === 'eroeffnung') {
       gewinn = wertJetzt - inv;
       basis = inv;
@@ -481,11 +596,12 @@ function gewinnListe(zeitraum) {
       const kaeufe = kaeufeNach(p, k, st);
       const einzahlungen = kaeufe.reduce((s, x) => s + x.betrag, 0);
       const stueckSt = Math.max(0, stueck - kaeufe.reduce((s, x) => s + x.stueck, 0));
-      const wertSt = stueckSt * kursSt;
+      wertSt = stueckSt * kursSt;
+      einz = kaeufe.filter((x) => x.betrag > 0);
       gewinn = wertJetzt - wertSt - einzahlungen;
       basis = wertSt + einzahlungen;
     }
-    zeilen.push({ name: p.name, gewinn, basis });
+    zeilen.push({ id: p.id, name: p.name, gewinn, basis, wertSt, einz });
   }
   return { zeilen: zeilen.sort((a, b) => b.gewinn - a.gewinn), fehlend };
 }
@@ -512,8 +628,14 @@ function gewinnAnzeigen() {
     gesamt.textContent = mitVorzeichen(summe);
     gesamt.className = 'mittel ' + klasse(summe);
     document.getElementById('gewinn-gesamt-pct').textContent = pct(basis ? (summe / basis) * 100 : 0);
+    const bm = benchmarkGewinn(gewinnZeitraum, zeilen);
+    document.getElementById('gewinn-benchmark').textContent = bm
+      ? `Mit deinen Einzahlungen im ${BENCHMARK.name}: ${mitVorzeichen(bm.gewinn)} (${pct(bm.pct)})`
+      : (gewinnZeitraum === 'eroeffnung' ? `Vergleich mit dem ${BENCHMARK.name} bei Jahr, Monat und Gestern.` : '');
     for (const z of zeilen) {
       const li = document.createElement('li');
+      li.className = 'tippbar';
+      li.dataset.pos = z.id;
       const p = z.basis ? (z.gewinn / z.basis) * 100 : 0;
       li.innerHTML = `<span class="name"></span><span class="wert ${klasse(z.gewinn)}">${mitVorzeichen(z.gewinn)}<small>${pct(p)}</small></span>`;
       li.querySelector('.name').textContent = z.name;
@@ -524,24 +646,43 @@ function gewinnAnzeigen() {
   zeige('ansicht-gewinn');
 }
 
+// „Was wäre, wenn“: Wert am Stichtag und jede spätere Einzahlung im Vergleichsindex angelegt
+function benchmarkGewinn(zeitraum, zeilen) {
+  const I = kurse && kurse.benchmark;
+  if (!I || zeitraum === 'eroeffnung') return null;
+  if (zeitraum === 'gestern') {
+    if (!I.vorherEur) return null;
+    const basis = zeilen.reduce((s, z) => s + z.basis, 0);
+    const gewinn = basis * (I.eur / I.vorherEur - 1);
+    return { gewinn, pct: basis ? (gewinn / basis) * 100 : 0 };
+  }
+  const iSt = kursAm(I.reihe, stichtag(zeitraum), 'bis');
+  if (!iSt) return null;
+  const wertSt = zeilen.reduce((s, z) => s + z.wertSt, 0);
+  let anteile = wertSt / iSt, einz = 0;
+  for (const z of zeilen) {
+    for (const c of z.einz) {
+      anteile += c.betrag / (kursAm(I.reihe, c.datum, 'ab') || I.eur);
+      einz += c.betrag;
+    }
+  }
+  const gewinn = anteile * I.eur - wertSt - einz;
+  return { gewinn, pct: wertSt + einz ? (gewinn / (wertSt + einz)) * 100 : 0 };
+}
+
 function bewertung() {
-  const offen = offeneBuchungen();
   const zeilen = [];
   const werte = [];
   let wert = 0, investiert = 0, tagAend = 0, vorherWert = 0;
   for (const p of daten.positionen) {
     const k = kurse && kurse.preise[p.id];
     if (!k) continue;
-    let stueck = p.stueck, inv = p.investiert;
-    // offene Sparraten vorläufig zum aktuellen Kurs mitrechnen
-    for (const b of offen.filter((b) => b.posId === p.id)) {
-      stueck += b.betrag / k.eur;
-      inv += b.betrag;
-    }
+    // offene Buchungen vorläufig zum aktuellen Kurs mitrechnen
+    const { stueck, inv } = aktuellerBestand(p, k);
     const w = stueck * k.eur;
     wert += w;
     investiert += inv;
-    werte.push({ name: p.name, wert: w });
+    werte.push({ id: p.id, name: p.name, wert: w });
     if (k.vorherEur) {
       tagAend += stueck * (k.eur - k.vorherEur);
       vorherWert += stueck * k.vorherEur;
@@ -554,18 +695,203 @@ function bewertung() {
 function vermoegenAnzeigen() {
   const liste = document.getElementById('vermoegen-positionen');
   liste.innerHTML = '';
+  const chartEl = document.getElementById('vermoegen-chart');
+  chartEl.innerHTML = '';
+  zeige('ansicht-vermoegen');
   if (!kurse) {
     liste.innerHTML = '<li>Noch keine Kurse geladen.</li>';
-  } else {
-    for (const e of bewertung().werte.sort((a, b) => b.wert - a.wert)) {
-      const li = document.createElement('li');
-      li.innerHTML = '<span class="name"></span><span class="wert"></span>';
-      li.querySelector('.name').textContent = e.name;
-      li.querySelector('.wert').textContent = eur.format(e.wert);
-      liste.appendChild(li);
-    }
+    return;
   }
-  zeige('ansicht-vermoegen');
+  for (const e of bewertung().werte.sort((a, b) => b.wert - a.wert)) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.pos = e.id;
+    li.innerHTML = '<span class="name"></span><span class="wert"></span>';
+    li.querySelector('.name').textContent = e.name;
+    li.querySelector('.wert').textContent = eur.format(e.wert);
+    liste.appendChild(li);
+  }
+  const verlauf = vermoegensVerlauf();
+  if (verlauf) {
+    linienChart(chartEl, [
+      { name: 'Depot', punkte: verlauf.depot },
+      { name: BENCHMARK.name, punkte: verlauf.benchmark },
+    ], { format: (v) => eur.format(v) });
+  } else {
+    chartEl.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
+  }
+}
+
+// Tageswerte seit dem 31.12.: Depot = Summe (Stück am Tag × Kurs am Tag);
+// Vergleich = Depotwert vom 31.12. plus alle Einzahlungen im Vergleichsindex angelegt
+function vermoegensVerlauf() {
+  const start = stichtag('jahr');
+  const pos = [];
+  let ende = start;
+  for (const p of daten.positionen) {
+    const k = kurse.preise[p.id];
+    if (!k || !k.reihe || !k.reihe.length) continue;
+    const bestand = aktuellerBestand(p, k);
+    pos.push({ k, stueck: bestand.stueck, kaeufe: kaeufeNach(p, k, start) });
+    const letztes = k.reihe[k.reihe.length - 1][0];
+    if (letztes > ende) ende = letztes;
+  }
+  if (!pos.length || ende <= start) return null;
+
+  const tage = [];
+  for (let d = new Date(start + 'T00:00:00'); isoDatum(d) <= ende; d.setDate(d.getDate() + 1)) tage.push(isoDatum(d));
+
+  const depot = tage.map((t) => {
+    let summe = 0;
+    for (const x of pos) {
+      // ab dem Kursdatum der aktuelle Kurs, damit das Chart-Ende zur Kachel passt
+      const kurs = x.k.datum && t >= x.k.datum ? x.k.eur : kursAm(x.k.reihe, t, 'bis');
+      if (kurs == null) continue;
+      const stueck = x.stueck - x.kaeufe.filter((c) => c.datum > t).reduce((s, c) => s + c.stueck, 0);
+      summe += Math.max(0, stueck) * kurs;
+    }
+    return [t, summe];
+  });
+
+  let benchmark = null;
+  const I = kurse.benchmark;
+  const iStart = I && kursAm(I.reihe, start, 'bis');
+  if (iStart) {
+    const einz = pos.flatMap((x) => x.kaeufe.filter((c) => c.betrag > 0))
+      .map((c) => ({ datum: c.datum, anteile: c.betrag / (kursAm(I.reihe, c.datum, 'ab') || I.eur) }));
+    const basisAnteile = depot[0][1] / iStart;
+    benchmark = tage.map((t) => {
+      const anteile = basisAnteile + einz.filter((c) => c.datum <= t).reduce((s, c) => s + c.anteile, 0);
+      return [t, anteile * (kursAm(I.reihe, t, 'bis') || iStart)];
+    });
+  }
+  return { depot, benchmark };
+}
+
+// ---------- Charts ----------
+
+const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+// Einfacher Linienchart (SVG) mit Fadenkreuz und Tooltip.
+// serien: [{ name, punkte: [[iso, wert], ...] }], alle mit denselben Tagen; opt.marker: [[iso, wert], ...]
+function linienChart(el, serien, opt) {
+  serien = serien.filter((s) => s.punkte && s.punkte.length);
+  if (!serien.length) return;
+  const W = 340, H = 170, L = 52, R = 8, T = 8, B = 20;
+  const tage = serien[0].punkte.map((p) => p[0]);
+  const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
+  let min = Math.min(...alle), max = Math.max(...alle);
+  const rand = (max - min) * 0.08 || max * 0.05 || 1;
+  min -= rand; max += rand;
+  const x = (i) => L + (i / Math.max(1, tage.length - 1)) * (W - L - R);
+  const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
+  const kurz = (v) => opt.formatKurz ? opt.formatKurz(v) : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">`;
+  for (let g = 0; g <= 3; g++) {
+    const v = min + ((max - min) * g) / 3;
+    svg += `<line class="gitter" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
+    svg += `<text class="achse" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${kurz(v)}</text>`;
+  }
+  // Monatsname am ersten Datenpunkt jedes Monats (nicht jeder Monat beginnt mit einem Handelstag)
+  tage.forEach((t, i) => {
+    if (i > 0 && t.slice(5, 7) !== tage[i - 1].slice(5, 7)) {
+      svg += `<text class="achse" x="${x(i)}" y="${H - 4}" text-anchor="middle">${MONATE[Number(t.slice(5, 7)) - 1]}</text>`;
+    }
+  });
+  serien.forEach((s, si) => {
+    const d = s.punkte.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join('');
+    svg += `<path class="linie s${si}" d="${d}"/>`;
+  });
+  for (const [t, v] of opt.marker || []) {
+    const i = tage.indexOf(t);
+    if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="4"/>`;
+  }
+  svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
+  serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4" visibility="hidden"/>`; });
+  svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  el.innerHTML = svg;
+
+  const svgEl = el.querySelector('svg');
+  const kreuz = el.querySelector('.kreuz');
+  const punkte = [...el.querySelectorAll('.punkt')];
+  const tip = el.querySelector('.tip');
+  const zeigen = (ev) => {
+    const box = svgEl.getBoundingClientRect();
+    const px = ((ev.clientX - box.left) / box.width) * W;
+    const i = Math.round(((px - L) / (W - L - R)) * (tage.length - 1));
+    if (i < 0 || i >= tage.length) return;
+    kreuz.setAttribute('x1', x(i)); kreuz.setAttribute('x2', x(i)); kreuz.setAttribute('visibility', 'visible');
+    serien.forEach((s, si) => {
+      punkte[si].setAttribute('cx', x(i)); punkte[si].setAttribute('cy', y(s.punkte[i][1]));
+      punkte[si].setAttribute('visibility', 'visible');
+    });
+    tip.innerHTML = `<b>${deDatum(tage[i])}</b>` + serien.map((s) => `<br>${s.name}: ${opt.format(s.punkte[i][1])}`).join('');
+    tip.hidden = false;
+    const links = (x(i) / W) * box.width;
+    tip.style.left = Math.min(Math.max(0, links - tip.offsetWidth / 2), box.width - tip.offsetWidth) + 'px';
+    tip.style.top = '-8px';
+    tip.style.transform = 'translateY(-100%)';
+  };
+  const verstecken = () => {
+    kreuz.setAttribute('visibility', 'hidden');
+    punkte.forEach((p) => p.setAttribute('visibility', 'hidden'));
+    tip.hidden = true;
+  };
+  svgEl.addEventListener('pointermove', zeigen);
+  svgEl.addEventListener('pointerdown', zeigen);
+  svgEl.addEventListener('pointerleave', verstecken);
+}
+
+// ---------- Detail einer Position ----------
+
+let detailHerkunft = 'vermoegen';
+
+function detailAnzeigen(posId) {
+  const p = daten.positionen.find((x) => x.id === posId);
+  const k = kurse && kurse.preise[posId];
+  if (!p || !k) return;
+  const { stueck, inv } = aktuellerBestand(p, k);
+  const wert = stueck * k.eur;
+  const gewinn = wert - inv;
+  document.getElementById('detail-name').textContent = p.name;
+  const zeilen = [
+    ['Depot', p.depot],
+    ['Kurs', `${eur.format(k.eur)}${k.datum ? ' · ' + deDatum(k.datum) : ''}`],
+    ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–'],
+    ['Stück', zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
+    ['Wert', eur.format(wert)],
+    ['Investiert', eur.format(inv)],
+    ['Gewinn seit Eröffnung', `${mitVorzeichen(gewinn)} (${pct(inv ? (gewinn / inv) * 100 : 0)})`],
+    ['Sparplan', p.sparplan ? `${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}. des Monats` : '–'],
+  ];
+  const dl = document.getElementById('detail-werte');
+  dl.innerHTML = '';
+  for (const [a, b] of zeilen) {
+    const dt = document.createElement('dt'); dt.textContent = a;
+    const dd = document.createElement('dd'); dd.textContent = b;
+    if (a.startsWith('Gewinn')) dd.className = klasse(gewinn);
+    dl.append(dt, dd);
+  }
+
+  const chartEl = document.getElementById('detail-chart');
+  const hinweis = document.getElementById('detail-hinweis');
+  chartEl.innerHTML = '';
+  hinweis.textContent = '';
+  zeige('ansicht-detail');
+  const start = stichtag('jahr');
+  if (k.reihe && k.reihe.length) {
+    const reihe = k.reihe.filter(([d]) => d >= start);
+    const kaeufe = kaeufeNach(p, k, start).filter((c) => c.stueck > 0 && c.betrag > 0);
+    const marker = kaeufe.map((c) => {
+      const tag = reihe.find(([d]) => d >= c.datum);
+      return tag ? [tag[0], tag[1]] : null;
+    }).filter(Boolean);
+    linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], { format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : 2), marker });
+    if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = 'Käufe vor November 2026 sind aus dem Sparplan geschätzt.';
+  } else {
+    chartEl.innerHTML = '<p class="unter">Keine Kursreihe vorhanden.</p>';
+  }
 }
 
 // ---------- Anzeige ----------
@@ -590,7 +916,13 @@ function hauptRendern() {
   const hinweis = document.getElementById('check-hinweis');
   hinweis.hidden = !checkFaellig();
   document.getElementById('check-anzahl').textContent =
-    `${offen.length} Sparrate${offen.length === 1 ? '' : 'n'} seit dem letzten Check.`;
+    `${offen.length} Buchung${offen.length === 1 ? '' : 'en'} seit dem letzten Check.`;
+
+  const tageSeitBackup = daten.letztesBackup ? (Date.now() - new Date(daten.letztesBackup)) / 864e5 : Infinity;
+  document.getElementById('backup-hinweis').hidden = tageSeitBackup <= BACKUP_TAGE;
+  document.getElementById('backup-text').textContent = daten.letztesBackup
+    ? `Das letzte ist ${Math.floor(tageSeitBackup)} Tage alt.`
+    : 'Von diesem iPhone gibt es noch keins.';
 
   const status = document.getElementById('status');
   if (!kurse) { status.textContent = 'Noch keine Kurse geladen.'; return; }
@@ -634,35 +966,64 @@ function checkAnzeigen() {
   liste.innerHTML = '';
   const offen = offeneBuchungen().sort((a, b) => a.geplant.localeCompare(b.geplant));
   if (offen.length === 0) {
-    liste.innerHTML = '<div class="card">Keine offenen Sparraten. Alles bestätigt.</div>';
+    liste.innerHTML = '<div class="card leer">Keine offenen Buchungen. Alles bestätigt.</div>';
   }
-  for (const b of offen) {
-    const p = daten.positionen.find((p) => p.id === b.posId);
-    const kurs = kurse && kurse.preise[p.id] ? kurse.preise[p.id].eur : null;
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.dataset.id = b.id;
-    card.innerHTML = `
-      <div class="posname"><span></span><small>geplant ${deDatum(b.geplant)}</small></div>
-      <label class="check-zeile"><input type="checkbox" class="c-aus" checked> wurde ausgeführt</label>
-      <div class="raster">
-        <div><label>Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
-        <div><label>Betrag (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${zahl(b.betrag, 2)}"></div>
-        <div><label>Kurs (€)</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
-        <div><label>Stück</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs ? zahl(b.betrag / kurs, 6) : ''}"></div>
-      </div>`;
-    card.querySelector('.posname span').textContent = p.name;
-    const neuRechnen = () => {
-      const betrag = parseZahl(card.querySelector('.c-betrag').value);
-      const k = parseZahl(card.querySelector('.c-kurs').value);
-      if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, 6);
-    };
-    card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
-    card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
-    card.querySelector('.c-aus').addEventListener('change', (e) => card.classList.toggle('aus', !e.target.checked));
-    liste.appendChild(card);
+  for (const b of offen) liste.appendChild(checkKarte(b));
+
+  const auswahl = document.getElementById('gebuehr-pos');
+  auswahl.innerHTML = '';
+  for (const p of daten.positionen) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    auswahl.appendChild(o);
   }
   zeige('ansicht-check');
+}
+
+function checkKarte(b) {
+  const p = daten.positionen.find((p) => p.id === b.posId);
+  const gebuehr = b.art === 'gebuehr';
+  const betrag = gebuehr ? b.gebuehrEur : b.betrag;
+  const kurs = kurse && kurse.preise[p.id] ? kurse.preise[p.id].eur : null;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.id = b.id;
+  card.innerHTML = `
+    <div class="posname"><span></span><small>${gebuehr ? 'Gebühr · ' : ''}geplant ${deDatum(b.geplant)}</small></div>
+    <label class="check-zeile"><input type="checkbox" class="c-aus" checked> wurde ${gebuehr ? 'abgezogen' : 'ausgeführt'}</label>
+    <div class="raster">
+      <div><label>Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
+      <div><label>${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
+      <div><label>Kurs (€)</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
+      <div><label>${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, 6) : ''}"></div>
+    </div>`;
+  card.querySelector('.posname span').textContent = p.name;
+  const neuRechnen = () => {
+    const betrag = parseZahl(card.querySelector('.c-betrag').value);
+    const k = parseZahl(card.querySelector('.c-kurs').value);
+    if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, 6);
+  };
+  card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
+  card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
+  card.querySelector('.c-aus').addEventListener('change', (e) => card.classList.toggle('aus', !e.target.checked));
+  return card;
+}
+
+// Neue Gebühr als offene Buchung anlegen und als Karte anhängen, ohne die übrigen Eingaben zu verlieren
+function gebuehrHinzufuegen() {
+  const posId = document.getElementById('gebuehr-pos').value;
+  const plan = gebuehrenPlan(daten.positionen.find((p) => p.id === posId));
+  const b = {
+    id: `${posId}-g-${Date.now()}`, posId, monat: null, art: 'gebuehr', geplant: isoDatum(heute()),
+    betrag: 0, gebuehrEur: plan ? plan.betrag : 0, status: 'offen',
+  };
+  daten.buchungen.push(b);
+  speichern();
+  document.querySelector('#check-liste .leer')?.remove();
+  const karte = checkKarte(b);
+  document.getElementById('check-liste').appendChild(karte);
+  karte.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function checkBestaetigen() {
@@ -678,7 +1039,7 @@ function checkBestaetigen() {
     const datum = card.querySelector('.c-datum').value;
     if (ausgefuehrt && !(betrag > 0 && stueck > 0 && datum)) {
       const name = daten.positionen.find((p) => p.id === b.posId).name;
-      alert(`Bitte Betrag, Stück und Datum für „${name}“ prüfen.`);
+      alert(`Bitte ${b.art === 'gebuehr' ? 'Gebühr' : 'Betrag'}, Stück und Datum für „${name}“ prüfen.`);
       return;
     }
     eingaben.push({ b, ausgefuehrt, betrag, kurs, stueck, datum });
@@ -686,9 +1047,15 @@ function checkBestaetigen() {
   for (const e of eingaben) {
     if (e.ausgefuehrt) {
       const p = daten.positionen.find((p) => p.id === e.b.posId);
-      p.stueck += e.stueck;
-      p.investiert += e.betrag;
-      Object.assign(e.b, { status: 'bestaetigt', datum: e.datum, betrag: e.betrag, kurs: e.kurs, stueck: e.stueck });
+      if (e.b.art === 'gebuehr') {
+        // Gebühr: Anteile werden verkauft, es fließt kein Geld ins Depot
+        p.stueck -= e.stueck;
+        Object.assign(e.b, { status: 'bestaetigt', datum: e.datum, betrag: 0, gebuehrEur: e.betrag, kurs: e.kurs, stueck: -e.stueck });
+      } else {
+        p.stueck += e.stueck;
+        p.investiert += e.betrag;
+        Object.assign(e.b, { status: 'bestaetigt', datum: e.datum, betrag: e.betrag, kurs: e.kurs, stueck: e.stueck });
+      }
     } else {
       e.b.status = 'nicht_ausgefuehrt';
     }
@@ -772,6 +1139,7 @@ function importieren(datei) {
       if (!Array.isArray(neu.positionen) || !neu.vermittler) throw new Error('Unbekanntes Format');
       if (daten && !confirm('Vorhandene Daten auf diesem iPhone durch die Datei ersetzen?')) return;
       neu.buchungen = neu.buchungen || [];
+      neu.letztesBackup = new Date().toISOString(); // die geladene Datei ist selbst das aktuelle Backup
       daten = neu;
       speichern();
       start();
@@ -787,6 +1155,12 @@ function importieren(datei) {
 document.addEventListener('click', (e) => {
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
   if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
+  const posZeile = e.target.closest('li[data-pos]');
+  if (posZeile) {
+    detailHerkunft = posZeile.closest('#ansicht-gewinn') ? 'gewinn' : 'vermoegen';
+    detailAnzeigen(posZeile.dataset.pos);
+    return;
+  }
   const aktion = e.target.closest('[data-aktion]')?.dataset.aktion;
   if (!aktion) return;
   ({
@@ -799,6 +1173,8 @@ document.addEventListener('click', (e) => {
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gewinnAnzeigen(); },
+    'detail-zurueck': () => (detailHerkunft === 'gewinn' ? gewinnAnzeigen() : vermoegenAnzeigen()),
+    'gebuehr-neu': gebuehrHinzufuegen,
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
   })[aktion]?.();
