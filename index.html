@@ -463,7 +463,9 @@
 
     <div class="abschnitt">Kurs-Vermittler</div>
     <div class="karte">
-      <div class="feld"><input type="url" id="vermittler" autocomplete="off"></div>
+      <div class="feld"><label class="feldname">Adresse</label><input type="url" id="vermittler" autocomplete="off"></div>
+      <div class="feld"><label class="feldname">Zugangsschlüssel</label>
+        <input type="text" id="vermittler-token" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="nicht gesetzt"></div>
       <button class="knopf zweit breit" data-aktion="vermittler-speichern">Speichern</button>
     </div>
   </section>
@@ -773,6 +775,7 @@ async function kurseHolen() {
   knopf.classList.add('dreht');
   const preise = {};
   const fehler = [];
+  const hinweise = [];
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   const symbole = [...new Set(eodPos.map((p) => p.symbol)
@@ -781,9 +784,12 @@ async function kurseHolen() {
   let benchmark = null;
 
   try {
-    const r = await fetch(`${daten.vermittler.replace(/\/$/, '')}/quotes?s=${symbole.join(',')}`);
+    const r = await fetch(`${daten.vermittler.replace(/\/$/, '')}/quotes?s=${symbole.join(',')}`,
+      daten.vermittlerToken ? { headers: { 'X-Depot-Token': daten.vermittlerToken } } : undefined);
     const j = await r.json();
+    if (r.status === 401) hinweise.push('Zugangsschlüssel fehlt oder ist falsch (Einstellungen → Kurs-Vermittler).');
     if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
+    if (j.veraltet) hinweise.push('Kursdienst gerade nicht erreichbar – zuletzt gespeicherte Kurse.');
     const fx = j.kurse['EURUSD.FOREX'];
     for (const p of eodPos) {
       const k = j.kurse[p.symbol];
@@ -841,7 +847,7 @@ async function kurseHolen() {
   // Bei Teilausfall alte Kurse für die fehlenden Positionen behalten
   const alt = (kurse && kurse.preise) || {};
   kurse = {
-    abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler,
+    abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler, hinweise,
     benchmark: benchmark || (kurse && kurse.benchmark) || null,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
@@ -1328,10 +1334,12 @@ function hauptRendern() {
   const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
   status.innerHTML = '';
   status.append(`Aktualisiert ${zeit}${schluss}`);
-  if (kurse.fehler && kurse.fehler.length) {
+  const meldungen = [...(kurse.hinweise || [])];
+  if (kurse.fehler && kurse.fehler.length) meldungen.push(`Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`);
+  for (const text of meldungen) {
     const f = document.createElement('div');
     f.className = 'fehler';
-    f.textContent = `Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`;
+    f.textContent = text;
     status.append(f);
   }
 }
@@ -1454,6 +1462,7 @@ function einstellungenAnzeigen() {
     ? `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
     : 'Noch kein Backup von diesem iPhone.';
   document.getElementById('vermittler').value = daten.vermittler || '';
+  document.getElementById('vermittler-token').value = daten.vermittlerToken || '';
   const geschuetzt = schutzAktiv();
   document.getElementById('schutz-info').textContent = geschuetzt
     ? 'Aktiv. Deine Daten sind auf dem iPhone mit AES-256 verschlüsselt, der Schlüssel kommt per Face ID. Nach 5 Minuten im Hintergrund sperrt die App.'
@@ -1564,7 +1573,13 @@ document.addEventListener('click', (e) => {
     'schutz-entfernen': schutzEntfernen,
     'schutz-zuruecksetzen': schutzZuruecksetzen,
     'positionen-speichern': positionenSpeichern,
-    'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
+    'vermittler-speichern': () => {
+      daten.vermittler = document.getElementById('vermittler').value.trim();
+      daten.vermittlerToken = document.getElementById('vermittler-token').value.trim() || null;
+      speichern();
+      kurseHolen();
+      alert('Gespeichert.');
+    },
   })[aktion]?.();
 });
 
