@@ -432,7 +432,11 @@ function kaeufeNach(p, k, stichtagIso) {
   for (const b of offeneBuchungen()) {
     if (b.posId === p.id && b.geplant > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.betrag / k.eur });
   }
-  if (p.sparplan && k.reihe) {
+  // echte Umsätze aus der Depot-Historie (z. B. FNZ): Sparraten, Gebühren (Betrag 0, Stück negativ), Umschichtungen
+  for (const b of daten.buchungen) {
+    if (b.posId === p.id && b.status === 'historie' && b.datum > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.stueck });
+  }
+  if (p.sparplan && k.reihe && !p.historieVollstaendig) {
     // höchstens so viele Raten, wie das Start-Investment hergibt
     let raten = Math.floor((p.investiert - bestaetigt.reduce((s, b) => s + b.betrag, 0)) / p.sparplan.betrag + 1e-9);
     const [sy, sm] = daten.sparplanStart.split('-').map(Number);
