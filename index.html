@@ -238,6 +238,18 @@
     background: var(--akzent-weich); color: var(--akzent); }
   .leer-zustand .symbol svg { width: 30px; height: 30px; }
   .leer-zustand h2 { font-size: 20px; margin: 0 0 6px; }
+
+  /* ---------- Sperre ---------- */
+  .sperre { min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
+    display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  .sperre-inhalt { padding: 0 12px; }
+  .sperre-icon { width: 88px; height: 88px; margin: 0 auto 22px; border-radius: 26px; display: grid; place-items: center; color: #fff;
+    background: linear-gradient(145deg, #7c6cff, #2a2370); box-shadow: 0 14px 40px rgba(91, 87, 224, 0.35); }
+  .sperre-icon svg { width: 40px; height: 40px; }
+  .sperre h1 { margin-bottom: 6px; }
+  .sperre .unter { margin: 0 0 28px; }
+  .sperre-reset { margin-top: 28px; font-size: 13px; color: var(--text-3); }
+  body.verdeckt main { filter: blur(24px); }
 </style>
 </head>
 <body>
@@ -250,10 +262,23 @@
   <symbol id="i-weiter" viewBox="0 0 8 13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m1.5 1.5 5 5-5 5"/></symbol>
   <symbol id="i-kalender" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-wolke" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.3 9.6 4.5 4.5 0 0 0 7 18.5Z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12 16v-5m-2.2 2.2L12 11l2.2 2.2"/></symbol>
+  <symbol id="i-schloss" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.7" r="1.5" fill="currentColor"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3.5 16.5 5-5 4 3.5 8-8.5M15 6.5h5.5V12"/></symbol>
 </svg>
 
 <main>
+
+  <!-- Sperrbildschirm -->
+  <section id="ansicht-sperre" class="ansicht sperre" hidden>
+    <div class="sperre-inhalt">
+      <div class="sperre-icon"><svg><use href="#i-schloss"/></svg></div>
+      <h1>Depot</h1>
+      <p class="unter">Deine Daten sind verschlüsselt.</p>
+      <button class="knopf breit" data-aktion="entsperren">Mit Face ID entsperren</button>
+      <p id="sperre-meldung" class="fuss fehler"></p>
+    </div>
+    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und Backup laden</button>
+  </section>
 
   <!-- Startansicht: noch keine Daten -->
   <section id="ansicht-leer" class="ansicht" hidden>
@@ -412,6 +437,15 @@
       <div class="knoepfe"><button class="knopf zweit" data-aktion="check">Check jetzt öffnen</button></div>
     </div>
 
+    <div class="abschnitt">Face ID & Verschlüsselung</div>
+    <div class="karte">
+      <p class="unter" id="schutz-info" style="margin: 0"></p>
+      <div class="knoepfe">
+        <button class="knopf" id="schutz-an" data-aktion="schutz-einrichten">Face ID einrichten</button>
+        <button class="knopf zweit" id="schutz-aus" data-aktion="schutz-entfernen">Schutz entfernen</button>
+      </div>
+    </div>
+
     <div class="abschnitt">Backup in OneDrive</div>
     <div class="karte">
       <p class="unter" id="backup-info" style="margin: 0"></p>
@@ -509,13 +543,139 @@ function ersterSamstag(jahr, monat0) {
 
 function heute() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
 
+// ---------- Speicher & Schutz (Face ID + AES-256) ----------
+// Mit Schutz liegen die Depotdaten nur verschlüsselt im Speicher. Der Schlüssel entsteht per
+// WebAuthn-PRF aus einem Passkey (Face ID) und existiert nur im Arbeitsspeicher, solange entsperrt.
+
+const SPEICHER_VERSCHL = 'depot-v1-verschluesselt';
+const SCHUTZ_META = 'depot-schutz';
+const SPERRE_NACH_MS = 5 * 60 * 1000;
+
+let schluessel = null;
+let speicherKette = Promise.resolve();
+let verlassenUm = null;
+
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const zufall = (n) => crypto.getRandomValues(new Uint8Array(n));
+const schutzAktiv = () => !!localStorage.getItem(SCHUTZ_META);
+
+async function schluesselHolen(meta) {
+  const antwort = await navigator.credentials.get({ publicKey: {
+    challenge: zufall(32), rpId: location.hostname, userVerification: 'required',
+    allowCredentials: [{ type: 'public-key', id: unb64(meta.credId) }],
+    extensions: { prf: { eval: { first: unb64(meta.salt) } } },
+  } });
+  const geheimnis = antwort.getClientExtensionResults().prf?.results?.first;
+  if (!geheimnis) throw new Error('Face ID hat keinen Schlüssel geliefert.');
+  const basis = await crypto.subtle.importKey('raw', geheimnis, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new TextEncoder().encode('depot-daten-v1') },
+    basis, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+async function verschluesseln(text) {
+  const iv = zufall(12);
+  const inhalt = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, schluessel, new TextEncoder().encode(text));
+  return { v: 1, iv: b64(iv), daten: b64(inhalt) };
+}
+
+async function entschluesseln(paket) {
+  const klar = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(paket.iv) }, schluessel, unb64(paket.daten));
+  return new TextDecoder().decode(klar);
+}
+
 function speichern() {
-  localStorage.setItem(SPEICHER, JSON.stringify(daten));
+  if (!schutzAktiv()) {
+    localStorage.setItem(SPEICHER, JSON.stringify(daten));
+    return;
+  }
+  if (!schluessel) return; // gesperrt: nichts zu speichern
+  const text = JSON.stringify(daten);
+  speicherKette = speicherKette
+    .then(() => verschluesseln(text))
+    .then((paket) => localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(paket)))
+    .catch((e) => alert('Speichern fehlgeschlagen: ' + e.message));
 }
 
 function laden() {
-  try { daten = JSON.parse(localStorage.getItem(SPEICHER)); } catch { daten = null; }
   try { kurse = JSON.parse(localStorage.getItem(KURS_SPEICHER)); } catch { kurse = null; }
+  if (schutzAktiv()) { daten = null; return; } // kommt erst nach dem Entsperren
+  try { daten = JSON.parse(localStorage.getItem(SPEICHER)); } catch { daten = null; }
+}
+
+async function schutzEinrichten() {
+  if (!window.PublicKeyCredential || !navigator.credentials) {
+    alert('Dieses Gerät unterstützt keine Passkeys.');
+    return;
+  }
+  try {
+    const cred = await navigator.credentials.create({ publicKey: {
+      rp: { name: 'Depot', id: location.hostname },
+      user: { id: zufall(16), name: 'Depot-App', displayName: 'Depot-App' },
+      challenge: zufall(32),
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'required', userVerification: 'required' },
+      extensions: { prf: {} },
+    } });
+    if (!cred.getClientExtensionResults().prf?.enabled) {
+      alert('Der Passkey wurde angelegt, liefert auf diesem Gerät aber keinen Schlüssel. Der Schutz wurde nicht aktiviert.');
+      return;
+    }
+    const meta = { credId: b64(cred.rawId), salt: b64(zufall(32)) };
+    schluessel = await schluesselHolen(meta);
+    // erst verschlüsselt speichern und gegenprüfen, dann die unverschlüsselte Fassung löschen
+    const text = JSON.stringify(daten);
+    const paket = await verschluesseln(text);
+    if (await entschluesseln(paket) !== text) throw new Error('Gegenprüfung fehlgeschlagen.');
+    localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(paket));
+    localStorage.setItem(SCHUTZ_META, JSON.stringify(meta));
+    localStorage.removeItem(SPEICHER);
+    einstellungenAnzeigen();
+    alert('Face ID ist eingerichtet. Deine Daten sind jetzt verschlüsselt.');
+  } catch (e) {
+    schluessel = null;
+    if (e.name !== 'NotAllowedError') alert('Einrichtung fehlgeschlagen: ' + e.message);
+  }
+}
+
+function schutzEntfernen() {
+  if (!confirm('Verschlüsselung entfernen? Deine Daten liegen dann wieder unverschlüsselt auf dem iPhone.')) return;
+  localStorage.setItem(SPEICHER, JSON.stringify(daten));
+  localStorage.removeItem(SPEICHER_VERSCHL);
+  localStorage.removeItem(SCHUTZ_META);
+  schluessel = null;
+  einstellungenAnzeigen();
+}
+
+async function entsperren() {
+  const meldung = document.getElementById('sperre-meldung');
+  meldung.textContent = '';
+  try {
+    schluessel = await schluesselHolen(JSON.parse(localStorage.getItem(SCHUTZ_META)));
+    const paket = JSON.parse(localStorage.getItem(SPEICHER_VERSCHL));
+    daten = paket ? JSON.parse(await entschluesseln(paket)) : null;
+    nachLaden();
+  } catch (e) {
+    schluessel = null;
+    meldung.textContent = e.name === 'NotAllowedError' ? 'Entsperren abgebrochen.' : 'Entsperren fehlgeschlagen: ' + e.message;
+  }
+}
+
+function sperren() {
+  schluessel = null;
+  daten = null;
+  document.getElementById('sperre-meldung').textContent = '';
+  zeige('ansicht-sperre');
+}
+
+function schutzZuruecksetzen() {
+  if (!confirm('Verschlüsselte Daten auf diesem iPhone löschen und danach dein Backup aus OneDrive laden?')) return;
+  localStorage.removeItem(SPEICHER_VERSCHL);
+  localStorage.removeItem(SCHUTZ_META);
+  schluessel = null;
+  daten = null;
+  zeige('ansicht-leer');
 }
 
 function zeige(id) {
@@ -686,7 +846,7 @@ async function kurseHolen() {
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   knopf.classList.remove('dreht');
-  hauptRendern();
+  if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
 // ---------- Berechnung ----------
@@ -1294,6 +1454,12 @@ function einstellungenAnzeigen() {
     ? `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
     : 'Noch kein Backup von diesem iPhone.';
   document.getElementById('vermittler').value = daten.vermittler || '';
+  const geschuetzt = schutzAktiv();
+  document.getElementById('schutz-info').textContent = geschuetzt
+    ? 'Aktiv. Deine Daten sind auf dem iPhone mit AES-256 verschlüsselt, der Schlüssel kommt per Face ID. Nach 5 Minuten im Hintergrund sperrt die App.'
+    : 'Nicht aktiv. Mit Face ID werden deine Daten auf dem iPhone verschlüsselt und die App beim Öffnen gesperrt.';
+  document.getElementById('schutz-an').hidden = geschuetzt;
+  document.getElementById('schutz-aus').hidden = !geschuetzt;
 
   const liste = document.getElementById('positionen-liste');
   liste.innerHTML = '';
@@ -1360,7 +1526,7 @@ function importieren(datei) {
       neu.letztesBackup = new Date().toISOString(); // die geladene Datei ist selbst das aktuelle Backup
       daten = neu;
       speichern();
-      start();
+      nachLaden();
     } catch (e) {
       alert('Datei konnte nicht gelesen werden: ' + e.message);
     }
@@ -1393,6 +1559,10 @@ document.addEventListener('click', (e) => {
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
+    entsperren,
+    'schutz-einrichten': schutzEinrichten,
+    'schutz-entfernen': schutzEntfernen,
+    'schutz-zuruecksetzen': schutzZuruecksetzen,
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
   })[aktion]?.();
@@ -1404,7 +1574,17 @@ document.getElementById('datei').addEventListener('change', (e) => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && daten && !document.getElementById('ansicht-haupt').hidden) {
+  if (document.visibilityState === 'hidden') {
+    verlassenUm = Date.now();
+    if (schutzAktiv()) document.body.classList.add('verdeckt'); // nichts Lesbares im App-Umschalter
+    return;
+  }
+  document.body.classList.remove('verdeckt');
+  if (schutzAktiv() && schluessel && verlassenUm && Date.now() - verlassenUm > SPERRE_NACH_MS) {
+    sperren();
+    return;
+  }
+  if (daten && !document.getElementById('ansicht-haupt').hidden) {
     offeneBuchungenErzeugen();
     kurseHolen();
   }
@@ -1412,6 +1592,12 @@ document.addEventListener('visibilitychange', () => {
 
 function start() {
   laden();
+  if (schutzAktiv() && !schluessel) { zeige('ansicht-sperre'); return; }
+  nachLaden();
+}
+
+// Weiter, sobald die Daten (ggf. nach dem Entsperren) im Speicher sind
+function nachLaden() {
   if (!daten) { zeige('ansicht-leer'); return; }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   offeneBuchungenErzeugen();
