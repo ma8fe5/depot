@@ -45,6 +45,9 @@
   ul.rang li + li { border-top: 1px solid var(--line); }
   ul.rang .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ul.rang .wert { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+  .tippbar { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .tippbar:active { opacity: 0.7; }
+  .pfeil { float: right; font-size: 20px; line-height: 14px; color: var(--muted); }
   .hinweis { background: var(--warn-bg); color: var(--warn-text); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
   .hinweis button { margin-top: 10px; }
   .fuss { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
@@ -92,8 +95,8 @@
       <div><button data-aktion="check">Jetzt prüfen</button></div>
     </div>
 
-    <div class="card">
-      <h2>Gesamtvermögen</h2>
+    <div class="card tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
+      <h2>Gesamtvermögen <span class="pfeil">›</span></h2>
       <div id="vermoegen" class="gross">–</div>
       <div id="investiert" class="unter">–</div>
     </div>
@@ -122,6 +125,15 @@
       Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> ·
       Übrige Kurse: Schlusskurse von EODHD
     </p>
+  </section>
+
+  <!-- Vermögen je Position -->
+  <section id="ansicht-vermoegen" class="ansicht" hidden>
+    <header>
+      <h1>Vermögen</h1>
+      <button class="leise" data-aktion="zurueck">Zurück</button>
+    </header>
+    <div class="card"><ul id="vermoegen-positionen" class="rang"></ul></div>
   </section>
 
   <!-- Monats-Check -->
@@ -329,6 +341,7 @@ async function kurseHolen() {
 function bewertung() {
   const offen = offeneBuchungen();
   const zeilen = [];
+  const werte = [];
   let wert = 0, investiert = 0, tagAend = 0, vorherWert = 0;
   for (const p of daten.positionen) {
     const k = kurse && kurse.preise[p.id];
@@ -342,13 +355,31 @@ function bewertung() {
     const w = stueck * k.eur;
     wert += w;
     investiert += inv;
+    werte.push({ name: p.name, wert: w });
     if (k.vorherEur) {
       tagAend += stueck * (k.eur - k.vorherEur);
       vorherWert += stueck * k.vorherEur;
       zeilen.push({ name: p.name, aend: (k.eur / k.vorherEur - 1) * 100 });
     }
   }
-  return { wert, investiert, tagAend, vorherWert, zeilen };
+  return { wert, investiert, tagAend, vorherWert, zeilen, werte };
+}
+
+function vermoegenAnzeigen() {
+  const liste = document.getElementById('vermoegen-positionen');
+  liste.innerHTML = '';
+  if (!kurse) {
+    liste.innerHTML = '<li>Noch keine Kurse geladen.</li>';
+  } else {
+    for (const e of bewertung().werte.sort((a, b) => b.wert - a.wert)) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="name"></span><span class="wert"></span>';
+      li.querySelector('.name').textContent = e.name;
+      li.querySelector('.wert').textContent = eur.format(e.wert);
+      liste.appendChild(li);
+    }
+  }
+  zeige('ansicht-vermoegen');
 }
 
 // ---------- Anzeige ----------
@@ -578,6 +609,7 @@ document.addEventListener('click', (e) => {
     check: checkAnzeigen,
     'check-bestaetigen': checkBestaetigen,
     aktualisieren: kurseHolen,
+    'vermoegen-liste': vermoegenAnzeigen,
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
   })[aktion]?.();
