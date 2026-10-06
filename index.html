@@ -455,6 +455,12 @@
       </div>
     </div>
 
+    <div class="abschnitt">Umsätze aus dem Depot</div>
+    <div class="karte">
+      <p class="unter" style="margin: 0">Echte Käufe aus einer Datei <b>depot-historie.json</b> übernehmen. Ergänzt nur die Historie der enthaltenen Positionen, alles andere bleibt unverändert.</p>
+      <div class="knoepfe"><button class="knopf zweit" data-aktion="historie-import">Umsätze importieren</button></div>
+    </div>
+
     <div class="abschnitt">Positionen korrigieren</div>
     <p class="unter" style="margin: -2px 18px 12px">Stückzahl und investierter Betrag wie in deinem Depot. Offene, noch nicht bestätigte Buchungen sind hier nicht enthalten.</p>
     <div id="positionen-liste"></div>
@@ -1524,9 +1530,48 @@ async function exportieren() {
   if (!document.getElementById('ansicht-haupt').hidden) hauptRendern();
 }
 
+// Übernimmt echte Depot-Umsätze (depot-historie.json) als Historie-Buchungen.
+// Prüft vorher, ob Stückzahl und Investment der Datei zur jeweiligen Position passen.
+function historieUebernehmen(paket) {
+  const zeilen = [];
+  const passend = [];
+  for (const [posId, eintrag] of Object.entries(paket.positionen || {})) {
+    const p = daten.positionen.find((x) => x.id === posId);
+    if (!p) { zeilen.push(`${posId}: unbekannte Position, übersprungen`); continue; }
+    const bestaetigt = daten.buchungen.filter((b) => b.posId === posId && b.status === 'bestaetigt');
+    const sollStueck = p.stueck - bestaetigt.reduce((s, b) => s + b.stueck, 0);
+    const sollInv = p.investiert - bestaetigt.reduce((s, b) => s + b.betrag, 0);
+    const ok = Math.abs(sollStueck - eintrag.stueck) < 1e-5 && Math.abs(sollInv - eintrag.investiert) < 0.01;
+    zeilen.push(`${p.name}: ${eintrag.buchungen.length} Käufe, ${zahl(eintrag.stueck, 5)} Stück, ${eur.format(eintrag.investiert)}${ok ? ' ✓' : ' – passt NICHT zum Bestand, übersprungen'}`);
+    if (ok) passend.push([p, eintrag]);
+  }
+  if (!passend.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!confirm('Folgende Umsätze übernehmen?\n\n' + zeilen.join('\n'))) return;
+  for (const [p, eintrag] of passend) {
+    daten.buchungen = daten.buchungen.filter((b) => !(b.posId === p.id && b.status === 'historie'));
+    daten.buchungen.push(...eintrag.buchungen.map((b) => ({ ...b, posId: p.id, status: 'historie' })));
+    p.historieVollstaendig = true;
+  }
+  speichern();
+  alert(`Übernommen für ${passend.length} Position${passend.length === 1 ? '' : 'en'}. Mach am besten gleich ein Backup.`);
+  einstellungenAnzeigen();
+}
+
+let dateiZweck = 'backup';
+
 function importieren(datei) {
   const leser = new FileReader();
   leser.onload = () => {
+    if (dateiZweck === 'historie') {
+      try {
+        const paket = JSON.parse(leser.result);
+        if (paket.typ !== 'depot-historie') throw new Error('Das ist keine depot-historie.json');
+        historieUebernehmen(paket);
+      } catch (e) {
+        alert('Datei konnte nicht gelesen werden: ' + e.message);
+      }
+      return;
+    }
     try {
       const neu = JSON.parse(leser.result);
       if (!Array.isArray(neu.positionen) || !neu.vermittler) throw new Error('Unbekanntes Format');
@@ -1557,7 +1602,8 @@ document.addEventListener('click', (e) => {
   const aktion = e.target.closest('[data-aktion]')?.dataset.aktion;
   if (!aktion) return;
   ({
-    import: () => document.getElementById('datei').click(),
+    import: () => { dateiZweck = 'backup'; document.getElementById('datei').click(); },
+    'historie-import': () => { dateiZweck = 'historie'; document.getElementById('datei').click(); },
     export: exportieren,
     einstellungen: einstellungenAnzeigen,
     zurueck: hauptAnzeigen,
