@@ -48,6 +48,11 @@
   .tippbar { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tippbar:active { opacity: 0.7; }
   .pfeil { float: right; font-size: 20px; line-height: 14px; color: var(--muted); }
+  .segmente { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 2px; margin-bottom: 12px;
+    background: var(--line); border-radius: 10px; }
+  .segmente button { background: transparent; color: var(--text); font-size: 14px; font-weight: 500; padding: 7px 2px; border-radius: 8px; }
+  .segmente button.aktiv { background: var(--card); font-weight: 650; }
+  ul.rang .wert small { display: block; text-align: right; font-weight: 400; font-size: 13px; }
   .hinweis { background: var(--warn-bg); color: var(--warn-text); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
   .hinweis button { margin-top: 10px; }
   .fuss { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
@@ -102,8 +107,8 @@
     </div>
 
     <div class="paar">
-      <div class="card">
-        <h2>Gewinn seit Eröffnung</h2>
+      <div class="card tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
+        <h2>Gewinn seit Eröffnung <span class="pfeil">›</span></h2>
         <div id="gewinn-eur" class="mittel">–</div>
         <div id="gewinn-pct" class="unter">–</div>
       </div>
@@ -134,6 +139,27 @@
       <button class="leise" data-aktion="zurueck">Zurück</button>
     </header>
     <div class="card"><ul id="vermoegen-positionen" class="rang"></ul></div>
+  </section>
+
+  <!-- Gewinn je Position und Zeitraum -->
+  <section id="ansicht-gewinn" class="ansicht" hidden>
+    <header>
+      <h1>Gewinn</h1>
+      <button class="leise" data-aktion="zurueck">Zurück</button>
+    </header>
+    <div class="segmente">
+      <button data-zeitraum="eroeffnung">Eröffnung</button>
+      <button data-zeitraum="jahr">Jahr</button>
+      <button data-zeitraum="monat">Monat</button>
+      <button data-zeitraum="gestern">Gestern</button>
+    </div>
+    <div class="card">
+      <h2 id="gewinn-zeitraum"></h2>
+      <div id="gewinn-gesamt" class="mittel">–</div>
+      <div id="gewinn-gesamt-pct" class="unter">–</div>
+    </div>
+    <div class="card"><ul id="gewinn-positionen" class="rang"></ul></div>
+    <p id="gewinn-meldung" class="fuss"></p>
   </section>
 
   <!-- Monats-Check -->
@@ -306,7 +332,14 @@ async function kurseHolen() {
         if (!fx || fx.fehler) { fehler.push(p.name); continue; }
         faktor = 1 / fx.schluss; // Vortag mit demselben Wechselkurs, damit nur die Fondsbewegung zählt
       }
-      preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum };
+      // Tagesreihe in Euro, bei USD mit dem Wechselkurs des jeweiligen Tages
+      let reihe = null;
+      if (Array.isArray(k.reihe)) {
+        reihe = p.waehrung === 'USD'
+          ? (fx.reihe ? k.reihe.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || fx.schluss)]) : null)
+          : k.reihe;
+      }
+      preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum, reihe };
     }
   } catch (e) {
     eodPos.forEach((p) => fehler.push(p.name));
@@ -318,10 +351,20 @@ async function kurseHolen() {
       const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${p.symbol}&vs_currencies=eur&include_24hr_change=true&include_last_updated_at=true`);
       const j = (await r.json())[p.symbol];
       const aend = j.eur_24h_change;
+      let reihe = null;
+      try {
+        const rh = await fetch(`https://api.coingecko.com/api/v3/coins/${p.symbol}/market_chart?vs_currency=eur&days=365&interval=daily`);
+        const tage = new Map();
+        for (const [ms, preis] of (await rh.json()).prices) tage.set(new Date(ms).toISOString().slice(0, 10), preis);
+        reihe = [...tage.entries()];
+      } catch (e) {
+        console.error(e);
+      }
       preise[p.id] = {
         eur: j.eur,
         vorherEur: aend != null ? j.eur / (1 + aend / 100) : null,
         datum: isoDatum(new Date(j.last_updated_at * 1000)),
+        reihe,
       };
     } catch (e) {
       fehler.push(p.name);
@@ -337,6 +380,130 @@ async function kurseHolen() {
 }
 
 // ---------- Berechnung ----------
+
+// Kurs aus einer Tagesreihe [[datum, kurs], ...] (aufsteigend):
+// 'bis' = letzter Kurs am oder vor dem Datum, 'ab' = erster Kurs am oder nach dem Datum
+function kursAm(reihe, datum, richtung) {
+  if (!reihe || reihe.length === 0) return null;
+  if (richtung === 'bis') {
+    for (let i = reihe.length - 1; i >= 0; i--) if (reihe[i][0] <= datum) return reihe[i][1];
+    return null;
+  }
+  for (const [d, k] of reihe) if (d >= datum) return k;
+  return null;
+}
+
+const ZEITRAEUME = {
+  eroeffnung: 'Seit Eröffnung',
+  jahr: 'Seit Anfang des Jahres',
+  monat: 'Seit Anfang des Monats',
+  gestern: 'Seit gestern',
+};
+let gewinnZeitraum = 'eroeffnung';
+
+// Stichtag = letzter Tag vor Beginn des Zeitraums
+function stichtag(zeitraum) {
+  const h = heute();
+  if (zeitraum === 'jahr') return isoDatum(new Date(h.getFullYear(), 0, 0));
+  return isoDatum(new Date(h.getFullYear(), h.getMonth(), 0));
+}
+
+// Käufe einer Position nach dem Stichtag: bestätigte und offene Buchungen,
+// dazu geschätzte Sparplan-Käufe aus der Zeit vor den Monats-Checks.
+function kaeufeNach(p, k, stichtagIso) {
+  const kaeufe = [];
+  const bestaetigt = daten.buchungen.filter((b) => b.posId === p.id && b.status === 'bestaetigt');
+  for (const b of bestaetigt) if (b.datum > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.stueck });
+  for (const b of offeneBuchungen()) {
+    if (b.posId === p.id && b.geplant > stichtagIso) kaeufe.push({ betrag: b.betrag, stueck: b.betrag / k.eur });
+  }
+  if (p.sparplan && k.reihe) {
+    // höchstens so viele Raten, wie das Start-Investment hergibt
+    let raten = Math.floor((p.investiert - bestaetigt.reduce((s, b) => s + b.betrag, 0)) / p.sparplan.betrag + 1e-9);
+    const [sy, sm] = daten.sparplanStart.split('-').map(Number);
+    const heuteIso = isoDatum(heute());
+    for (let d = new Date(sy, sm - 2, 1); raten > 0; d = new Date(d.getFullYear(), d.getMonth() - 1, 1), raten--) {
+      const geplant = isoDatum(new Date(d.getFullYear(), d.getMonth(), p.sparplan.tag));
+      if (geplant <= stichtagIso) break;
+      if (geplant > heuteIso) continue;
+      const kurs = kursAm(k.reihe, geplant, 'ab');
+      if (kurs) kaeufe.push({ betrag: p.sparplan.betrag, stueck: p.sparplan.betrag / kurs });
+    }
+  }
+  return kaeufe;
+}
+
+// Gewinn je Position im Zeitraum: Wert heute − Wert am Stichtag − Einzahlungen seitdem
+function gewinnListe(zeitraum) {
+  const offen = offeneBuchungen();
+  const zeilen = [];
+  const fehlend = [];
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    if (!k) { fehlend.push(p.name); continue; }
+    let stueck = p.stueck, inv = p.investiert;
+    for (const b of offen.filter((b) => b.posId === p.id)) {
+      stueck += b.betrag / k.eur;
+      inv += b.betrag;
+    }
+    const wertJetzt = stueck * k.eur;
+    let gewinn, basis;
+    if (zeitraum === 'eroeffnung') {
+      gewinn = wertJetzt - inv;
+      basis = inv;
+    } else if (zeitraum === 'gestern') {
+      if (!k.vorherEur) { fehlend.push(p.name); continue; }
+      gewinn = stueck * (k.eur - k.vorherEur);
+      basis = stueck * k.vorherEur;
+    } else {
+      const st = stichtag(zeitraum);
+      const kursSt = kursAm(k.reihe, st, 'bis');
+      if (kursSt == null) { fehlend.push(p.name); continue; }
+      const kaeufe = kaeufeNach(p, k, st);
+      const einzahlungen = kaeufe.reduce((s, x) => s + x.betrag, 0);
+      const stueckSt = Math.max(0, stueck - kaeufe.reduce((s, x) => s + x.stueck, 0));
+      const wertSt = stueckSt * kursSt;
+      gewinn = wertJetzt - wertSt - einzahlungen;
+      basis = wertSt + einzahlungen;
+    }
+    zeilen.push({ name: p.name, gewinn, basis });
+  }
+  return { zeilen: zeilen.sort((a, b) => b.gewinn - a.gewinn), fehlend };
+}
+
+function gewinnAnzeigen() {
+  document.querySelectorAll('#ansicht-gewinn [data-zeitraum]').forEach((el) => {
+    el.classList.toggle('aktiv', el.dataset.zeitraum === gewinnZeitraum);
+  });
+  const titel = document.getElementById('gewinn-zeitraum');
+  titel.textContent = ZEITRAEUME[gewinnZeitraum] +
+    (gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat' ? ` (Stichtag ${deDatum(stichtag(gewinnZeitraum))})` : '');
+
+  const liste = document.getElementById('gewinn-positionen');
+  liste.innerHTML = '';
+  const meldung = document.getElementById('gewinn-meldung');
+  meldung.textContent = '';
+  if (!kurse) {
+    meldung.textContent = 'Noch keine Kurse geladen.';
+  } else {
+    const { zeilen, fehlend } = gewinnListe(gewinnZeitraum);
+    const summe = zeilen.reduce((s, z) => s + z.gewinn, 0);
+    const basis = zeilen.reduce((s, z) => s + z.basis, 0);
+    const gesamt = document.getElementById('gewinn-gesamt');
+    gesamt.textContent = mitVorzeichen(summe);
+    gesamt.className = 'mittel ' + klasse(summe);
+    document.getElementById('gewinn-gesamt-pct').textContent = pct(basis ? (summe / basis) * 100 : 0);
+    for (const z of zeilen) {
+      const li = document.createElement('li');
+      const p = z.basis ? (z.gewinn / z.basis) * 100 : 0;
+      li.innerHTML = `<span class="name"></span><span class="wert ${klasse(z.gewinn)}">${mitVorzeichen(z.gewinn)}<small>${pct(p)}</small></span>`;
+      li.querySelector('.name').textContent = z.name;
+      liste.appendChild(li);
+    }
+    if (fehlend.length) meldung.textContent = `Ohne Kursdaten für diesen Zeitraum: ${fehlend.join(', ')}`;
+  }
+  zeige('ansicht-gewinn');
+}
 
 function bewertung() {
   const offen = offeneBuchungen();
@@ -599,6 +766,8 @@ function importieren(datei) {
 // ---------- Start ----------
 
 document.addEventListener('click', (e) => {
+  const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
+  if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
   const aktion = e.target.closest('[data-aktion]')?.dataset.aktion;
   if (!aktion) return;
   ({
@@ -610,6 +779,7 @@ document.addEventListener('click', (e) => {
     'check-bestaetigen': checkBestaetigen,
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
+    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gewinnAnzeigen(); },
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
   })[aktion]?.();
