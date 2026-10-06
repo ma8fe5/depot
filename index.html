@@ -437,6 +437,16 @@
       <div class="knoepfe"><button class="knopf zweit" data-aktion="check">Check jetzt öffnen</button></div>
     </div>
 
+    <div class="abschnitt">Mitteilungen</div>
+    <div class="karte">
+      <p class="unter" id="push-info" style="margin: 0"></p>
+      <div class="knoepfe">
+        <button class="knopf" id="push-an" data-aktion="push-an">Mitteilungen einschalten</button>
+        <button class="knopf zweit" id="push-test" data-aktion="push-test">Test senden</button>
+        <button class="knopf zweit" id="push-aus" data-aktion="push-aus">Ausschalten</button>
+      </div>
+    </div>
+
     <div class="abschnitt">Face ID & Verschlüsselung</div>
     <div class="karte">
       <p class="unter" id="schutz-info" style="margin: 0"></p>
@@ -1475,6 +1485,7 @@ function einstellungenAnzeigen() {
     : 'Nicht aktiv. Mit Face ID werden deine Daten auf dem iPhone verschlüsselt und die App beim Öffnen gesperrt.';
   document.getElementById('schutz-an').hidden = geschuetzt;
   document.getElementById('schutz-aus').hidden = !geschuetzt;
+  pushStatusAnzeigen();
 
   const liste = document.getElementById('positionen-liste');
   liste.innerHTML = '';
@@ -1509,6 +1520,101 @@ function positionenSpeichern() {
   for (const [p, stueck, inv] of neu) { p.stueck = stueck; p.investiert = inv; }
   speichern();
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
+}
+
+// ---------- Mitteilungen (Web Push) ----------
+// Der Vermittler schickt Di–Sa um 9 Uhr eine neutrale Mitteilung ohne Depotdaten.
+
+function vermittler(pfad, optionen = {}) {
+  const headers = { ...(optionen.headers || {}) };
+  if (daten.vermittlerToken) headers['X-Depot-Token'] = daten.vermittlerToken;
+  return fetch(`${daten.vermittler.replace(/\/$/, '')}${pfad}`, { ...optionen, headers });
+}
+
+const pushMoeglich = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+async function pushAbo() {
+  if (!pushMoeglich()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+
+// Wartet auf den Hintergrund-Dienst, aber nicht ewig
+function dienstBereit() {
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, nein) => setTimeout(() => nein(new Error('Hintergrund-Dienst startet nicht. App einmal schließen und neu öffnen.')), 8000)),
+  ]);
+}
+
+async function pushStatusAnzeigen() {
+  const info = document.getElementById('push-info');
+  const an = document.getElementById('push-an'), test = document.getElementById('push-test'), aus = document.getElementById('push-aus');
+  if (!pushMoeglich()) {
+    info.textContent = 'Mitteilungen gehen nur in der App vom Home-Bildschirm.';
+    an.hidden = test.hidden = aus.hidden = true;
+    return;
+  }
+  const abo = await pushAbo();
+  info.textContent = abo
+    ? 'Aktiv: Dienstag bis Samstag um 9 Uhr kommt eine Mitteilung, sobald neue Schlusskurse da sind. Sie enthält keine Depotdaten.'
+    : 'Aus. Auf Wunsch erinnert dich die App Dienstag bis Samstag um 9 Uhr an die Veränderung zum Vortag.';
+  an.hidden = !!abo;
+  test.hidden = aus.hidden = !abo;
+}
+
+async function pushEinschalten() {
+  try {
+    // Die Erlaubnis muss direkt nach dem Antippen angefragt werden
+    const erlaubnis = await Notification.requestPermission();
+    if (erlaubnis !== 'granted') {
+      alert('Mitteilungen sind nicht erlaubt. Du kannst sie in den iPhone-Einstellungen unter Mitteilungen → Depot freigeben.');
+      return;
+    }
+    const reg = await dienstBereit();
+    const r = await vermittler('/push/schluessel');
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
+    const abo = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: unb64(j.schluessel.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((j.schluessel.length + 3) % 4)),
+    });
+    const a = await vermittler('/push/anmelden', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abo.toJSON()),
+    });
+    if (!a.ok) throw new Error((await a.json()).fehler || `HTTP ${a.status}`);
+    alert('Mitteilungen sind eingeschaltet. Mit „Test senden“ kannst du es gleich ausprobieren.');
+  } catch (e) {
+    alert('Einschalten fehlgeschlagen: ' + e.message);
+  }
+  pushStatusAnzeigen();
+}
+
+async function pushTest() {
+  try {
+    const r = await vermittler('/push/test', { method: 'POST' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
+    const ok = (j.status || []).filter((s) => s >= 200 && s < 300).length;
+    alert(ok ? 'Test gesendet. Die Mitteilung sollte gleich erscheinen.' : `Senden fehlgeschlagen (Status ${j.status.join(', ') || 'kein Abo'}).`);
+  } catch (e) {
+    alert('Test fehlgeschlagen: ' + e.message);
+  }
+}
+
+async function pushAusschalten() {
+  try {
+    const abo = await pushAbo();
+    if (abo) {
+      await vermittler('/push/abmelden', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abo.toJSON()),
+      });
+      await abo.unsubscribe();
+    }
+  } catch (e) {
+    alert('Ausschalten fehlgeschlagen: ' + e.message);
+  }
+  pushStatusAnzeigen();
 }
 
 // ---------- Backup ----------
@@ -1618,6 +1724,9 @@ document.addEventListener('click', (e) => {
     'schutz-einrichten': schutzEinrichten,
     'schutz-entfernen': schutzEntfernen,
     'schutz-zuruecksetzen': schutzZuruecksetzen,
+    'push-an': pushEinschalten,
+    'push-test': pushTest,
+    'push-aus': pushAusschalten,
     'positionen-speichern': positionenSpeichern,
     'vermittler-speichern': () => {
       daten.vermittler = document.getElementById('vermittler').value.trim();
@@ -1652,6 +1761,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function start() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch((e) => console.error(e));
   laden();
   if (schutzAktiv() && !schluessel) { zeige('ansicht-sperre'); return; }
   nachLaden();
