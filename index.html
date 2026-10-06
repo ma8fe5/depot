@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Depot">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Depot</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #16181d; --muted: #6b7280; --line: #e5e7eb;
+    --pos: #0f7b3f; --neg: #c0262d; --accent: #2563eb; --warn-bg: #fff4d6; --warn-text: #6b4e00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111214; --card: #1c1d21; --text: #f3f4f6; --muted: #9ca3af; --line: #2c2e33;
+      --pos: #4ade80; --neg: #f87171; --accent: #60a5fa; --warn-bg: #3a3012; --warn-text: #fcd977;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 520px; margin: 0 auto;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+  header { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 14px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 8px; }
+  .card { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .gross { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .mittel { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .unter { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .zwei .card { min-width: 0; }
+  ul.rang { list-style: none; margin: 0; padding: 0; }
+  ul.rang li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 15px; }
+  ul.rang li + li { border-top: 1px solid var(--line); }
+  ul.rang .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.rang .wert { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+  .hinweis { background: var(--warn-bg); color: var(--warn-text); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
+  .hinweis button { margin-top: 10px; }
+  .fuss { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
+  .fuss a { color: var(--muted); }
+  button { font: inherit; border: 0; border-radius: 12px; padding: 10px 14px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  button.leise { background: transparent; color: var(--accent); padding: 8px 4px; }
+  button.zweit { background: var(--line); color: var(--text); }
+  .knoepfe { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .fehler { color: var(--neg); font-size: 14px; }
+  .ansicht[hidden] { display: none; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=date], input[type=url] { width: 100%; font: inherit; padding: 9px 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .feld { margin-bottom: 10px; }
+  .raster { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .posname { font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .posname small { color: var(--muted); font-weight: 400; }
+  .check-zeile { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); margin: 0 0 10px; }
+  .check-zeile input { width: 20px; height: 20px; }
+  .card.aus .raster { opacity: 0.4; }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Startansicht: noch keine Daten -->
+  <section id="ansicht-leer" class="ansicht" hidden>
+    <header><h1>Depot</h1></header>
+    <div class="card">
+      <p>Noch keine Depotdaten auf diesem Gerät.</p>
+      <p class="unter">Wähle deine Datei <b>depot-daten.json</b> aus, zum Beispiel aus OneDrive.</p>
+      <div class="knoepfe"><button data-aktion="import">Daten importieren</button></div>
+    </div>
+  </section>
+
+  <!-- Hauptansicht -->
+  <section id="ansicht-haupt" class="ansicht" hidden>
+    <header>
+      <h1>Depot</h1>
+      <button class="leise" data-aktion="einstellungen">Einstellungen</button>
+    </header>
+
+    <div id="check-hinweis" class="hinweis" hidden>
+      <b>Monats-Check:</b> <span id="check-anzahl"></span> Bitte prüfen und bestätigen.
+      <div><button data-aktion="check">Jetzt prüfen</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Gesamtgewinn seit Eröffnung</h2>
+      <div id="gewinn-eur" class="gross">–</div>
+      <div id="gewinn-pct" class="unter">–</div>
+    </div>
+
+    <div class="card">
+      <h2>Veränderung zum Vortag</h2>
+      <div id="tag-eur" class="mittel">–</div>
+      <div id="tag-pct" class="unter">–</div>
+    </div>
+
+    <div class="zwei">
+      <div class="card"><h2>Top 3</h2><ul id="top" class="rang"></ul></div>
+      <div class="card"><h2>Low 3</h2><ul id="low" class="rang"></ul></div>
+    </div>
+
+    <p id="status" class="fuss"></p>
+    <p class="fuss">
+      <button class="leise" data-aktion="aktualisieren">Kurse aktualisieren</button><br>
+      Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> ·
+      Übrige Kurse: Schlusskurse von EODHD
+    </p>
+  </section>
+
+  <!-- Monats-Check -->
+  <section id="ansicht-check" class="ansicht" hidden>
+    <header>
+      <h1>Monats-Check</h1>
+      <button class="leise" data-aktion="zurueck">Abbrechen</button>
+    </header>
+    <p class="unter">Vorbelegt sind die geplanten Sparraten zum aktuellen Kurs. Trage die echten Werte aus deinen Depots ein. Ändert sich Betrag oder Kurs, wird die Stückzahl neu berechnet.</p>
+    <div id="check-liste"></div>
+    <div class="knoepfe"><button data-aktion="check-bestaetigen">Alles bestätigen</button></div>
+  </section>
+
+  <!-- Nach dem Check: Backup -->
+  <section id="ansicht-backup" class="ansicht" hidden>
+    <header><h1>Gespeichert</h1></header>
+    <div class="card">
+      <p>Deine Daten sind auf dem iPhone aktualisiert.</p>
+      <p class="unter">Sichere jetzt das Backup in OneDrive: Im Teilen-Menü <b>„In Dateien sichern“</b> wählen, dann deinen OneDrive-Ordner.</p>
+      <div class="knoepfe">
+        <button data-aktion="export">Backup sichern</button>
+        <button class="zweit" data-aktion="zurueck">Später</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Einstellungen -->
+  <section id="ansicht-einstellungen" class="ansicht" hidden>
+    <header>
+      <h1>Einstellungen</h1>
+      <button class="leise" data-aktion="zurueck">Fertig</button>
+    </header>
+
+    <div class="card">
+      <h2>Monats-Check</h2>
+      <p class="unter" id="check-info"></p>
+      <div class="knoepfe"><button class="zweit" data-aktion="check">Check jetzt öffnen</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Backup (OneDrive)</h2>
+      <p class="unter" id="backup-info"></p>
+      <div class="knoepfe">
+        <button data-aktion="export">Backup sichern</button>
+        <button class="zweit" data-aktion="import">Backup laden</button>
+      </div>
+    </div>
+
+    <h2 style="margin: 18px 0 8px">Positionen korrigieren</h2>
+    <p class="unter" style="margin-top: 0">Stückzahl und investierter Betrag, wie in deinem Depot. Offene, noch nicht bestätigte Sparraten sind hier nicht enthalten.</p>
+    <div id="positionen-liste"></div>
+    <div class="knoepfe"><button data-aktion="positionen-speichern">Änderungen speichern</button></div>
+    <p id="positionen-meldung" class="unter"></p>
+
+    <div class="card" style="margin-top: 18px">
+      <h2>Kurs-Vermittler</h2>
+      <div class="feld"><input type="url" id="vermittler" autocomplete="off"></div>
+      <div class="knoepfe"><button class="zweit" data-aktion="vermittler-speichern">Speichern</button></div>
+    </div>
+  </section>
+
+  <input type="file" id="datei" accept="application/json,.json" hidden>
+</main>
+
+<script>
+'use strict';
+
+const SPEICHER = 'depot-v1';
+const KURS_SPEICHER = 'depot-kurse-v1';
+
+let daten = null;
+let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum } } }
+
+// ---------- Hilfsfunktionen ----------
+
+const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+const zahl = (n, stellen) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen }).format(n);
+const pct = (n) => (n > 0 ? '+' : '') + zahl(n, 2) + ' %';
+const mitVorzeichen = (n) => (n > 0 ? '+' : '') + eur.format(n);
+const klasse = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+
+function parseZahl(text) {
+  let s = String(text).trim().replace(/\s/g, '').replace(/€/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function isoDatum(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function monatKey(d) { return isoDatum(d).slice(0, 7); }
+function deDatum(iso) { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; }
+
+function ersterSamstag(jahr, monat0) {
+  const d = new Date(jahr, monat0, 1);
+  d.setDate(1 + ((6 - d.getDay() + 7) % 7));
+  return d;
+}
+
+function heute() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+
+function speichern() {
+  localStorage.setItem(SPEICHER, JSON.stringify(daten));
+}
+
+function laden() {
+  try { daten = JSON.parse(localStorage.getItem(SPEICHER)); } catch { daten = null; }
+  try { kurse = JSON.parse(localStorage.getItem(KURS_SPEICHER)); } catch { kurse = null; }
+}
+
+function zeige(id) {
+  document.querySelectorAll('.ansicht').forEach((el) => { el.hidden = el.id !== id; });
+  window.scrollTo(0, 0);
+}
+
+// ---------- Sparpläne ----------
+
+// Legt für jeden Monat seit Start eine offene Buchung an, sobald der Ausführungstag erreicht ist.
+function offeneBuchungenErzeugen() {
+  const h = heute();
+  const [sy, sm] = daten.sparplanStart.split('-').map(Number);
+  for (const pos of daten.positionen) {
+    if (!pos.sparplan) continue;
+    for (let d = new Date(sy, sm - 1, 1); d <= h; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      const geplant = new Date(d.getFullYear(), d.getMonth(), pos.sparplan.tag);
+      if (geplant > h) continue;
+      const monat = monatKey(d);
+      if (daten.buchungen.some((b) => b.posId === pos.id && b.monat === monat)) continue;
+      daten.buchungen.push({
+        id: `${pos.id}-${monat}`, posId: pos.id, monat, geplant: isoDatum(geplant),
+        betrag: pos.sparplan.betrag, status: 'offen',
+      });
+    }
+  }
+  speichern();
+}
+
+function offeneBuchungen() {
+  return daten.buchungen.filter((b) => b.status === 'offen');
+}
+
+function checkFaellig() {
+  const h = heute();
+  if (h < ersterSamstag(h.getFullYear(), h.getMonth())) return false;
+  return daten.letzterCheck !== monatKey(h) && offeneBuchungen().length > 0;
+}
+
+// ---------- Kurse ----------
+
+async function kurseHolen() {
+  const status = document.getElementById('status');
+  status.textContent = 'Kurse werden geladen …';
+  const preise = {};
+  const fehler = [];
+
+  const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
+  const symbole = [...new Set(eodPos.map((p) => p.symbol).concat(eodPos.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : []))];
+
+  try {
+    const r = await fetch(`${daten.vermittler.replace(/\/$/, '')}/quotes?s=${symbole.join(',')}`);
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
+    const fx = j.kurse['EURUSD.FOREX'];
+    for (const p of eodPos) {
+      const k = j.kurse[p.symbol];
+      if (!k || k.fehler || k.schluss == null) { fehler.push(p.name); continue; }
+      let faktor = 1;
+      if (p.waehrung === 'USD') {
+        if (!fx || fx.fehler) { fehler.push(p.name); continue; }
+        faktor = 1 / fx.schluss; // Vortag mit demselben Wechselkurs, damit nur die Fondsbewegung zählt
+      }
+      preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum };
+    }
+  } catch (e) {
+    eodPos.forEach((p) => fehler.push(p.name));
+    console.error(e);
+  }
+
+  for (const p of daten.positionen.filter((p) => p.quelle === 'coingecko')) {
+    try {
+      const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${p.symbol}&vs_currencies=eur&include_24hr_change=true&include_last_updated_at=true`);
+      const j = (await r.json())[p.symbol];
+      const aend = j.eur_24h_change;
+      preise[p.id] = {
+        eur: j.eur,
+        vorherEur: aend != null ? j.eur / (1 + aend / 100) : null,
+        datum: isoDatum(new Date(j.last_updated_at * 1000)),
+      };
+    } catch (e) {
+      fehler.push(p.name);
+      console.error(e);
+    }
+  }
+
+  // Bei Teilausfall alte Kurse für die fehlenden Positionen behalten
+  const alt = (kurse && kurse.preise) || {};
+  kurse = { abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler };
+  localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
+  hauptRendern();
+}
+
+// ---------- Berechnung ----------
+
+function bewertung() {
+  const offen = offeneBuchungen();
+  const zeilen = [];
+  let wert = 0, investiert = 0, tagAend = 0, vorherWert = 0;
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    if (!k) continue;
+    let stueck = p.stueck, inv = p.investiert;
+    // offene Sparraten vorläufig zum aktuellen Kurs mitrechnen
+    for (const b of offen.filter((b) => b.posId === p.id)) {
+      stueck += b.betrag / k.eur;
+      inv += b.betrag;
+    }
+    const w = stueck * k.eur;
+    wert += w;
+    investiert += inv;
+    if (k.vorherEur) {
+      tagAend += stueck * (k.eur - k.vorherEur);
+      vorherWert += stueck * k.vorherEur;
+      zeilen.push({ name: p.name, aend: (k.eur / k.vorherEur - 1) * 100 });
+    }
+  }
+  return { wert, investiert, tagAend, vorherWert, zeilen };
+}
+
+// ---------- Anzeige ----------
+
+function rangliste(el, eintraege) {
+  el.innerHTML = '';
+  for (const e of eintraege) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="name"></span><span class="wert ${klasse(e.aend)}">${pct(e.aend)}</span>`;
+    li.querySelector('.name').textContent = e.name;
+    el.appendChild(li);
+  }
+}
+
+function hauptAnzeigen() {
+  zeige('ansicht-haupt');
+  hauptRendern();
+}
+
+function hauptRendern() {
+  const offen = offeneBuchungen();
+  const hinweis = document.getElementById('check-hinweis');
+  hinweis.hidden = !checkFaellig();
+  document.getElementById('check-anzahl').textContent =
+    `${offen.length} Sparrate${offen.length === 1 ? '' : 'n'} seit dem letzten Check.`;
+
+  const status = document.getElementById('status');
+  if (!kurse) { status.textContent = 'Noch keine Kurse geladen.'; return; }
+
+  const b = bewertung();
+  const gewinn = b.wert - b.investiert;
+  const gEl = document.getElementById('gewinn-eur');
+  gEl.textContent = mitVorzeichen(gewinn);
+  gEl.className = 'gross ' + klasse(gewinn);
+  document.getElementById('gewinn-pct').textContent =
+    `${pct(b.investiert ? (gewinn / b.investiert) * 100 : 0)} auf ${eur.format(b.investiert)} investiert`;
+
+  const tEl = document.getElementById('tag-eur');
+  tEl.textContent = mitVorzeichen(b.tagAend);
+  tEl.className = 'mittel ' + klasse(b.tagAend);
+  document.getElementById('tag-pct').textContent = pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0);
+
+  const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
+  rangliste(document.getElementById('top'), sortiert.slice(0, 3));
+  rangliste(document.getElementById('low'), sortiert.slice(-3).reverse());
+
+  const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
+  const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
+  status.innerHTML = '';
+  status.append(`Abgerufen ${zeit}${schluss}`);
+  if (kurse.fehler && kurse.fehler.length) {
+    const f = document.createElement('div');
+    f.className = 'fehler';
+    f.textContent = `Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`;
+    status.append(f);
+  }
+}
+
+// ---------- Monats-Check ----------
+
+function checkAnzeigen() {
+  const liste = document.getElementById('check-liste');
+  liste.innerHTML = '';
+  const offen = offeneBuchungen().sort((a, b) => a.geplant.localeCompare(b.geplant));
+  if (offen.length === 0) {
+    liste.innerHTML = '<div class="card">Keine offenen Sparraten. Alles bestätigt.</div>';
+  }
+  for (const b of offen) {
+    const p = daten.positionen.find((p) => p.id === b.posId);
+    const kurs = kurse && kurse.preise[p.id] ? kurse.preise[p.id].eur : null;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = b.id;
+    card.innerHTML = `
+      <div class="posname"><span></span><small>geplant ${deDatum(b.geplant)}</small></div>
+      <label class="check-zeile"><input type="checkbox" class="c-aus" checked> wurde ausgeführt</label>
+      <div class="raster">
+        <div><label>Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
+        <div><label>Betrag (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${zahl(b.betrag, 2)}"></div>
+        <div><label>Kurs (€)</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
+        <div><label>Stück</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs ? zahl(b.betrag / kurs, 6) : ''}"></div>
+      </div>`;
+    card.querySelector('.posname span').textContent = p.name;
+    const neuRechnen = () => {
+      const betrag = parseZahl(card.querySelector('.c-betrag').value);
+      const k = parseZahl(card.querySelector('.c-kurs').value);
+      if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, 6);
+    };
+    card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
+    card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
+    card.querySelector('.c-aus').addEventListener('change', (e) => card.classList.toggle('aus', !e.target.checked));
+    liste.appendChild(card);
+  }
+  zeige('ansicht-check');
+}
+
+function checkBestaetigen() {
+  const karten = [...document.querySelectorAll('#check-liste .card[data-id]')];
+  // erst alles prüfen, dann übernehmen
+  const eingaben = [];
+  for (const card of karten) {
+    const b = daten.buchungen.find((x) => x.id === card.dataset.id);
+    const ausgefuehrt = card.querySelector('.c-aus').checked;
+    const betrag = parseZahl(card.querySelector('.c-betrag').value);
+    const kurs = parseZahl(card.querySelector('.c-kurs').value);
+    const stueck = parseZahl(card.querySelector('.c-stueck').value);
+    const datum = card.querySelector('.c-datum').value;
+    if (ausgefuehrt && !(betrag > 0 && stueck > 0 && datum)) {
+      const name = daten.positionen.find((p) => p.id === b.posId).name;
+      alert(`Bitte Betrag, Stück und Datum für „${name}“ prüfen.`);
+      return;
+    }
+    eingaben.push({ b, ausgefuehrt, betrag, kurs, stueck, datum });
+  }
+  for (const e of eingaben) {
+    if (e.ausgefuehrt) {
+      const p = daten.positionen.find((p) => p.id === e.b.posId);
+      p.stueck += e.stueck;
+      p.investiert += e.betrag;
+      Object.assign(e.b, { status: 'bestaetigt', datum: e.datum, betrag: e.betrag, kurs: e.kurs, stueck: e.stueck });
+    } else {
+      e.b.status = 'nicht_ausgefuehrt';
+    }
+  }
+  daten.letzterCheck = monatKey(heute());
+  speichern();
+  zeige('ansicht-backup');
+}
+
+// ---------- Einstellungen ----------
+
+function einstellungenAnzeigen() {
+  const h = heute();
+  let naechster = ersterSamstag(h.getFullYear(), h.getMonth());
+  if (daten.letzterCheck === monatKey(h) || naechster < h) naechster = ersterSamstag(h.getFullYear(), h.getMonth() + 1);
+  document.getElementById('check-info').textContent =
+    `Offene Sparraten: ${offeneBuchungen().length}. Nächster Check: ${naechster.toLocaleDateString('de-DE')}.`;
+  document.getElementById('backup-info').textContent = daten.letztesBackup
+    ? `Letztes Backup: ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
+    : 'Noch kein Backup von diesem Gerät.';
+  document.getElementById('vermittler').value = daten.vermittler || '';
+
+  const liste = document.getElementById('positionen-liste');
+  liste.innerHTML = '';
+  for (const p of daten.positionen) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = p.id;
+    card.innerHTML = `
+      <div class="posname"><span></span><small></small></div>
+      <div class="raster">
+        <div><label>Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 6)}"></div>
+        <div><label>Investiert (€)</label><input type="text" inputmode="decimal" class="e-inv" value="${zahl(p.investiert, 2)}"></div>
+      </div>`;
+    card.querySelector('.posname span').textContent = p.name;
+    card.querySelector('.posname small').textContent = p.depot;
+    liste.appendChild(card);
+  }
+  document.getElementById('positionen-meldung').textContent = '';
+  zeige('ansicht-einstellungen');
+}
+
+function positionenSpeichern() {
+  const karten = [...document.querySelectorAll('#positionen-liste .card')];
+  const neu = [];
+  for (const card of karten) {
+    const stueck = parseZahl(card.querySelector('.e-stueck').value);
+    const inv = parseZahl(card.querySelector('.e-inv').value);
+    const p = daten.positionen.find((p) => p.id === card.dataset.id);
+    if (!(stueck >= 0) || !(inv >= 0)) { alert(`Ungültige Zahl bei „${p.name}“.`); return; }
+    neu.push([p, stueck, inv]);
+  }
+  for (const [p, stueck, inv] of neu) { p.stueck = stueck; p.investiert = inv; }
+  speichern();
+  document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
+}
+
+// ---------- Backup ----------
+
+async function exportieren() {
+  daten.letztesBackup = new Date().toISOString();
+  speichern();
+  const name = 'depot-daten.json';
+  const datei = new File([JSON.stringify(daten, null, 2)], name, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [datei] })) {
+    try { await navigator.share({ files: [datei] }); } catch (e) { if (e.name !== 'AbortError') alert('Teilen fehlgeschlagen: ' + e.message); }
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(datei);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+}
+
+function importieren(datei) {
+  const leser = new FileReader();
+  leser.onload = () => {
+    try {
+      const neu = JSON.parse(leser.result);
+      if (!Array.isArray(neu.positionen) || !neu.vermittler) throw new Error('Unbekanntes Format');
+      if (daten && !confirm('Vorhandene Daten auf diesem iPhone durch die Datei ersetzen?')) return;
+      neu.buchungen = neu.buchungen || [];
+      daten = neu;
+      speichern();
+      start();
+    } catch (e) {
+      alert('Datei konnte nicht gelesen werden: ' + e.message);
+    }
+  };
+  leser.readAsText(datei);
+}
+
+// ---------- Start ----------
+
+document.addEventListener('click', (e) => {
+  const aktion = e.target.closest('[data-aktion]')?.dataset.aktion;
+  if (!aktion) return;
+  ({
+    import: () => document.getElementById('datei').click(),
+    export: exportieren,
+    einstellungen: einstellungenAnzeigen,
+    zurueck: hauptAnzeigen,
+    check: checkAnzeigen,
+    'check-bestaetigen': checkBestaetigen,
+    aktualisieren: kurseHolen,
+    'positionen-speichern': positionenSpeichern,
+    'vermittler-speichern': () => { daten.vermittler = document.getElementById('vermittler').value.trim(); speichern(); kurseHolen(); },
+  })[aktion]?.();
+});
+
+document.getElementById('datei').addEventListener('change', (e) => {
+  if (e.target.files[0]) importieren(e.target.files[0]);
+  e.target.value = '';
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && daten && !document.getElementById('ansicht-haupt').hidden) {
+    offeneBuchungenErzeugen();
+    kurseHolen();
+  }
+});
+
+function start() {
+  laden();
+  if (!daten) { zeige('ansicht-leer'); return; }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+  offeneBuchungenErzeugen();
+  hauptAnzeigen();
+  kurseHolen();
+}
+
+start();
+</script>
+</body>
+</html>
