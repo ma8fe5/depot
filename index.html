@@ -37,6 +37,9 @@
   .unter { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
   .pos { color: var(--pos); } .neg { color: var(--neg); }
   .zwei .card { min-width: 0; }
+  .paar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+  .paar .card { margin-bottom: 0; }
+  .paar .mittel { font-size: min(22px, 5.2vw); white-space: nowrap; }
   ul.rang { list-style: none; margin: 0; padding: 0; }
   ul.rang li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 15px; }
   ul.rang li + li { border-top: 1px solid var(--line); }
@@ -90,15 +93,22 @@
     </div>
 
     <div class="card">
-      <h2>Gesamtgewinn seit Eröffnung</h2>
-      <div id="gewinn-eur" class="gross">–</div>
-      <div id="gewinn-pct" class="unter">–</div>
+      <h2>Gesamtvermögen</h2>
+      <div id="vermoegen" class="gross">–</div>
+      <div id="investiert" class="unter">–</div>
     </div>
 
-    <div class="card">
-      <h2>Veränderung zum Vortag</h2>
-      <div id="tag-eur" class="mittel">–</div>
-      <div id="tag-pct" class="unter">–</div>
+    <div class="paar">
+      <div class="card">
+        <h2>Gewinn seit Eröffnung</h2>
+        <div id="gewinn-eur" class="mittel">–</div>
+        <div id="gewinn-pct" class="unter">–</div>
+      </div>
+      <div class="card">
+        <h2>Veränderung zum Vortag</h2>
+        <div id="tag-eur" class="mittel">–</div>
+        <div id="tag-pct" class="unter">–</div>
+      </div>
     </div>
 
     <div class="zwei">
@@ -370,11 +380,13 @@ function hauptRendern() {
 
   const b = bewertung();
   const gewinn = b.wert - b.investiert;
+  document.getElementById('vermoegen').textContent = eur.format(b.wert);
+  document.getElementById('investiert').textContent = `${eur.format(b.investiert)} investiert`;
+
   const gEl = document.getElementById('gewinn-eur');
   gEl.textContent = mitVorzeichen(gewinn);
-  gEl.className = 'gross ' + klasse(gewinn);
-  document.getElementById('gewinn-pct').textContent =
-    `${pct(b.investiert ? (gewinn / b.investiert) * 100 : 0)} auf ${eur.format(b.investiert)} investiert`;
+  gEl.className = 'mittel ' + klasse(gewinn);
+  document.getElementById('gewinn-pct').textContent = pct(b.investiert ? (gewinn / b.investiert) * 100 : 0);
 
   const tEl = document.getElementById('tag-eur');
   tEl.textContent = mitVorzeichen(b.tagAend);
