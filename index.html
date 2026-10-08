@@ -239,6 +239,30 @@
   .leer-zustand .symbol svg { width: 30px; height: 30px; }
   .leer-zustand h2 { font-size: 20px; margin: 0 0 6px; }
 
+  /* ---------- Gesten ---------- */
+  html { overscroll-behavior-y: none; }
+  .ziehen { position: fixed; top: calc(env(safe-area-inset-top) - 34px); left: 50%; z-index: 15; width: 36px; height: 36px;
+    border-radius: 50%; display: grid; place-items: center; opacity: 0; transform: translate(-50%, 0);
+    background: var(--flaeche); color: var(--text-3); box-shadow: 0 4px 16px rgba(0,0,0,.15); pointer-events: none; }
+  .ziehen svg { width: 18px; height: 18px; }
+  .ziehen.bereit { color: var(--akzent); }
+  .ziehen.dreht svg { animation: drehen 0.9s linear infinite; }
+
+  /* ---------- Mini-Verlauf ---------- */
+  .spark { height: 46px; margin: 14px -4px -6px; }
+  .spark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .spark .linie { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .spark .pos { stroke: var(--pos); } .spark .neg { stroke: var(--neg); }
+  .spark .punkt-pos { fill: var(--pos); } .spark .punkt-neg { fill: var(--neg); }
+
+  /* ---------- Toast ---------- */
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%);
+    z-index: 20; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border-radius: 999px;
+    background: var(--text); color: var(--bg); font-size: 15px; font-weight: 500; white-space: nowrap;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); animation: toast-rein 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .toast .textknopf { color: var(--akzent); background: var(--bg); border-radius: 999px; padding: 6px 12px; }
+  @keyframes toast-rein { from { opacity: 0; transform: translate(-50%, 16px); } }
+
   /* ---------- Sperre ---------- */
   .sperre { min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
     display: flex; flex-direction: column; justify-content: center; text-align: center; }
@@ -263,6 +287,8 @@
   <symbol id="i-kalender" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
   <symbol id="i-wolke" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.3 9.6 4.5 4.5 0 0 0 7 18.5Z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12 16v-5m-2.2 2.2L12 11l2.2 2.2"/></symbol>
   <symbol id="i-schloss" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.7" r="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-auge" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.9"/></symbol>
+  <symbol id="i-auge-zu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.6A9.9 9.9 0 0 1 12 5.5C18 5.5 21.5 12 21.5 12a17 17 0 0 1-3.2 3.9M6.6 6.7C3.9 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3.5 16.5 5-5 4 3.5 8-8.5M15 6.5h5.5V12"/></symbol>
 </svg>
 
@@ -299,6 +325,7 @@
         <h1>Depot</h1>
       </div>
       <div class="kopf-knoepfe">
+        <button class="rund" id="knopf-privat" data-aktion="privat" aria-label="Beträge verbergen"><svg><use href="#i-auge"/></svg></button>
         <button class="rund" id="knopf-neu" data-aktion="aktualisieren" aria-label="Kurse aktualisieren"><svg><use href="#i-neu"/></svg></button>
         <button class="rund" data-aktion="einstellungen" aria-label="Einstellungen"><svg><use href="#i-zahnrad"/></svg></button>
       </div>
@@ -320,6 +347,7 @@
       <div class="etikett">Gesamtvermögen <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="vermoegen" class="betrag skelett">00.000,00 €</div>
       <div id="investiert" class="unter">&nbsp;</div>
+      <div id="vermoegen-spark" class="spark" aria-hidden="true"></div>
     </div>
 
     <div class="paar">
@@ -489,6 +517,13 @@
   <input type="file" id="datei" accept="application/json,.json" hidden>
 </main>
 
+<div id="ziehen" class="ziehen" aria-hidden="true"><svg><use href="#i-neu"/></svg></div>
+
+<div id="toast" class="toast" hidden>
+  <span id="toast-text"></span>
+  <button class="textknopf" id="toast-knopf"></button>
+</div>
+
 <script>
 'use strict';
 
@@ -505,12 +540,16 @@ let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum, reih
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const zahl = (n, stellen) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen }).format(n);
 const pct = (n) => (n > 0 ? '+' : '') + zahl(n, 2) + ' %';
-const mitVorzeichen = (n) => (n > 0 ? '+' : '') + eur.format(n);
+// Privatsphäre-Modus: Geldbeträge werden als •••• angezeigt, Prozente und Kurse bleiben sichtbar
+const istPrivat = () => document.body.classList.contains('privat');
+const geld = (n) => (istPrivat() ? '•••• €' : eur.format(n));
+const mitVorzeichen = (n) => (istPrivat() ? '•••• €' : (n > 0 ? '+' : '') + eur.format(n));
 const klasse = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const pfeil = (n) => (n > 0 ? '▲ ' : n < 0 ? '▼ ' : '');
 
 // Betrag mit zurückgenommenen Cent: „14.267“ groß, „,49 €“ klein
 function betragHTML(v, vorzeichen) {
+  if (istPrivat()) return '••••<span class="cent"> €</span>';
   const s = (vorzeichen && v > 0 ? '+' : '') + eur.format(v);
   const i = s.lastIndexOf(',');
   return i < 0 ? s : `${s.slice(0, i)}<span class="cent">${s.slice(i)}</span>`;
@@ -538,6 +577,20 @@ function zaehle(el, ziel, vorzeichen) {
     if (f < 1) requestAnimationFrame(schritt);
   };
   requestAnimationFrame(schritt);
+}
+
+// Kurze Meldung am unteren Rand, optional mit Knopf
+let toastTimer = null;
+function toast(text, knopfText, aktion, dauer = 4000) {
+  const el = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = text;
+  const knopf = document.getElementById('toast-knopf');
+  knopf.hidden = !knopfText;
+  knopf.textContent = knopfText || '';
+  knopf.onclick = () => { el.hidden = true; if (aktion) aktion(); };
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  if (dauer) toastTimer = setTimeout(() => { el.hidden = true; }, dauer);
 }
 
 function parseZahl(text) {
@@ -787,6 +840,12 @@ function checkFaellig() {
 async function kurseHolen() {
   const status = document.getElementById('status');
   const knopf = document.getElementById('knopf-neu');
+  if (!navigator.onLine) {
+    // offline: die zuletzt geladenen Kurse bleiben stehen
+    if (kurse) kurse.hinweise = ['Offline – du siehst die zuletzt geladenen Kurse.'];
+    if (daten) hauptRendern();
+    return;
+  }
   status.textContent = 'Kurse werden geladen …';
   knopf.classList.add('dreht');
   const preise = {};
@@ -830,7 +889,8 @@ async function kurseHolen() {
       benchmark = { eur: bk.schluss, vorherEur: bk.vorher, reihe: splitBereinigt(bk.reihe) };
     }
   } catch (e) {
-    eodPos.forEach((p) => fehler.push(p.name));
+    // Vermittler nicht erreichbar: alte Kurse bleiben stehen, ein Satz genügt statt einer Namensliste
+    if (!hinweise.length) hinweise.push('Kursdienst nicht erreichbar – du siehst die zuletzt geladenen Kurse.');
     console.error(e);
   }
 
@@ -1077,14 +1137,14 @@ function vermoegenAnzeigen() {
     return;
   }
   const b = bewertung();
-  document.getElementById('vermoegen-summe').textContent = `${eur.format(b.wert)} in ${b.werte.length} Positionen`;
+  document.getElementById('vermoegen-summe').textContent = `${geld(b.wert)} in ${b.werte.length} Positionen`;
   for (const e of b.werte.sort((a, b) => b.wert - a.wert)) {
     const li = document.createElement('li');
     li.className = 'tippbar';
     li.dataset.pos = e.id;
     li.innerHTML = '<span class="name"></span><span class="wert"></span>';
     li.querySelector('.name').textContent = e.name;
-    li.querySelector('.wert').textContent = eur.format(e.wert);
+    li.querySelector('.wert').textContent = geld(e.wert);
     liste.appendChild(li);
   }
   const verlauf = vermoegensVerlauf();
@@ -1092,7 +1152,7 @@ function vermoegenAnzeigen() {
     linienChart(chartEl, [
       { name: 'Depot', punkte: verlauf.depot },
       { name: BENCHMARK.name, punkte: verlauf.benchmark },
-    ], { format: (v) => eur.format(v) });
+    ], { format: (v) => geld(v) });
   } else {
     chartEl.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
   }
@@ -1162,7 +1222,8 @@ function linienChart(el, serien, opt) {
   min -= rand; max += rand;
   const x = (i) => L + (i / Math.max(1, tage.length - 1)) * (W - L - R);
   const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
-  const kurz = (v) => opt.formatKurz ? opt.formatKurz(v) : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
+  const kurz = (v) => opt.formatKurz ? opt.formatKurz(v)
+    : istPrivat() ? '' : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
   const gid = `verlauf-${++chartNr}`;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">
@@ -1230,6 +1291,35 @@ function linienChart(el, serien, opt) {
   svgEl.addEventListener('pointerleave', verstecken);
 }
 
+// Kleiner Verlauf ohne Achsen: Linie, Farbverlauf und Endpunkt, grün oder rot je nach Richtung
+function sparkline(el, punkte) {
+  if (!punkte || punkte.length < 2) { el.innerHTML = ''; return; }
+  const W = 300, H = 46;
+  const werte = punkte.map((p) => p[1]);
+  const min = Math.min(...werte), max = Math.max(...werte), spanne = max - min || 1;
+  const x = (i) => (i / (werte.length - 1)) * W;
+  const y = (v) => 4 + (1 - (v - min) / spanne) * (H - 8);
+  const richtung = werte[werte.length - 1] >= werte[0] ? 'pos' : 'neg';
+  const d = werte.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const gid = `spark-${++chartNr}`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--${richtung})" stop-opacity="0.22"/><stop offset="1" stop-color="var(--${richtung})" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${d}L${W},${H}L0,${H}Z" fill="url(#${gid})"/>
+    <path class="linie ${richtung}" d="${d}" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+
+function privatUmschalten() {
+  const an = !istPrivat();
+  document.body.classList.toggle('privat', an);
+  try { localStorage.setItem('depot-privat', an ? '1' : ''); } catch { /* nur Komfort */ }
+  document.querySelector('#knopf-privat use').setAttribute('href', an ? '#i-auge-zu' : '#i-auge');
+  toast(an ? 'Beträge verborgen' : 'Beträge sichtbar', null, null, 1600);
+  hauptRendern();
+}
+
 // ---------- Detail einer Position ----------
 
 let detailHerkunft = 'vermoegen';
@@ -1252,8 +1342,8 @@ function detailAnzeigen(posId) {
     ['Kurs', eur.format(k.eur)],
     ['Kursdatum', k.datum ? deDatum(k.datum) : '–'],
     ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–', k.vorherEur ? k.eur - k.vorherEur : 0],
-    ['Stück', zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
-    ['Investiert', eur.format(inv)],
+    ['Stück', istPrivat() ? '••••' : zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
+    ['Investiert', geld(inv)],
     ['Sparplan', p.sparplan ? `${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}.` : '–'],
   ];
   const dl = document.getElementById('detail-werte');
@@ -1329,7 +1419,9 @@ function hauptRendern() {
   const vEl = document.getElementById('vermoegen');
   vEl.classList.remove('skelett');
   zaehle(vEl, b.wert, false);
-  document.getElementById('investiert').textContent = `${eur.format(b.investiert)} investiert`;
+  document.getElementById('investiert').textContent = `${geld(b.investiert)} investiert`;
+  const verlauf = vermoegensVerlauf();
+  sparkline(document.getElementById('vermoegen-spark'), verlauf && verlauf.depot);
 
   const gEl = document.getElementById('gewinn-eur');
   gEl.className = 'wert ' + klasse(gewinn);
@@ -1724,6 +1816,7 @@ document.addEventListener('click', (e) => {
     'schutz-einrichten': schutzEinrichten,
     'schutz-entfernen': schutzEntfernen,
     'schutz-zuruecksetzen': schutzZuruecksetzen,
+    privat: privatUmschalten,
     'push-an': pushEinschalten,
     'push-test': pushTest,
     'push-aus': pushAusschalten,
@@ -1759,6 +1852,92 @@ document.addEventListener('visibilitychange', () => {
     kurseHolen();
   }
 });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.typ === 'neue-version') toast('Neue Version verfügbar', 'Neu laden', () => location.reload(), 0);
+  });
+}
+window.addEventListener('online', () => { if (daten) kurseHolen(); });
+
+// Privatsphäre-Modus vom letzten Mal übernehmen
+try {
+  if (localStorage.getItem('depot-privat')) {
+    document.body.classList.add('privat');
+    document.querySelector('#knopf-privat use').setAttribute('href', '#i-auge-zu');
+  }
+} catch { /* nur Komfort */ }
+
+// ---------- Gesten: zum Aktualisieren ziehen, vom linken Rand zurückwischen ----------
+(function gesten() {
+  const SCHWELLE = 70;
+  const ziehen = document.getElementById('ziehen');
+  let start = null, modus = null, ansicht = null;
+  const ruhe = (el) => setTimeout(() => { el.style.transition = ''; }, 320);
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { modus = null; return; }
+    const t = e.touches[0];
+    ansicht = document.querySelector('.ansicht:not([hidden])');
+    start = { x: t.clientX, y: t.clientY };
+    modus = null;
+    if (!ansicht) return;
+    if (t.clientX < 28 && ansicht.querySelector('.navi .zurueck')) modus = 'zurueck';
+    else if (ansicht.id === 'ansicht-haupt' && window.scrollY <= 0) modus = 'ziehen';
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!modus) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (modus === 'zurueck') {
+      if (dx < 10 && Math.abs(dy) > Math.abs(dx)) { modus = null; ansicht.style.transform = ''; return; }
+      ansicht.style.transition = 'none';
+      ansicht.style.transform = `translateX(${Math.max(0, dx)}px)`;
+    } else {
+      const weg = Math.max(0, Math.min(110, dy * 0.5));
+      ziehen.style.transition = 'none';
+      ziehen.style.opacity = Math.min(1, weg / SCHWELLE);
+      ziehen.style.transform = `translate(-50%, ${weg}px) rotate(${weg * 4}deg)`;
+      ziehen.classList.toggle('bereit', weg >= SCHWELLE);
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!modus) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (modus === 'zurueck') {
+      ansicht.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
+      if (dx > 90) {
+        const ziel = ansicht;
+        ziel.style.transform = 'translateX(100%)';
+        setTimeout(() => { ziel.style.transition = ''; ziel.style.transform = ''; ziel.querySelector('.navi .zurueck').click(); }, 220);
+      } else {
+        ansicht.style.transform = '';
+        ruhe(ansicht);
+      }
+    } else {
+      ziehen.style.transition = 'transform 0.3s, opacity 0.3s';
+      if (dy * 0.5 >= SCHWELLE) {
+        ziehen.style.transform = 'translate(-50%, 56px)';
+        ziehen.classList.add('dreht');
+        kurseHolen().finally(() => {
+          ziehen.classList.remove('dreht', 'bereit');
+          ziehen.style.transform = 'translate(-50%, 0)';
+          ziehen.style.opacity = 0;
+          ruhe(ziehen);
+        });
+      } else {
+        ziehen.style.transform = 'translate(-50%, 0)';
+        ziehen.style.opacity = 0;
+        ziehen.classList.remove('bereit');
+        ruhe(ziehen);
+      }
+    }
+    modus = null;
+  }, { passive: true });
+})();
 
 function start() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch((e) => console.error(e));
