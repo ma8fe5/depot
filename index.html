@@ -140,6 +140,8 @@
   .rang.pos { background: var(--pos-weich); color: var(--pos); }
   .rang.neg { background: var(--neg-weich); color: var(--neg); }
   .ranglisten .karte { padding: 14px 0 4px; }
+  .rang-wert { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+  .rang-wert small { font-size: 13px; font-weight: 600; padding-right: 2px; }
   .ranglisten .etikett { padding: 0 18px; margin-bottom: 2px; }
 
   /* ---------- Hinweise ---------- */
@@ -749,7 +751,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.1946'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.1950'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1344,7 +1346,7 @@ function bewertung() {
     if (k.vorherEur) {
       tagAend += stueck * (k.eur - k.vorherEur);
       vorherWert += stueck * k.vorherEur;
-      zeilen.push({ name: p.name, aend: (k.eur / k.vorherEur - 1) * 100 });
+      zeilen.push({ name: p.name, aend: (k.eur / k.vorherEur - 1) * 100, euro: stueck * (k.eur - k.vorherEur) });
     }
   }
   return { wert, investiert, tagAend, vorherWert, zeilen, werte };
@@ -2280,7 +2282,8 @@ function rangliste(el, eintraege) {
   eintraege.forEach((e, i) => {
     const li = document.createElement('li');
     li.className = 'mit-rang';
-    li.innerHTML = `<span class="rang ${klasse(e.aend)}">${i + 1}</span><span class="name"></span><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span>`;
+    li.innerHTML = `<span class="rang ${klasse(e.aend)}">${i + 1}</span><span class="name"></span>
+      <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
     li.querySelector('.name').textContent = e.name;
     el.appendChild(li);
   });
