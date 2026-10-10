@@ -417,9 +417,6 @@
         <h1>Depot</h1>
       </div>
       <div class="kopf-knoepfe">
-        <button class="rund" id="knopf-privat" data-aktion="privat" aria-label="Beträge verbergen"><svg><use href="#i-auge"/></svg></button>
-        <button class="rund" id="knopf-neu" data-aktion="aktualisieren" aria-label="Kurse aktualisieren"><svg><use href="#i-neu"/></svg></button>
-        <button class="rund" data-aktion="einstellungen" aria-label="Einstellungen"><svg><use href="#i-zahnrad"/></svg></button>
         <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
       </div>
     </div>
@@ -798,7 +795,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2120'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2123'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1112,7 +1109,6 @@ function checkFaellig() {
 
 async function kurseHolen() {
   const status = document.getElementById('status');
-  const knopf = document.getElementById('knopf-neu');
   if (!navigator.onLine) {
     // offline: die zuletzt geladenen Kurse bleiben stehen
     if (kurse) kurse.hinweise = ['Offline – du siehst die zuletzt geladenen Kurse.'];
@@ -1120,7 +1116,6 @@ async function kurseHolen() {
     return;
   }
   status.textContent = 'Kurse werden geladen …';
-  knopf.classList.add('dreht');
   const preise = {};
   const fehler = [];
   const hinweise = [];
@@ -1200,7 +1195,6 @@ async function kurseHolen() {
     benchmark: benchmark || (kurse && kurse.benchmark) || null,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
-  knopf.classList.remove('dreht');
   if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
@@ -1603,15 +1597,6 @@ function menueSchliessen() {
   const panel = ebene.querySelector('.menue-panel');
   panel.style.transform = '';
   setTimeout(() => { ebene.hidden = true; }, 320);
-}
-
-function privatUmschalten() {
-  const an = !istPrivat();
-  document.body.classList.toggle('privat', an);
-  try { localStorage.setItem('depot-privat', an ? '1' : ''); } catch { /* nur Komfort */ }
-  document.querySelector('#knopf-privat use').setAttribute('href', an ? '#i-auge-zu' : '#i-auge');
-  toast(an ? 'Beträge verborgen' : 'Beträge sichtbar', null, null, 1600);
-  hauptRendern();
 }
 
 // Ab diesem Monat kommen die Käufe aus dem Monats-Check, davor wird bei Bedarf geschätzt
@@ -2466,7 +2451,7 @@ function hauptRendern() {
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
   const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
   status.innerHTML = '';
-  status.append(`Aktualisiert ${zeit}${schluss}`);
+  status.append(`Aktualisiert ${zeit}${schluss}`, document.createElement('br'), 'Zum Aktualisieren nach unten ziehen');
   const meldungen = [...(kurse.hinweise || [])];
   if (kurse.fehler && kurse.fehler.length) meldungen.push(`Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`);
   for (const text of meldungen) {
@@ -2886,7 +2871,6 @@ document.addEventListener('click', (e) => {
     'schutz-einrichten': schutzEinrichten,
     'schutz-entfernen': schutzEntfernen,
     'schutz-zuruecksetzen': schutzZuruecksetzen,
-    privat: privatUmschalten,
     menue: menueOeffnen,
     'menue-zu': () => {},
     aufteilung: () => { aufteilungNach = 'art'; zeige('ansicht-aufteilung'); aufteilungAnzeigen(); },
@@ -2979,13 +2963,8 @@ document.getElementById('rt-ziel-pos').addEventListener('change', (e) => {
   renteAnzeigen();
 });
 
-// Privatsphäre-Modus vom letzten Mal übernehmen
-try {
-  if (localStorage.getItem('depot-privat')) {
-    document.body.classList.add('privat');
-    document.querySelector('#knopf-privat use').setAttribute('href', '#i-auge-zu');
-  }
-} catch { /* nur Komfort */ }
+// Privatsphäre-Modus wurde entfernt: einen alten gespeicherten Zustand aufräumen
+try { localStorage.removeItem('depot-privat'); } catch { /* nur Komfort */ }
 
 // ---------- Gesten: zum Aktualisieren ziehen, vom linken Rand zurückwischen ----------
 (function gesten() {
