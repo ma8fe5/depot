@@ -306,6 +306,12 @@
   .kachel.k5 { background: linear-gradient(145deg, #f472b6, #db2777); }
   .kachel.k6 { background: linear-gradient(145deg, #60a5fa, #2563eb); }
   .segmente.vier button { font-size: 13px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; margin: 2px -4px 12px; padding: 0 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { border: 0; border-radius: 999px; padding: 7px 13px; background: var(--flaeche-2); color: var(--text-2);
+    font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
+  .chip.aktiv { background: var(--akzent); color: #fff; }
+  .chip:disabled { opacity: 0.35; cursor: default; }
   .zeile-wert { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
   .wert-gross { font-size: 30px; font-weight: 750; letter-spacing: -0.03em; white-space: nowrap; }
   .chart .s0.gruen { stroke: var(--pos); }
@@ -463,7 +469,9 @@
 
     <div class="karte">
       <div class="etikett">Entwicklung</div>
+      <div class="chips" id="entw-chips"></div>
       <div id="start-chart" class="chart"></div>
+      <p class="unter" id="entw-hinweis" style="margin: 8px 0 0; font-size: 12px"></p>
     </div>
 
     <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
@@ -844,7 +852,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2148'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2217'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1262,12 +1270,68 @@ async function kurseHolen() {
 // 'bis' = letzter Kurs am oder vor dem Datum, 'ab' = erster Kurs am oder nach dem Datum
 function kursAm(reihe, datum, richtung) {
   if (!reihe || reihe.length === 0) return null;
-  if (richtung === 'bis') {
-    for (let i = reihe.length - 1; i >= 0; i--) if (reihe[i][0] <= datum) return reihe[i][1];
-    return null;
+  // binäre Suche: erster Index mit Datum > datum (Reihen sind aufsteigend sortiert)
+  let lo = 0, hi = reihe.length;
+  while (lo < hi) { const mitte = (lo + hi) >> 1; if (reihe[mitte][0] <= datum) lo = mitte + 1; else hi = mitte; }
+  if (richtung === 'bis') return lo > 0 ? reihe[lo - 1][1] : null;
+  if (lo > 0 && reihe[lo - 1][0] === datum) return reihe[lo - 1][1];
+  return lo < reihe.length ? reihe[lo][1] : null;
+}
+
+// ---------- Lange Kurshistorie (einmalig vom Vermittler, bei EODHD „Historian“) ----------
+
+const HISTORIE_SPEICHER = 'depot-historie-kurse-v1';
+const historieSymbol = (p) => (p.quelle === 'coingecko' ? 'BTC-EUR.CC' : p.symbol);
+let historieKurse = {};
+try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {}; } catch { historieKurse = {}; }
+
+// Holt fehlende Historien; vollständige bleiben auf dem iPhone, der Vermittler hat sie ohnehin dauerhaft gespeichert
+async function historieLaden() {
+  const symbole = [...new Set(daten.positionen.map(historieSymbol)
+    .concat(daten.positionen.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : []))];
+  let neu = false;
+  for (const s of symbole) {
+    if (historieKurse[s]) continue;
+    try {
+      const r = await vermittler(`/historie?s=${encodeURIComponent(s)}`);
+      const j = await r.json();
+      if (r.ok && !j.fehler && j.vollstaendig !== false && Array.isArray(j.reihe)) {
+        historieKurse[s] = { erster: j.erster, reihe: splitBereinigt(j.reihe) };
+        neu = true;
+      }
+    } catch (e) { console.error(e); }
   }
-  for (const [d, k] of reihe) if (d >= datum) return k;
-  return null;
+  if (neu) {
+    try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
+    langeReihenCache.clear();
+    if (daten && hauptseiteSichtbar()) hauptRendern();
+  }
+}
+
+// Tagesreihe in Euro über den ganzen Zeitraum: lange Historie + aktuelle Reihe (die aktuelle hat Vorrang)
+const langeReihenCache = new Map();
+function langeReihe(p, k) {
+  const h = historieKurse[historieSymbol(p)];
+  if (!h) return k.reihe || [];
+  const cacheSchluessel = `${p.id}:${kurse.abgerufen}`;
+  if (langeReihenCache.has(cacheSchluessel)) return langeReihenCache.get(cacheSchluessel);
+  let alt = h.reihe;
+  if (p.waehrung === 'USD') {
+    const fx = historieKurse['EURUSD.FOREX'];
+    if (!fx) return k.reihe || [];
+    alt = alt.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || 1)]);
+  }
+  const neuAb = k.reihe && k.reihe.length ? k.reihe[0][0] : '9999';
+  const reihe = alt.filter(([d]) => d < neuAb).concat(k.reihe || []);
+  langeReihenCache.set(cacheSchluessel, reihe);
+  return reihe;
+}
+
+// Seit wann es die Position gibt: frühester bekannter oder geschätzter Kauf
+function ersterKauf(p, k) {
+  const daten_ = daten.buchungen.filter((b) => b.posId === p.id && (b.status === 'historie' || b.status === 'bestaetigt') && b.betrag > 0).map((b) => b.datum);
+  if (k) daten_.push(...kaeufeNach(p, k, '1900-01-01').filter((c) => c.betrag > 0).map((c) => c.datum));
+  return daten_.length ? daten_.sort()[0] : null;
 }
 
 // Rechnet Aktiensplits aus einer Kursreihe heraus (EODHD liefert unbereinigte Schlusskurse).
@@ -1321,7 +1385,7 @@ function kaeufeNach(p, k, stichtagIso) {
       const geplant = isoDatum(new Date(d.getFullYear(), d.getMonth(), p.sparplan.tag));
       if (geplant <= stichtagIso) break;
       if (geplant > heuteIso) continue;
-      const kurs = kursAm(k.reihe, geplant, 'ab');
+      const kurs = kursAm(langeReihe(p, k), geplant, 'ab');
       if (kurs) kaeufe.push({ datum: geplant, betrag: p.sparplan.betrag, stueck: p.sparplan.betrag / kurs, geschaetzt: true });
     }
   }
@@ -1483,33 +1547,40 @@ function vermoegenAnzeigen() {
   }
 }
 
-// Tageswerte seit dem 31.12.: Depot = Summe (Stück am Tag × Kurs am Tag);
-// Vergleich = Depotwert vom 31.12. plus alle Einzahlungen im Vergleichsindex angelegt
-function vermoegensVerlauf() {
-  const start = stichtag('jahr');
+// Tageswerte ab Stichtag (Standard: 31.12. des Vorjahres) bis zum Ende (Standard: letzter Kurs):
+// Depot = Summe (Stück am Tag × Kurs am Tag). Vor ihrem ersten Kauf zählt eine Position mit 0.
+// Vergleich = Depotwert am Stichtag plus alle Einzahlungen im Vergleichsindex angelegt
+function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
   const pos = [];
   let ende = start;
   for (const p of daten.positionen) {
     const k = kurse.preise[p.id];
-    if (!k || !k.reihe || !k.reihe.length) continue;
-    const bestand = aktuellerBestand(p, k);
-    pos.push({ k, stueck: bestand.stueck, kaeufe: kaeufeNach(p, k, start) });
-    const letztes = k.reihe[k.reihe.length - 1][0];
+    if (!k) continue;
+    const reihe = langeReihe(p, k);
+    if (!reihe.length) continue;
+    const kaeufe = kaeufeNach(p, k, start).sort((a, b) => a.datum.localeCompare(b.datum));
+    const stueckStart = aktuellerBestand(p, k).stueck - kaeufe.reduce((s, c) => s + c.stueck, 0);
+    pos.push({ k, reihe, kaeufe, stueckStart, erster: ersterKauf(p, k), ik: 0, ir: 0, dazu: 0 });
+    const letztes = reihe[reihe.length - 1][0];
     if (letztes > ende) ende = letztes;
   }
+  if (bis && bis < ende) ende = bis;
   if (!pos.length || ende <= start) return null;
 
   const tage = [];
   for (let d = new Date(start + 'T00:00:00'); isoDatum(d) <= ende; d.setDate(d.getDate() + 1)) tage.push(isoDatum(d));
 
+  // Tag für Tag mit Zeigern durch Käufe und Kurse (statt jedes Mal neu zu suchen)
   const depot = tage.map((t) => {
     let summe = 0;
     for (const x of pos) {
+      while (x.ik < x.kaeufe.length && x.kaeufe[x.ik].datum <= t) x.dazu += x.kaeufe[x.ik++].stueck;
+      while (x.ir < x.reihe.length && x.reihe[x.ir][0] <= t) x.ir++;
+      if (x.erster && t < x.erster) continue;
       // ab dem Kursdatum der aktuelle Kurs, damit das Chart-Ende zur Kachel passt
-      const kurs = x.k.datum && t >= x.k.datum ? x.k.eur : kursAm(x.k.reihe, t, 'bis');
+      const kurs = x.k.datum && t >= x.k.datum ? x.k.eur : (x.ir > 0 ? x.reihe[x.ir - 1][1] : null);
       if (kurs == null) continue;
-      const stueck = x.stueck - x.kaeufe.filter((c) => c.datum > t).reduce((s, c) => s + c.stueck, 0);
-      summe += Math.max(0, stueck) * kurs;
+      summe += Math.max(0, x.stueckStart + x.dazu) * kurs;
     }
     return [t, summe];
   });
@@ -2434,6 +2505,79 @@ function rangliste(el, eintraege) {
   });
 }
 
+// ---------- Entwicklung auf der Startseite: „Seit Eröffnung“ oder ein einzelnes Jahr ----------
+
+let entwicklungZeitraum = 'gesamt';
+try { entwicklungZeitraum = localStorage.getItem('depot-entw') || 'gesamt'; } catch { /* nur Komfort */ }
+
+function entwicklungAnzeigen() {
+  const chartEl = document.getElementById('start-chart');
+  const chips = document.getElementById('entw-chips');
+  const hinweis = document.getElementById('entw-hinweis');
+  const h = heute();
+
+  // Eröffnung = frühester Kauf; Daten reichen so weit zurück, wie jede Position Kurse hat
+  let eroeffnung = null, datenAb = '0000';
+  for (const p of daten.positionen) {
+    const k = kurse.preise[p.id];
+    if (!k) continue;
+    const erster = ersterKauf(p, k);
+    const reihe = langeReihe(p, k);
+    if (erster && (!eroeffnung || erster < eroeffnung)) eroeffnung = erster;
+    if (reihe.length) {
+      const ab = reihe[0][0];
+      if (!erster || ab > erster) datenAb = ab > datenAb ? ab : datenAb; // Position hat Kurse erst nach ihrem ersten Kauf
+    }
+  }
+  eroeffnung = eroeffnung || stichtag('jahr');
+  const vollstaendig = datenAb <= eroeffnung;
+  const startJahr = Number(eroeffnung.slice(0, 4));
+  const ersterVollerTag = vollstaendig ? eroeffnung : datenAb;
+
+  // Auswahl: Seit Eröffnung + jedes Jahr; Jahre ohne Kursdaten sind ausgegraut
+  const jahre = [];
+  for (let j = startJahr; j <= h.getFullYear(); j++) jahre.push(j);
+  if (entwicklungZeitraum !== 'gesamt' && !jahre.includes(Number(entwicklungZeitraum))) entwicklungZeitraum = 'gesamt';
+  chips.innerHTML = [`<button class="chip${entwicklungZeitraum === 'gesamt' ? ' aktiv' : ''}" data-entw="gesamt">Seit Eröffnung</button>`]
+    .concat(jahre.map((j) => {
+      const ohneDaten = `${j}-12-31` < ersterVollerTag;
+      return `<button class="chip${String(j) === String(entwicklungZeitraum) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
+    })).join('');
+
+  let start, bis = null, achseX;
+  const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
+  if (entwicklungZeitraum === 'gesamt') {
+    // vollständig: ab dem Tag vor dem ersten Kauf (Start bei 0 €), sonst ab dem ersten Tag mit Kursen
+    const ab = new Date(ersterVollerTag + 'T00:00:00');
+    if (vollstaendig) ab.setDate(ab.getDate() - 1);
+    start = isoDatum(ab);
+    const spanne = h.getFullYear() - Number(start.slice(0, 4));
+    achseX = spanne >= 2
+      ? (t, i) => (i > 0 && t.slice(5) === '01-01' ? t.slice(0, 4) : null)
+      : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
+  } else {
+    const j = Number(entwicklungZeitraum);
+    start = `${j - 1}-12-31`;
+    if (start < ersterVollerTag) { const ab = new Date(ersterVollerTag + 'T00:00:00'); ab.setDate(ab.getDate() - 1); start = isoDatum(ab); }
+    bis = `${j}-12-31`;
+    achseX = (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
+  }
+
+  const verlauf = vermoegensVerlauf(start, bis);
+  if (verlauf) {
+    linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
+      gruen: true,
+      format: (v) => geld(v),
+      formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
+      achseX,
+    });
+  } else {
+    chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum fehlen noch Kursdaten.</p>';
+  }
+  hinweis.textContent = vollstaendig ? ''
+    : `Kurse ab ${deDatum(ersterVollerTag)} – die ältere Historie wird nach der Buchung bei EODHD automatisch geladen.`;
+}
+
 const GV_TITEL = {
   vortag: 'Gewinn/Verlust zum Vortag',
   monat: 'Gewinn/Verlust seit Monatsanfang (MTD)',
@@ -2473,20 +2617,7 @@ function hauptRendern() {
   vEl.classList.remove('skelett');
   zaehle(vEl, b.wert, false);
   document.getElementById('investiert').textContent = `${geld(b.investiert)} investiert`;
-  const verlauf = vermoegensVerlauf();
-  // Entwicklung: Monat und Jahr am Quartalsanfang auf der x-Achse, volle Euro auf der y-Achse
-  const startChart = document.getElementById('start-chart');
-  if (verlauf) {
-    const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
-    linienChart(startChart, [{ name: 'Vermögen', punkte: verlauf.depot }], {
-      gruen: true,
-      format: (v) => geld(v),
-      formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
-      achseX: (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null),
-    });
-  } else {
-    startChart.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
-  }
+  entwicklungAnzeigen();
 
   // kleine Hinweise im Menü „Mehr“
   const arten = new Set(daten.positionen.map(anlageart)).size;
@@ -2914,6 +3045,13 @@ function importieren(datei) {
 // ---------- Start ----------
 
 document.addEventListener('click', (e) => {
+  const entw = e.target.closest('[data-entw]')?.dataset.entw;
+  if (entw) {
+    entwicklungZeitraum = entw;
+    try { localStorage.setItem('depot-entw', entw); } catch { /* nur Komfort */ }
+    entwicklungAnzeigen();
+    return;
+  }
   const gvWahl = e.target.closest('[data-gv]')?.dataset.gv;
   if (gvWahl) {
     gvZeitraum = gvWahl;
@@ -3153,7 +3291,7 @@ function nachLaden() {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   offeneBuchungenErzeugen();
   hauptAnzeigen();
-  kurseHolen();
+  kurseHolen().then(historieLaden); // Historie nur einmalig: was schon da ist, wird nicht erneut geladen
 }
 
 start();
