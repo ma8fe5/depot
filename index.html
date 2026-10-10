@@ -280,6 +280,17 @@
   .menue-panel .abschnitt { margin: 18px 14px 8px; }
   .menue-panel .abschnitt:first-of-type { margin-top: 0; }
 
+  /* ---------- Tableiste ---------- */
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; gap: 8px;
+    padding: 6px 16px calc(env(safe-area-inset-bottom) + 6px); background: var(--glas); border-top: 1px solid var(--linie);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+  .tabbar button { flex: 1; max-width: 200px; border: 0; background: none; cursor: pointer; padding: 6px 4px 2px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-3); font: inherit; font-size: 11px; font-weight: 600; }
+  .tabbar button svg { width: 25px; height: 25px; }
+  .tabbar button.aktiv { color: var(--akzent); }
+  body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 96px); }
+  body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 80px); }
+
   /* ---------- Menü (von links) ---------- */
   .menue-ebene { position: fixed; inset: 0; z-index: 30; }
   .menue-hintergrund { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); opacity: 0; transition: opacity 0.28s ease;
@@ -384,6 +395,8 @@
   <symbol id="i-uhr" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4.5H8M12 7.5V12l3 2"/></symbol>
   <symbol id="i-zins" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20v-4M10 20v-7M14 20v-10M18 20V5"/></symbol>
   <symbol id="i-rente" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM4.5 20.5c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/></symbol>
+  <symbol id="i-haus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 11 12 4l8.5 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></symbol>
+  <symbol id="i-topslows" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 20V5M3.5 8.5 7 5l3.5 3.5M17 4v15M13.5 15.5 17 19l3.5-3.5"/></symbol>
   <symbol id="i-burger" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-schliessen" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3.5 16.5 5-5 4 3.5 8-8.5M15 6.5h5.5V12"/></symbol>
@@ -458,14 +471,26 @@
       </div>
     </div>
 
-    <div class="ranglisten">
-      <div class="karte"><div class="etikett">Top 3 heute</div><ul id="top" class="liste"></ul></div>
-      <div class="karte"><div class="etikett">Low 3 heute</div><ul id="low" class="liste"></ul></div>
-    </div>
-
-
     <p id="status" class="fuss"></p>
     <p class="fuss">Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · Übrige Kurse: Schlusskurse von EODHD</p>
+  </section>
+
+  <!-- Tops & Lows (zweiter Reiter) -->
+  <section id="ansicht-tops" class="ansicht" hidden>
+    <div class="kopf">
+      <div>
+        <div class="datum" id="tops-datum">Veränderung zum letzten Handelstag</div>
+        <h1>Tops & Lows</h1>
+      </div>
+      <div class="kopf-knoepfe">
+        <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
+      </div>
+    </div>
+    <div class="ranglisten">
+      <div class="karte"><div class="etikett">Top 3</div><ul id="top" class="liste"></ul></div>
+      <div class="karte"><div class="etikett">Low 3</div><ul id="low" class="liste"></ul></div>
+    </div>
+    <p class="fuss">Prozent und Euro beziehen sich auf deine Position. Zum Aktualisieren nach unten ziehen.</p>
   </section>
 
   <!-- Vermögen je Position -->
@@ -750,6 +775,12 @@
   <input type="file" id="datei" accept="application/json,.json" hidden>
 </main>
 
+<!-- Tableiste unten -->
+<nav id="tabbar" class="tabbar" hidden aria-label="Hauptbereiche">
+  <button data-tab="ansicht-haupt"><svg><use href="#i-haus"/></svg><span>Startseite</span></button>
+  <button data-tab="ansicht-tops"><svg><use href="#i-topslows"/></svg><span>Tops & Lows</span></button>
+</nav>
+
 <!-- Menü (Burger) -->
 <div id="menue" class="menue-ebene" hidden>
   <div class="menue-hintergrund" data-aktion="menue-zu"></div>
@@ -796,7 +827,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2129'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2135'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1020,10 +1051,19 @@ function schutzZuruecksetzen() {
   zeige('ansicht-leer');
 }
 
+const REITER = ['ansicht-haupt', 'ansicht-tops'];
+
 function zeige(id) {
   document.querySelectorAll('.ansicht').forEach((el) => { el.hidden = el.id !== id; });
+  // Tableiste nur auf den beiden Hauptseiten
+  const mitTabs = REITER.includes(id);
+  document.getElementById('tabbar').hidden = !mitTabs;
+  document.body.classList.toggle('mit-tabs', mitTabs);
+  document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('aktiv', b.dataset.tab === id));
   window.scrollTo(0, 0);
 }
+
+const hauptseiteSichtbar = () => REITER.some((id) => !document.getElementById(id).hidden);
 
 // ---------- Sparpläne ----------
 
@@ -2438,6 +2478,8 @@ function hauptRendern() {
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
   const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
+  document.getElementById('tops-datum').textContent = daten_.length
+    ? `Schlusskurse vom ${deDatum(daten_[0])}` : 'Veränderung zum letzten Handelstag';
   status.innerHTML = '';
   status.append(`Aktualisiert ${zeit}${schluss}`, document.createElement('br'), 'Zum Aktualisieren nach unten ziehen');
   const meldungen = [...(kurse.hinweise || [])];
@@ -2752,7 +2794,7 @@ async function exportieren() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
-  if (!document.getElementById('ansicht-haupt').hidden) hauptRendern();
+  if (hauptseiteSichtbar()) hauptRendern();
 }
 
 // Übernimmt echte Depot-Umsätze (depot-historie.json) als Historie-Buchungen.
@@ -2822,6 +2864,8 @@ function importieren(datei) {
 // ---------- Start ----------
 
 document.addEventListener('click', (e) => {
+  const reiter = e.target.closest('[data-tab]')?.dataset.tab;
+  if (reiter) { zeige(reiter); hauptRendern(); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
   if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
   const aufteilung = e.target.closest('[data-aufteilung]')?.dataset.aufteilung;
@@ -2899,7 +2943,7 @@ document.addEventListener('visibilitychange', () => {
     sperren();
     return;
   }
-  if (daten && !document.getElementById('ansicht-haupt').hidden) {
+  if (daten && hauptseiteSichtbar()) {
     offeneBuchungenErzeugen();
     kurseHolen();
   }
@@ -2970,7 +3014,7 @@ try { localStorage.removeItem('depot-privat'); } catch { /* nur Komfort */ }
     if (!document.getElementById('menue').hidden) { modus = 'menue'; ansicht = document.querySelector('.menue-panel'); return; }
     if (!ansicht) return;
     if (t.clientX < 28 && ansicht.querySelector('.navi .zurueck')) modus = 'zurueck';
-    else if (ansicht.id === 'ansicht-haupt' && window.scrollY <= 0) modus = 'ziehen';
+    else if (REITER.includes(ansicht.id) && window.scrollY <= 0) modus = 'ziehen';
   }, { passive: true });
 
   document.addEventListener('touchmove', (e) => {
