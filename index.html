@@ -285,6 +285,13 @@
   .legende .k1::before { background: var(--kat-1); } .legende .k2::before { background: var(--kat-2); } .legende .k3::before { background: var(--kat-3); }
   .legende span.l2::before { border-top: 2.2px solid var(--kat-3); }
   .chart .s2 { stroke: var(--kat-3); } .chart .p2 { fill: var(--kat-3); }
+  .sim li { gap: 8px; }
+  .sim .eingaben { display: flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: 13px; color: var(--text-2); }
+  .sim input { width: 58px; min-height: 36px; padding: 6px 6px; text-align: right; font-size: 15px; }
+  .sim input.geaendert { outline: 2px solid var(--akzent); }
+  .sim li.kopf { min-height: 0; padding-top: 10px; padding-bottom: 4px; font-size: 12px; color: var(--text-2); }
+  .sim li.kopf .eingaben span { width: 58px; text-align: center; }
+  .sim li.summe { font-weight: 650; }
   .segmente.zwei { grid-template-columns: repeat(2, 1fr); }
   .segmente.zwei::before { width: calc((100% - 6px) / 2); }
   .segmente.vier { grid-template-columns: repeat(4, 1fr); }
@@ -507,11 +514,11 @@
       <div class="legende"><span>Depotwert</span><span class="l1">Eingezahlt</span></div>
     </div>
     <div class="karte">
-      <div class="regler"><label for="pg-rate">Sparrate pro Monat <b id="pg-rate-w"></b></label><input type="range" id="pg-rate" min="0" max="2000" step="25"></div>
-      <div class="regler"><label for="pg-rendite">Rendite pro Jahr <b id="pg-rendite-w"></b></label><input type="range" id="pg-rendite" min="0" max="12" step="0.5"></div>
+      <p class="unter" id="pg-annahmen" style="margin: 0 0 14px"></p>
       <div class="regler"><label for="pg-jahre">Laufzeit <b id="pg-jahre-w"></b></label><input type="range" id="pg-jahre" min="1" max="40" step="1"></div>
     </div>
-    <p class="fuss">Annahme: gleichbleibende Rendite, monatlich verzinst, ohne Steuern und Kosten. Keine Garantie und keine Anlageberatung.</p>
+    <div class="knoepfe" style="margin-top: 0"><button class="knopf zweit breit" data-aktion="rente">Sparraten und Renditen je Position einstellen</button></div>
+    <p class="fuss">Annahme: gleichbleibende Rendite je Position, monatlich verzinst, ohne Steuern und Kosten. Keine Garantie und keine Anlageberatung.</p>
   </section>
 
   <!-- Zinseszins -->
@@ -569,6 +576,14 @@
       <div class="legende"><span class="l1">1a nichts mehr</span><span>1b wie bisher</span><span class="l2">1c Ziel</span></div>
     </div>
     <p class="fuss fehler" id="rt-warnung"></p>
+    <div class="abschnitt">Simulation je Position</div>
+    <p class="unter" style="margin: -2px 18px 10px">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = Wert aus dem gewählten Szenario. Nur zum Durchspielen – deine echten Sparpläne bleiben unverändert.</p>
+    <div class="karte liste-karte"><ul id="rt-sim" class="liste sim"></ul></div>
+    <div class="karte">
+      <label class="feldname" for="rt-ziel-pos">Mehrbetrag für das Ziel (1c) in</label>
+      <select id="rt-ziel-pos"></select>
+      <div class="knoepfe"><button class="knopf zweit breit" data-aktion="sim-reset">Auf echte Sparpläne zurücksetzen</button></div>
+    </div>
     <div class="abschnitt">Deine Annahmen</div>
     <div class="karte">
       <div class="regler"><label for="rt-wunsch">Entnahme pro Monat in der Rente (heutige Kaufkraft) <b id="rt-wunsch-w"></b></label><input type="range" id="rt-wunsch" min="0" max="5000" step="50"></div>
@@ -751,7 +766,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.1950'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2115'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1702,56 +1717,78 @@ function sparplaeneAnzeigen() {
 // ---------- Prognose ----------
 
 function prognoseAnzeigen() {
-  const rate = document.getElementById('pg-rate');
-  if (!rate.dataset.bereit) {
-    // Startwerte: deine aktuelle Sparrate, 6 % Rendite, 10 Jahre
-    rate.value = daten.positionen.filter((p) => p.sparplan).reduce((s, p) => s + p.sparplan.betrag, 0);
-    document.getElementById('pg-rendite').value = 6;
-    document.getElementById('pg-jahre').value = 10;
-    rate.dataset.bereit = '1';
-  }
+  const jahre = document.getElementById('pg-jahre');
+  if (!jahre.dataset.bereit) { jahre.value = 10; jahre.dataset.bereit = '1'; }
   zeige('ansicht-prognose');
   prognoseRechnen();
 }
 
+// Prognose: dieselbe Simulation je Position wie „Bis zur Rente“, nur mit frei wählbarer Laufzeit
 function prognoseRechnen() {
-  const rate = Number(document.getElementById('pg-rate').value);
-  const rendite = Number(document.getElementById('pg-rendite').value);
   const jahre = Number(document.getElementById('pg-jahre').value);
-  document.getElementById('pg-rate-w').textContent = geld(rate);
-  document.getElementById('pg-rendite-w').textContent = `${zahl(rendite, 1)} %`;
   document.getElementById('pg-jahre-w').textContent = `${jahre} Jahr${jahre === 1 ? '' : 'e'}`;
-
-  const start = kurse ? bewertung().wert : 0;
-  const rm = Math.pow(1 + rendite / 100, 1 / 12) - 1;
+  const monate = jahre * 12;
+  const sim = simulieren(renditeSzenario, monate);
   const h = heute();
-  const wert = [], eingezahlt = [];
-  let w = start, e = start;
-  for (let m = 0; m <= jahre * 12; m++) {
-    const tag = isoDatum(new Date(h.getFullYear(), h.getMonth() + m, 1));
-    wert.push([tag, w]);
-    eingezahlt.push([tag, e]);
-    w = w * (1 + rm) + rate;
-    e += rate;
-  }
-  const ende = wert[wert.length - 1][1], einz = eingezahlt[eingezahlt.length - 1][1];
+  const tage = sim.gesamt.map((_, m) => isoDatum(new Date(h.getFullYear(), h.getMonth() + m, 1)));
+  const ende = sim.gesamt[monate], einz = sim.einz[monate], zinseszins = ende - einz - sim.linear[monate];
+  const rateSumme = daten.positionen.reduce((s, p) => s + simRate(p), 0);
+
   document.getElementById('pg-titel').textContent = `In ${jahre} Jahr${jahre === 1 ? '' : 'en'} · ${h.getFullYear() + jahre}`;
   zaehle(document.getElementById('pg-ende'), ende, false);
-  // Rendite aufteilen: einfache Rendite auf das Eingezahlte vs. Zinseszins (Rendite auf Rendite)
-  let linear = 0, e2 = start;
-  for (let m = 0; m < jahre * 12; m++) { linear += e2 * (rendite / 100 / 12); e2 += rate; }
-  const zinseszins = ende - einz - linear;
   document.getElementById('pg-unter').textContent =
     `${geld(einz)} eingezahlt · ${mitVorzeichen(ende - einz)} Rendite, davon ${geld(zinseszins)} Zinseszins`;
+  document.getElementById('pg-annahmen').textContent =
+    `${geld(rateSumme)} pro Monat, je Position eigene Sparrate · Rendite-Szenario „${RENDITE_SZENARIEN[renditeSzenario].name}“` +
+    (simAngepasst() ? ' · mit deinen Anpassungen' : '');
 
   const schritt = Math.max(1, Math.ceil(jahre / 6));
   linienChart(document.getElementById('pg-chart'), [
-    { name: 'Depotwert', punkte: wert },
-    { name: 'Eingezahlt', punkte: eingezahlt },
+    { name: 'Depotwert', punkte: sim.gesamt.map((w, i) => [tage[i], w]) },
+    { name: 'Eingezahlt', punkte: sim.einz.map((w, i) => [tage[i], w]) },
   ], {
     format: (v) => geld(v),
     achseX: (t, i) => (i > 0 && i % (12 * schritt) === 0 ? `${i / 12} J` : null),
   });
+}
+
+// ---------- Simulation je Position ----------
+// Sparrate und Rendite je Position; ohne Anpassung gelten der echte Sparplan und das gewählte Szenario.
+
+function simEinstellung(p) {
+  return (daten.simulation && daten.simulation[p.id]) || {};
+}
+function simRate(p) {
+  const s = simEinstellung(p);
+  return s.rate != null ? s.rate : (p.sparplan ? p.sparplan.betrag : 0);
+}
+function simAngepasst() {
+  return daten.positionen.some((p) => { const s = simEinstellung(p); return s.rate != null || s.rendite != null; });
+}
+function zielPosition() {
+  const gewaehlt = daten.positionen.find((p) => p.id === daten.zielPosition);
+  return gewaehlt || daten.positionen.find((p) => p.sparplan && anlageart(p) === 'ETF') || daten.positionen[0];
+}
+
+// Monat für Monat je Position: Wert, Eingezahltes und einfache Rendite (ohne Wiederanlage), aufsummiert
+function simulieren(szenario, monate, { sparFaktor = 1, extra = null, ungekappt = false } = {}) {
+  const gesamt = new Array(monate + 1).fill(0), einz = new Array(monate + 1).fill(0), linear = new Array(monate + 1).fill(0);
+  const jePosition = {};
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    if (!k) continue;
+    const r = renditeFuer(p, szenario, ungekappt) / 100, rm = Math.pow(1 + r, 1 / 12) - 1;
+    const rate = simRate(p) * sparFaktor + (extra && extra.posId === p.id ? extra.betrag : 0);
+    let w = aktuellerBestand(p, k).stueck * k.eur, e = w, lin = 0;
+    for (let m = 0; m <= monate; m++) {
+      gesamt[m] += w; einz[m] += e; linear[m] += lin;
+      if (m === monate) jePosition[p.id] = w;
+      lin += e * (r / 12);
+      w = w * (1 + rm) + rate;
+      e += rate;
+    }
+  }
+  return { gesamt, einz, linear, ende: gesamt[monate], jePosition };
 }
 
 // ---------- Rente: Annahmen und Szenarien ----------
@@ -1787,6 +1824,8 @@ function monateBis(datum) {
 // Über 20 % p. a. ist eine Historie für 25 Jahre nicht fortschreibbar -> dort Marktrendite (ungekappt nur als Randnotiz)
 const EXTREM_AB = 20;
 function renditeFuer(p, szenario, ungekappt = false) {
+  const eigen = simEinstellung(p).rendite;
+  if (eigen != null) return eigen; // in der Simulation selbst eingestellt
   if (szenario === 'moderat') return 5;
   if (szenario === 'realistisch') return 7;
   if (szenario === 'markt' || !p.renditeSeitAuflage) return MARKT_RENDITE;
@@ -1794,23 +1833,10 @@ function renditeFuer(p, szenario, ungekappt = false) {
   return !ungekappt && r > EXTREM_AB ? MARKT_RENDITE : r;
 }
 
-// Monatliche Hochrechnung je Position mit eigener Rendite; sparFaktor skaliert alle Sparpläne (0 = nichts mehr)
-function projektion(szenario, sparFaktor, monate, ungekappt = false) {
-  const reihe = new Array(monate + 1).fill(0);
-  let einzahlung = 0;
-  for (const p of daten.positionen) {
-    const k = kurse && kurse.preise[p.id];
-    if (!k) continue;
-    let w = aktuellerBestand(p, k).stueck * k.eur;
-    const rm = Math.pow(1 + renditeFuer(p, szenario, ungekappt) / 100, 1 / 12) - 1;
-    const rate = (p.sparplan ? p.sparplan.betrag : 0) * sparFaktor;
-    for (let m = 0; m <= monate; m++) {
-      reihe[m] += w;
-      w = w * (1 + rm) + rate;
-    }
-    einzahlung += rate * monate;
-  }
-  return { reihe, ende: reihe[monate], einzahlung };
+// Hochrechnung je Position (siehe simulieren); sparFaktor 0 = ab sofort nichts mehr einzahlen
+function projektion(szenario, sparFaktor, monate, ungekappt = false, extra = null) {
+  const s = simulieren(szenario, monate, { sparFaktor, ungekappt, extra });
+  return { reihe: s.gesamt, ende: s.ende, jePosition: s.jePosition };
 }
 
 // Kapital, das eine Entnahme in heutiger Kaufkraft über n Jahre trägt (Entnahme wächst mit der Inflation)
@@ -1855,7 +1881,7 @@ function renteAnzeigen() {
   const faktor = rentenfaktor(a);
   const inflation = kaufkraft(a, jahre);
   const entnahme = (kapital) => (kapital / inflation) / faktor; // pro Monat, heutige Kaufkraft
-  const sparplanSumme = daten.positionen.reduce((s, p) => s + (p.sparplan ? p.sparplan.betrag : 0), 0);
+  const sparplanSumme = daten.positionen.reduce((s, p) => s + simRate(p), 0);
 
   const ohne = projektion(renditeSzenario, 0, monate);
   const bisher = projektion(renditeSzenario, 1, monate);
@@ -1867,30 +1893,30 @@ function renteAnzeigen() {
     pill.textContent = `reicht für ≈ ${geld(entnahme(ergebnis.ende))} pro Monat über ${a.entnahmeJahre} Jahre`;
   };
   zeigeSzenario('a', ohne);
-  document.getElementById('rt-b-titel').textContent = `1b · Weiter wie bisher · ${geld(sparplanSumme)} pro Monat`;
+  document.getElementById('rt-b-titel').textContent =
+    `1b · Weiter ${simAngepasst() ? 'wie simuliert' : 'wie bisher'} · ${geld(sparplanSumme)} pro Monat`;
   zeigeSzenario('b', bisher);
 
-  // Zielwertsuche: der Endwert ist linear in der Sparrate -> direkt auflösbar
+  // Zielwertsuche: Mehrbetrag in der gewählten Position. Der Endwert ist linear im Mehrbetrag -> direkt auflösbar.
   const zielKapital = a.wunschEntnahme * faktor * inflation;
+  const zp = zielPosition();
   document.getElementById('rt-c-titel').textContent = `1c · Ziel: ${geld(a.wunschEntnahme)} pro Monat (heutige Kaufkraft)`;
-  const zuwachsJeFaktor = bisher.ende - ohne.ende;
+  const jeEuro = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: 1 }).ende - bisher.ende;
   let zielReihe;
-  if (ohne.ende >= zielKapital) {
+  if (bisher.ende >= zielKapital) {
     document.getElementById('rt-c').innerHTML = betragHTML(0);
-    document.getElementById('rt-c-unter').textContent = `Schon ohne weitere Einzahlung erreicht. Zielkapital ${geld(zielKapital)}.`;
-    zielReihe = ohne.reihe;
-  } else if (zuwachsJeFaktor <= 0) {
-    document.getElementById('rt-c').textContent = '–';
-    document.getElementById('rt-c-unter').textContent = 'Ohne Sparpläne lässt sich keine Sparrate berechnen.';
-    zielReihe = null;
-  } else {
-    const f = (zielKapital - ohne.ende) / zuwachsJeFaktor;
-    const noetig = f * sparplanSumme;
-    zaehle(document.getElementById('rt-c'), noetig, false);
     document.getElementById('rt-c-unter').textContent =
-      `Sparrate pro Monat nötig (statt ${geld(sparplanSumme)}) · Zielkapital ${geld(zielKapital)} ≈ ${geld(zielKapital / inflation)} heute`;
-    zielReihe = projektion(renditeSzenario, f, monate).reihe;
+      `Mit deinen Sparraten schon erreicht – ${geld(bisher.ende - zielKapital)} über dem Zielkapital von ${geld(zielKapital)}.`;
+    zielReihe = bisher.reihe;
+  } else {
+    const mehr = (zielKapital - bisher.ende) / jeEuro;
+    zaehle(document.getElementById('rt-c'), mehr, false);
+    document.getElementById('rt-c-unter').textContent =
+      `zusätzlich pro Monat in ${zp.name} – dort dann ${geld(simRate(zp) + mehr)} statt ${geld(simRate(zp))}. ` +
+      `Zielkapital ${geld(zielKapital)} ≈ ${geld(zielKapital / inflation)} heute.`;
+    zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }).reihe;
   }
+  simListeAnzeigen(bisher.jePosition, sparplanSumme, bisher.ende);
 
   // Chart: Jahresbeschriftung alle 5 Jahre
   const tage = bisher.reihe.map((_, m) => isoDatum(new Date(heute().getFullYear(), heute().getMonth() + m, 1)));
@@ -1919,6 +1945,57 @@ function renteAnzeigen() {
     if (fehlt.length) warnung += `Ohne hinterlegte Rendite (mit ${zahl(MARKT_RENDITE, 1)} % gerechnet): ${fehlt.join(', ')}.`;
   }
   document.getElementById('rt-warnung').textContent = warnung;
+}
+
+// Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
+function simListeAnzeigen(jePosition, summeRate, summeWert) {
+  const liste = document.getElementById('rt-sim');
+  liste.innerHTML = `<li class="kopf"><span class="name">Position · Wert bei Rentenbeginn</span><span class="eingaben"><span>€/Monat</span><span>% p. a.</span></span></li>`;
+  for (const p of daten.positionen) {
+    if (!(p.id in jePosition)) continue;
+    const s = simEinstellung(p);
+    const li = document.createElement('li');
+    li.dataset.sim = p.id;
+    li.innerHTML = `<span class="name"><span class="n"></span><small>${geld(jePosition[p.id])}</small></span>
+      <span class="eingaben">
+        <input type="text" inputmode="decimal" class="sim-rate${s.rate != null ? ' geaendert' : ''}" value="${zahl(simRate(p), 0)}" aria-label="Sparrate pro Monat">
+        <input type="text" inputmode="decimal" class="sim-rendite${s.rendite != null ? ' geaendert' : ''}"
+          value="${s.rendite != null ? zahl(s.rendite, 1) : ''}" placeholder="${zahl(renditeFuer({ ...p }, renditeSzenario), 1)}" aria-label="Rendite pro Jahr">
+      </span>`;
+    li.querySelector('.n').textContent = p.name;
+    liste.appendChild(li);
+  }
+  const summe = document.createElement('li');
+  summe.className = 'summe';
+  summe.innerHTML = `<span class="name">Summe<small>${geld(summeWert)}</small></span><span class="wert">${geld(summeRate)}<small>pro Monat</small></span>`;
+  liste.appendChild(summe);
+
+  const auswahl = document.getElementById('rt-ziel-pos');
+  auswahl.innerHTML = '';
+  for (const p of daten.positionen) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    o.selected = p.id === zielPosition().id;
+    auswahl.appendChild(o);
+  }
+}
+
+// Eine Eingabe übernehmen: leere Rendite oder Sparrate wie im echten Sparplan = keine Anpassung
+function simUebernehmen(li) {
+  const p = daten.positionen.find((x) => x.id === li.dataset.sim);
+  const rateText = li.querySelector('.sim-rate').value.trim();
+  const renditeText = li.querySelector('.sim-rendite').value.trim();
+  const rate = rateText === '' ? 0 : parseZahl(rateText);
+  const rendite = renditeText === '' ? null : parseZahl(renditeText);
+  if (!(rate >= 0) || (rendite != null && !Number.isFinite(rendite))) { alert(`Ungültige Zahl bei „${p.name}“.`); renteAnzeigen(); return; }
+  const echt = p.sparplan ? p.sparplan.betrag : 0;
+  daten.simulation = daten.simulation || {};
+  const eintrag = { rate: Math.abs(rate - echt) < 1e-9 ? null : rate, rendite };
+  if (eintrag.rate == null && eintrag.rendite == null) delete daten.simulation[p.id];
+  else daten.simulation[p.id] = eintrag;
+  speichern();
+  renteAnzeigen();
 }
 
 function renteSpeichern() {
@@ -1983,21 +2060,8 @@ function zinseszinsPrognose(szenario) {
   const beginn = rentenbeginn();
   if (!beginn || !kurse) return null;
   const monate = monateBis(beginn);
-  const einz = new Array(monate + 1).fill(0), einfach = new Array(monate + 1).fill(0), gesamt = new Array(monate + 1).fill(0);
-  for (const p of daten.positionen) {
-    const k = kurse.preise[p.id];
-    if (!k) continue;
-    const r = renditeFuer(p, szenario) / 100, rm = Math.pow(1 + r, 1 / 12) - 1;
-    const rate = p.sparplan ? p.sparplan.betrag : 0;
-    let w = aktuellerBestand(p, k).stueck * k.eur, e = w, linear = 0;
-    for (let m = 0; m <= monate; m++) {
-      einz[m] += e; einfach[m] += linear; gesamt[m] += w;
-      linear += e * (r / 12); // einfache Verzinsung nur auf das Eingezahlte
-      w = w * (1 + rm) + rate;
-      e += rate;
-    }
-  }
-  return { monate, einz, einfach, gesamt };
+  const s = simulieren(szenario, monate);
+  return { monate, einz: s.einz, einfach: s.linear, gesamt: s.gesamt };
 }
 
 // Gestapelte Flächen (Einzahlungen, Rendite, Zinseszins) mit Fadenkreuz
@@ -2774,6 +2838,7 @@ document.addEventListener('click', (e) => {
     sparplaene: sparplaeneAnzeigen,
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
+    'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
     prognose: prognoseAnzeigen,
     rueckblick: () => { rbModus = 'monat'; rbVersatz = 0; zeige('ansicht-rueckblick'); rueckblickAnzeigen(); },
     'rb-zurueck': () => { rbVersatz--; rueckblickAnzeigen(); },
@@ -2831,7 +2896,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 // Prognose-Regler: sofort neu rechnen, höchstens einmal pro Bild
 let prognoseRahmen = 0;
-for (const id of ['pg-rate', 'pg-rendite', 'pg-jahre']) {
+for (const id of ['pg-jahre']) {
   document.getElementById(id).addEventListener('input', () => {
     cancelAnimationFrame(prognoseRahmen);
     prognoseRahmen = requestAnimationFrame(prognoseRechnen);
@@ -2847,6 +2912,17 @@ for (const id of ['rt-wunsch', 'rt-dauer', 'rt-entnahme-rendite', 'rt-inflation'
   });
 }
 for (const id of ['rt-geburt', 'rt-alter']) document.getElementById(id).addEventListener('change', renteSpeichern);
+
+// Simulation je Position: Werte beim Verlassen des Feldes übernehmen (nicht bei jedem Tastendruck neu zeichnen)
+document.getElementById('rt-sim').addEventListener('change', (e) => {
+  const li = e.target.closest('li[data-sim]');
+  if (li) simUebernehmen(li);
+});
+document.getElementById('rt-ziel-pos').addEventListener('change', (e) => {
+  daten.zielPosition = e.target.value;
+  speichern();
+  renteAnzeigen();
+});
 
 // Privatsphäre-Modus vom letzten Mal übernehmen
 try {
