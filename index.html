@@ -274,6 +274,11 @@
   .liste .wert.leise { color: var(--text-2); font-weight: 500; font-size: 15px; }
 
   .kachel.k0 { background: linear-gradient(145deg, #a1a1aa, #6b7280); }
+  .kachel.kg-heute { background: linear-gradient(145deg, #8f7bff, #5b57e0); }
+  .kachel.kg-zurueck { background: linear-gradient(145deg, #fbbf24, #e08a00); }
+  .kachel.kg-zukunft { background: linear-gradient(145deg, #34d399, #0f9f6e); }
+  .menue-panel .abschnitt { margin: 18px 14px 8px; }
+  .menue-panel .abschnitt:first-of-type { margin-top: 0; }
 
   /* ---------- Menü (von links) ---------- */
   .menue-ebene { position: fixed; inset: 0; z-index: 30; }
@@ -503,27 +508,6 @@
     <div class="karte liste-karte"><ul id="sp-liste" class="liste"></ul></div>
   </section>
 
-  <!-- Prognose -->
-  <section id="ansicht-prognose" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
-    <div class="titel"><h1>Prognose</h1><div class="unterzeile">Was aus deinem Depot werden kann</div></div>
-    <div class="karte held">
-      <div class="etikett" id="pg-titel"></div>
-      <div class="betrag" id="pg-ende"></div>
-      <div class="unter" id="pg-unter"></div>
-    </div>
-    <div class="karte">
-      <div id="pg-chart" class="chart"></div>
-      <div class="legende"><span>Depotwert</span><span class="l1">Eingezahlt</span></div>
-    </div>
-    <div class="karte">
-      <p class="unter" id="pg-annahmen" style="margin: 0 0 14px"></p>
-      <div class="regler"><label for="pg-jahre">Laufzeit <b id="pg-jahre-w"></b></label><input type="range" id="pg-jahre" min="1" max="40" step="1"></div>
-    </div>
-    <div class="knoepfe" style="margin-top: 0"><button class="knopf zweit breit" data-aktion="rente">Sparraten und Renditen je Position einstellen</button></div>
-    <p class="fuss">Annahme: gleichbleibende Rendite je Position, monatlich verzinst, ohne Steuern und Kosten. Keine Garantie und keine Anlageberatung.</p>
-  </section>
-
   <!-- Zinseszins -->
   <section id="ansicht-zinseszins" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
@@ -579,6 +563,13 @@
       <div class="legende"><span class="l1">1a nichts mehr</span><span>1b wie bisher</span><span class="l2">1c Ziel</span></div>
     </div>
     <p class="fuss fehler" id="rt-warnung"></p>
+    <div class="abschnitt">Unterwegs</div>
+    <div class="karte">
+      <div class="etikett" id="pg-titel"></div>
+      <div class="betrag mittel-gross" id="pg-ende"></div>
+      <div class="unter" id="pg-unter"></div>
+      <div class="regler" style="margin-top: 14px"><label for="pg-jahre">In <b id="pg-jahre-w"></b></label><input type="range" id="pg-jahre" min="1" max="40" step="1"></div>
+    </div>
     <div class="abschnitt">Simulation je Position</div>
     <p class="unter" style="margin: -2px 18px 10px">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = Wert aus dem gewählten Szenario. Nur zum Durchspielen – deine echten Sparpläne bleiben unverändert.</p>
     <div class="karte liste-karte"><ul id="rt-sim" class="liste sim"></ul></div>
@@ -767,17 +758,27 @@
       <h1>Menü</h1>
       <button class="rund" data-aktion="menue-zu" aria-label="Menü schließen"><svg><use href="#i-schliessen"/></svg></button>
     </div>
+    <div class="abschnitt">Mein Depot heute</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
-        <li class="tippbar" data-aktion="aufteilung"><span class="kachel k1"><svg><use href="#i-torte"/></svg></span><span class="name">Aufteilung<small id="mehr-aufteilung"></small></span></li>
-        <li class="tippbar" data-aktion="sparplaene"><span class="kachel k2"><svg><use href="#i-kalender"/></svg></span><span class="name">Sparpläne & Termine<small id="mehr-sparplaene"></small></span></li>
-        <li class="tippbar" data-aktion="prognose"><span class="kachel k3"><svg><use href="#i-chart"/></svg></span><span class="name">Prognose</span></li>
-        <li class="tippbar" data-aktion="zinseszins"><span class="kachel k5"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
-        <li class="tippbar" data-aktion="rente"><span class="kachel k6"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
-        <li class="tippbar" data-aktion="rueckblick"><span class="kachel k4"><svg><use href="#i-uhr"/></svg></span><span class="name">Rückblick</span></li>
+        <li class="tippbar" data-aktion="aufteilung"><span class="kachel kg-heute"><svg><use href="#i-torte"/></svg></span><span class="name">Aufteilung<small id="mehr-aufteilung"></small></span></li>
+        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Sparpläne & Termine<small id="mehr-sparplaene"></small></span></li>
       </ul>
     </div>
+    <div class="abschnitt">Rückblick</div>
     <div class="karte liste-karte">
+      <ul class="liste menue">
+        <li class="tippbar" data-aktion="rueckblick"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Rückblick<small>Monat und Jahr</small></span></li>
+        <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
+      </ul>
+    </div>
+    <div class="abschnitt">Zukunft & Rente</div>
+    <div class="karte liste-karte">
+      <ul class="liste menue">
+        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
+      </ul>
+    </div>
+    <div class="karte liste-karte" style="margin-top: 24px">
       <ul class="liste menue">
         <li class="tippbar" data-aktion="einstellungen"><span class="kachel k0"><svg><use href="#i-zahnrad"/></svg></span><span class="name">Einstellungen</span></li>
       </ul>
@@ -795,7 +796,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2123'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2129'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1750,42 +1751,28 @@ function sparplaeneAnzeigen() {
   }
 }
 
-// ---------- Prognose ----------
+// ---------- Unterwegs (Zwischenstand vor der Rente) ----------
+// Dieselbe Simulation je Position wie „Bis zur Rente“ (Szenario 1b), nur für einen frei wählbaren Zeitpunkt
 
-function prognoseAnzeigen() {
-  const jahre = document.getElementById('pg-jahre');
-  if (!jahre.dataset.bereit) { jahre.value = 10; jahre.dataset.bereit = '1'; }
-  zeige('ansicht-prognose');
-  prognoseRechnen();
-}
-
-// Prognose: dieselbe Simulation je Position wie „Bis zur Rente“, nur mit frei wählbarer Laufzeit
-function prognoseRechnen() {
-  const jahre = Number(document.getElementById('pg-jahre').value);
-  document.getElementById('pg-jahre-w').textContent = `${jahre} Jahr${jahre === 1 ? '' : 'e'}`;
+function unterwegsRechnen() {
+  const regler = document.getElementById('pg-jahre');
+  const beginn = rentenbeginn();
+  const bisRente = beginn ? Math.max(1, Math.floor(monateBis(beginn) / 12)) : 40;
+  regler.max = bisRente;
+  if (!regler.dataset.bereit) { regler.value = Math.min(10, bisRente); regler.dataset.bereit = '1'; }
+  const jahre = Math.min(Number(regler.value), bisRente);
   const monate = jahre * 12;
   const sim = simulieren(renditeSzenario, monate);
-  const h = heute();
-  const tage = sim.gesamt.map((_, m) => isoDatum(new Date(h.getFullYear(), h.getMonth() + m, 1)));
   const ende = sim.gesamt[monate], einz = sim.einz[monate], zinseszins = ende - einz - sim.linear[monate];
-  const rateSumme = daten.positionen.reduce((s, p) => s + simRate(p), 0);
+  const jahr = heute().getFullYear() + jahre;
+  const alter = beginn ? jahr - Number(renteAnnahmen().geburtsdatum.slice(0, 4)) : null;
 
-  document.getElementById('pg-titel').textContent = `In ${jahre} Jahr${jahre === 1 ? '' : 'en'} · ${h.getFullYear() + jahre}`;
+  document.getElementById('pg-jahre-w').textContent = `${jahre} Jahr${jahre === 1 ? '' : 'en'}`;
+  document.getElementById('pg-titel').textContent =
+    `Depotwert ${jahr}${alter ? ` · du bist dann ${alter}` : ''} · weiter wie bisher`;
   zaehle(document.getElementById('pg-ende'), ende, false);
   document.getElementById('pg-unter').textContent =
     `${geld(einz)} eingezahlt · ${mitVorzeichen(ende - einz)} Rendite, davon ${geld(zinseszins)} Zinseszins`;
-  document.getElementById('pg-annahmen').textContent =
-    `${geld(rateSumme)} pro Monat, je Position eigene Sparrate · Rendite-Szenario „${RENDITE_SZENARIEN[renditeSzenario].name}“` +
-    (simAngepasst() ? ' · mit deinen Anpassungen' : '');
-
-  const schritt = Math.max(1, Math.ceil(jahre / 6));
-  linienChart(document.getElementById('pg-chart'), [
-    { name: 'Depotwert', punkte: sim.gesamt.map((w, i) => [tage[i], w]) },
-    { name: 'Eingezahlt', punkte: sim.einz.map((w, i) => [tage[i], w]) },
-  ], {
-    format: (v) => geld(v),
-    achseX: (t, i) => (i > 0 && i % (12 * schritt) === 0 ? `${i / 12} J` : null),
-  });
 }
 
 // ---------- Simulation je Position ----------
@@ -1953,6 +1940,7 @@ function renteAnzeigen() {
     zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }).reihe;
   }
   simListeAnzeigen(bisher.jePosition, sparplanSumme, bisher.ende);
+  unterwegsRechnen();
 
   // Chart: Jahresbeschriftung alle 5 Jahre
   const tage = bisher.reihe.map((_, m) => isoDatum(new Date(heute().getFullYear(), heute().getMonth() + m, 1)));
@@ -2878,7 +2866,6 @@ document.addEventListener('click', (e) => {
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
-    prognose: prognoseAnzeigen,
     rueckblick: () => { rbModus = 'monat'; rbVersatz = 0; zeige('ansicht-rueckblick'); rueckblickAnzeigen(); },
     'rb-zurueck': () => { rbVersatz--; rueckblickAnzeigen(); },
     'rb-vor': () => { rbVersatz = Math.min(0, rbVersatz + 1); rueckblickAnzeigen(); },
@@ -2933,12 +2920,12 @@ async function versionPruefen() {
 setTimeout(versionPruefen, 2500);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') versionPruefen(); });
 
-// Prognose-Regler: sofort neu rechnen, höchstens einmal pro Bild
+// Regler „Unterwegs“: sofort neu rechnen, höchstens einmal pro Bild
 let prognoseRahmen = 0;
 for (const id of ['pg-jahre']) {
   document.getElementById(id).addEventListener('input', () => {
     cancelAnimationFrame(prognoseRahmen);
-    prognoseRahmen = requestAnimationFrame(prognoseRechnen);
+    prognoseRahmen = requestAnimationFrame(unterwegsRechnen);
   });
 }
 
