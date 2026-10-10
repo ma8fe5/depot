@@ -271,8 +271,21 @@
   .kachel.k4 { background: linear-gradient(145deg, #fbbf24, #e08a00); }
   .liste .wert.leise { color: var(--text-2); font-weight: 500; font-size: 15px; }
 
+  .kachel.k5 { background: linear-gradient(145deg, #f472b6, #db2777); }
+  .kachel.k6 { background: linear-gradient(145deg, #60a5fa, #2563eb); }
+  .segmente.vier button { font-size: 13px; }
+  .betrag.mittel-gross { font-size: 34px; margin: 2px 0 6px; }
+  .karte.szenario .pill { margin-top: 10px; }
+  .karte.ziel { background: radial-gradient(120% 120% at 100% 0%, var(--pos-weich), transparent 60%), var(--flaeche); }
+  .stapel { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 16px 0 0; gap: 2px; background: var(--flaeche-2); }
+  .stapel span { display: block; height: 100%; transition: flex-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .legende .k1::before, .legende .k2::before, .legende .k3::before { width: 10px; height: 10px; border: 0; border-radius: 3px; }
+  .legende .k1::before { background: var(--kat-1); } .legende .k2::before { background: var(--kat-2); } .legende .k3::before { background: var(--kat-3); }
+  .legende span.l2::before { border-top: 2.2px solid var(--kat-3); }
+  .chart .s2 { stroke: var(--kat-3); } .chart .p2 { fill: var(--kat-3); }
   .segmente.zwei { grid-template-columns: repeat(2, 1fr); }
   .segmente.zwei::before { width: calc((100% - 6px) / 2); }
+  .segmente.vier { grid-template-columns: repeat(4, 1fr); }
 
   /* ---------- Aufteilung ---------- */
   .ring { position: relative; max-width: 240px; margin: 4px auto; }
@@ -341,6 +354,8 @@
   <symbol id="i-auge-zu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.6A9.9 9.9 0 0 1 12 5.5C18 5.5 21.5 12 21.5 12a17 17 0 0 1-3.2 3.9M6.6 6.7C3.9 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   <symbol id="i-torte" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3.5v8.5h8.5A8.5 8.5 0 1 1 12 3.5Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M15 3.9A8.5 8.5 0 0 1 20.1 9H15Z"/></symbol>
   <symbol id="i-uhr" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4.5H8M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-zins" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20v-4M10 20v-7M14 20v-10M18 20V5"/></symbol>
+  <symbol id="i-rente" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM4.5 20.5c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3.5 16.5 5-5 4 3.5 8-8.5M15 6.5h5.5V12"/></symbol>
 </svg>
 
@@ -426,6 +441,8 @@
         <li class="tippbar" data-aktion="aufteilung"><span class="kachel k1"><svg><use href="#i-torte"/></svg></span><span class="name">Aufteilung</span><span class="wert leise" id="mehr-aufteilung"></span></li>
         <li class="tippbar" data-aktion="sparplaene"><span class="kachel k2"><svg><use href="#i-kalender"/></svg></span><span class="name">Sparpläne & Termine</span><span class="wert leise" id="mehr-sparplaene"></span></li>
         <li class="tippbar" data-aktion="prognose"><span class="kachel k3"><svg><use href="#i-chart"/></svg></span><span class="name">Prognose</span></li>
+        <li class="tippbar" data-aktion="zinseszins"><span class="kachel k5"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins</span><span class="wert leise" id="mehr-zinseszins"></span></li>
+        <li class="tippbar" data-aktion="rente"><span class="kachel k6"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente</span><span class="wert leise" id="mehr-rente"></span></li>
         <li class="tippbar" data-aktion="rueckblick"><span class="kachel k4"><svg><use href="#i-uhr"/></svg></span><span class="name">Rückblick</span></li>
       </ul>
     </div>
@@ -493,6 +510,75 @@
       <div class="regler"><label for="pg-jahre">Laufzeit <b id="pg-jahre-w"></b></label><input type="range" id="pg-jahre" min="1" max="40" step="1"></div>
     </div>
     <p class="fuss">Annahme: gleichbleibende Rendite, monatlich verzinst, ohne Steuern und Kosten. Keine Garantie und keine Anlageberatung.</p>
+  </section>
+
+  <!-- Zinseszins -->
+  <section id="ansicht-zinseszins" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="titel"><h1>Zinseszins</h1><div class="unterzeile">Gewinn, den deine früheren Gewinne erwirtschaften</div></div>
+    <div class="segmente zwei" id="zz-segmente">
+      <button data-zinseszins="heute">Bis heute</button>
+      <button data-zinseszins="rente">Bis zur Rente</button>
+    </div>
+    <div class="karte held">
+      <div class="etikett" id="zz-titel"></div>
+      <div class="betrag" id="zz-betrag"></div>
+      <div class="unter" id="zz-unter"></div>
+      <div class="stapel" id="zz-stapel"></div>
+      <div class="legende" id="zz-legende"></div>
+    </div>
+    <div class="karte" id="zz-chart-karte"><div class="etikett">Entwicklung bis zur Rente</div><div id="zz-chart" class="chart"></div></div>
+    <div class="abschnitt" id="zz-liste-titel">Je Position</div>
+    <div class="karte liste-karte" id="zz-liste-karte"><ul id="zz-liste" class="liste"></ul></div>
+    <p class="fuss" id="zz-hinweis"></p>
+  </section>
+
+  <!-- Bis zur Rente -->
+  <section id="ansicht-rente" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="titel"><h1>Bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
+    <div class="segmente vier" id="rt-segmente">
+      <button data-rendite="moderat">Moderat</button>
+      <button data-rendite="realistisch">Realistisch</button>
+      <button data-rendite="markt">Markt</button>
+      <button data-rendite="tatsaechlich">Tatsächlich</button>
+    </div>
+    <p class="unter" id="rt-rendite-info" style="margin: -4px 4px 14px"></p>
+    <div class="karte szenario">
+      <div class="etikett">1a · Ab sofort nichts mehr einzahlen</div>
+      <div class="betrag mittel-gross" id="rt-a"></div>
+      <div class="unter" id="rt-a-unter"></div>
+      <span class="pill" id="rt-a-pill"></span>
+    </div>
+    <div class="karte szenario">
+      <div class="etikett" id="rt-b-titel"></div>
+      <div class="betrag mittel-gross" id="rt-b"></div>
+      <div class="unter" id="rt-b-unter"></div>
+      <span class="pill" id="rt-b-pill"></span>
+    </div>
+    <div class="karte szenario ziel">
+      <div class="etikett" id="rt-c-titel"></div>
+      <div class="betrag mittel-gross" id="rt-c"></div>
+      <div class="unter" id="rt-c-unter"></div>
+    </div>
+    <div class="karte">
+      <div class="etikett">Depotwert bis Rentenbeginn</div>
+      <div id="rt-chart" class="chart"></div>
+      <div class="legende"><span class="l1">1a nichts mehr</span><span>1b wie bisher</span><span class="l2">1c Ziel</span></div>
+    </div>
+    <p class="fuss fehler" id="rt-warnung"></p>
+    <div class="abschnitt">Deine Annahmen</div>
+    <div class="karte">
+      <div class="regler"><label for="rt-wunsch">Entnahme pro Monat in der Rente (heutige Kaufkraft) <b id="rt-wunsch-w"></b></label><input type="range" id="rt-wunsch" min="0" max="5000" step="50"></div>
+      <div class="regler"><label for="rt-dauer">Entnahme über <b id="rt-dauer-w"></b></label><input type="range" id="rt-dauer" min="10" max="40" step="1"></div>
+      <div class="regler"><label for="rt-entnahme-rendite">Rendite während der Rente <b id="rt-entnahme-rendite-w"></b></label><input type="range" id="rt-entnahme-rendite" min="0" max="8" step="0.5"></div>
+      <div class="regler"><label for="rt-inflation">Inflation <b id="rt-inflation-w"></b></label><input type="range" id="rt-inflation" min="0" max="5" step="0.25"></div>
+      <div class="raster" style="margin-top: 6px">
+        <div><label class="feldname">Geburtsdatum</label><input type="date" id="rt-geburt"></div>
+        <div><label class="feldname">Rentenalter</label><input type="text" inputmode="numeric" id="rt-alter"></div>
+      </div>
+    </div>
+    <p class="fuss">Werte nominal, darunter in heutiger Kaufkraft. Ohne Steuern (bei Entnahme fällt Abgeltungsteuer auf Gewinne an) und ohne Kosten. Keine Garantie und keine Anlageberatung.</p>
   </section>
 
   <!-- Rückblick -->
@@ -663,7 +749,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-08.2034'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.1946'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1357,11 +1443,12 @@ function linienChart(el, serien, opt) {
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
   const rand = (max - min) * 0.1 || max * 0.05 || 1;
-  min -= rand; max += rand;
+  min = min >= 0 ? Math.max(0, min - rand) : min - rand; // nicht ins Negative, wenn alle Werte positiv sind
+  max += rand;
   const x = (i) => L + (i / Math.max(1, tage.length - 1)) * (W - L - R);
   const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const kurz = (v) => opt.formatKurz ? opt.formatKurz(v)
-    : istPrivat() ? '' : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
+    : istPrivat() ? '' : v === 0 ? '0 €' : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
   const gid = `verlauf-${++chartNr}`;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">
@@ -1648,7 +1735,12 @@ function prognoseRechnen() {
   const ende = wert[wert.length - 1][1], einz = eingezahlt[eingezahlt.length - 1][1];
   document.getElementById('pg-titel').textContent = `In ${jahre} Jahr${jahre === 1 ? '' : 'en'} · ${h.getFullYear() + jahre}`;
   zaehle(document.getElementById('pg-ende'), ende, false);
-  document.getElementById('pg-unter').textContent = `${geld(einz)} eingezahlt · ${istPrivat() ? '•••• €' : '+' + eur.format(ende - einz)} Zinseszins`;
+  // Rendite aufteilen: einfache Rendite auf das Eingezahlte vs. Zinseszins (Rendite auf Rendite)
+  let linear = 0, e2 = start;
+  for (let m = 0; m < jahre * 12; m++) { linear += e2 * (rendite / 100 / 12); e2 += rate; }
+  const zinseszins = ende - einz - linear;
+  document.getElementById('pg-unter').textContent =
+    `${geld(einz)} eingezahlt · ${mitVorzeichen(ende - einz)} Rendite, davon ${geld(zinseszins)} Zinseszins`;
 
   const schritt = Math.max(1, Math.ceil(jahre / 6));
   linienChart(document.getElementById('pg-chart'), [
@@ -1658,6 +1750,377 @@ function prognoseRechnen() {
     format: (v) => geld(v),
     achseX: (t, i) => (i > 0 && i % (12 * schritt) === 0 ? `${i / 12} J` : null),
   });
+}
+
+// ---------- Rente: Annahmen und Szenarien ----------
+
+const RENTE_STANDARD = { rentenalter: 67, wunschEntnahme: 1000, entnahmeJahre: 25, entnahmeRendite: 4, inflation: 2 };
+const RENDITE_SZENARIEN = {
+  moderat: { name: 'Moderat', info: '5 % pro Jahr für alle Positionen – vorsichtig' },
+  realistisch: { name: 'Realistisch', info: '7 % pro Jahr – etwas unter dem langfristigen Aktienmittel' },
+  markt: { name: 'Markt', info: '7,5 % pro Jahr – langfristige Marktrendite seit 1970 für alle Positionen' },
+  tatsaechlich: { name: 'Tatsächlich', info: 'Rendite seit Auflage je Position – Werte über 20 % p. a. mit Marktrendite' },
+};
+const MARKT_RENDITE = 7.5;
+let renditeSzenario = 'realistisch';
+
+function renteAnnahmen() {
+  return { ...RENTE_STANDARD, ...(daten.rente || {}) };
+}
+
+// Regelaltersrente: beginnt im Monat nach Erreichen des Alters (Alter gilt am Tag vor dem Geburtstag als erreicht)
+function rentenbeginn() {
+  const a = renteAnnahmen();
+  if (!a.geburtsdatum) return null;
+  const [y, m, d] = a.geburtsdatum.split('-').map(Number);
+  const erreicht = new Date(y + Number(a.rentenalter), m - 1, d - 1);
+  return new Date(erreicht.getFullYear(), erreicht.getMonth() + 1, 1);
+}
+
+function monateBis(datum) {
+  const h = heute();
+  return Math.max(0, (datum.getFullYear() - h.getFullYear()) * 12 + datum.getMonth() - h.getMonth());
+}
+
+// Über 20 % p. a. ist eine Historie für 25 Jahre nicht fortschreibbar -> dort Marktrendite (ungekappt nur als Randnotiz)
+const EXTREM_AB = 20;
+function renditeFuer(p, szenario, ungekappt = false) {
+  if (szenario === 'moderat') return 5;
+  if (szenario === 'realistisch') return 7;
+  if (szenario === 'markt' || !p.renditeSeitAuflage) return MARKT_RENDITE;
+  const r = p.renditeSeitAuflage.prozent;
+  return !ungekappt && r > EXTREM_AB ? MARKT_RENDITE : r;
+}
+
+// Monatliche Hochrechnung je Position mit eigener Rendite; sparFaktor skaliert alle Sparpläne (0 = nichts mehr)
+function projektion(szenario, sparFaktor, monate, ungekappt = false) {
+  const reihe = new Array(monate + 1).fill(0);
+  let einzahlung = 0;
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    if (!k) continue;
+    let w = aktuellerBestand(p, k).stueck * k.eur;
+    const rm = Math.pow(1 + renditeFuer(p, szenario, ungekappt) / 100, 1 / 12) - 1;
+    const rate = (p.sparplan ? p.sparplan.betrag : 0) * sparFaktor;
+    for (let m = 0; m <= monate; m++) {
+      reihe[m] += w;
+      w = w * (1 + rm) + rate;
+    }
+    einzahlung += rate * monate;
+  }
+  return { reihe, ende: reihe[monate], einzahlung };
+}
+
+// Kapital, das eine Entnahme in heutiger Kaufkraft über n Jahre trägt (Entnahme wächst mit der Inflation)
+function realerMonatszins(a) {
+  return Math.pow((1 + a.entnahmeRendite / 100) / (1 + a.inflation / 100), 1 / 12) - 1;
+}
+function rentenfaktor(a) {
+  const rr = realerMonatszins(a), n = a.entnahmeJahre * 12;
+  return rr === 0 ? n : (1 - Math.pow(1 + rr, -n)) / rr;
+}
+const kaufkraft = (a, jahre) => Math.pow(1 + a.inflation / 100, jahre);
+
+function renteAnzeigen() {
+  if (document.getElementById('ansicht-rente').hidden) zeige('ansicht-rente');
+  const a = renteAnnahmen();
+  const beginn = rentenbeginn();
+
+  // Regler und Felder mit den gespeicherten Annahmen füllen
+  const setze = (id, wert) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = wert; };
+  setze('rt-wunsch', a.wunschEntnahme); setze('rt-dauer', a.entnahmeJahre); setze('rt-entnahme-rendite', a.entnahmeRendite);
+  setze('rt-inflation', a.inflation); setze('rt-geburt', a.geburtsdatum || ''); setze('rt-alter', a.rentenalter);
+  document.getElementById('rt-wunsch-w').textContent = geld(a.wunschEntnahme);
+  document.getElementById('rt-dauer-w').textContent = `${a.entnahmeJahre} Jahre`;
+  document.getElementById('rt-entnahme-rendite-w').textContent = `${zahl(a.entnahmeRendite, 1)} %`;
+  document.getElementById('rt-inflation-w').textContent = `${zahl(a.inflation, 2)} %`;
+
+  const idx = Object.keys(RENDITE_SZENARIEN).indexOf(renditeSzenario);
+  document.getElementById('rt-segmente').style.setProperty('--idx', idx);
+  document.querySelectorAll('[data-rendite]').forEach((b) => b.classList.toggle('aktiv', b.dataset.rendite === renditeSzenario));
+  document.getElementById('rt-rendite-info').textContent = RENDITE_SZENARIEN[renditeSzenario].info + '.';
+
+  if (!beginn || !kurse) {
+    document.getElementById('rt-unterzeile').textContent = 'Bitte unten dein Geburtsdatum eintragen.';
+    return;
+  }
+  const monate = monateBis(beginn);
+  const jahre = monate / 12;
+  document.getElementById('rt-unterzeile').textContent =
+    `Rentenbeginn ${new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn)} · noch ${Math.floor(jahre)} Jahre, ${monate % 12} Monate` +
+    (a.gesetzlicheRenteBrutto ? ` · dazu gesetzliche Rente ca. ${geld(a.gesetzlicheRenteBrutto)} brutto` : '');
+
+  const faktor = rentenfaktor(a);
+  const inflation = kaufkraft(a, jahre);
+  const entnahme = (kapital) => (kapital / inflation) / faktor; // pro Monat, heutige Kaufkraft
+  const sparplanSumme = daten.positionen.reduce((s, p) => s + (p.sparplan ? p.sparplan.betrag : 0), 0);
+
+  const ohne = projektion(renditeSzenario, 0, monate);
+  const bisher = projektion(renditeSzenario, 1, monate);
+  const zeigeSzenario = (kennung, ergebnis) => {
+    zaehle(document.getElementById(`rt-${kennung}`), ergebnis.ende, false);
+    document.getElementById(`rt-${kennung}-unter`).textContent = `≈ ${geld(ergebnis.ende / inflation)} in heutiger Kaufkraft`;
+    const pill = document.getElementById(`rt-${kennung}-pill`);
+    pill.className = 'pill pos';
+    pill.textContent = `reicht für ≈ ${geld(entnahme(ergebnis.ende))} pro Monat über ${a.entnahmeJahre} Jahre`;
+  };
+  zeigeSzenario('a', ohne);
+  document.getElementById('rt-b-titel').textContent = `1b · Weiter wie bisher · ${geld(sparplanSumme)} pro Monat`;
+  zeigeSzenario('b', bisher);
+
+  // Zielwertsuche: der Endwert ist linear in der Sparrate -> direkt auflösbar
+  const zielKapital = a.wunschEntnahme * faktor * inflation;
+  document.getElementById('rt-c-titel').textContent = `1c · Ziel: ${geld(a.wunschEntnahme)} pro Monat (heutige Kaufkraft)`;
+  const zuwachsJeFaktor = bisher.ende - ohne.ende;
+  let zielReihe;
+  if (ohne.ende >= zielKapital) {
+    document.getElementById('rt-c').innerHTML = betragHTML(0);
+    document.getElementById('rt-c-unter').textContent = `Schon ohne weitere Einzahlung erreicht. Zielkapital ${geld(zielKapital)}.`;
+    zielReihe = ohne.reihe;
+  } else if (zuwachsJeFaktor <= 0) {
+    document.getElementById('rt-c').textContent = '–';
+    document.getElementById('rt-c-unter').textContent = 'Ohne Sparpläne lässt sich keine Sparrate berechnen.';
+    zielReihe = null;
+  } else {
+    const f = (zielKapital - ohne.ende) / zuwachsJeFaktor;
+    const noetig = f * sparplanSumme;
+    zaehle(document.getElementById('rt-c'), noetig, false);
+    document.getElementById('rt-c-unter').textContent =
+      `Sparrate pro Monat nötig (statt ${geld(sparplanSumme)}) · Zielkapital ${geld(zielKapital)} ≈ ${geld(zielKapital / inflation)} heute`;
+    zielReihe = projektion(renditeSzenario, f, monate).reihe;
+  }
+
+  // Chart: Jahresbeschriftung alle 5 Jahre
+  const tage = bisher.reihe.map((_, m) => isoDatum(new Date(heute().getFullYear(), heute().getMonth() + m, 1)));
+  const serien = [
+    { name: '1b wie bisher', punkte: bisher.reihe.map((w, i) => [tage[i], w]) },
+    { name: '1a nichts mehr', punkte: ohne.reihe.map((w, i) => [tage[i], w]) },
+  ];
+  if (zielReihe) serien.push({ name: '1c Ziel', punkte: zielReihe.map((w, i) => [tage[i], w]) });
+  linienChart(document.getElementById('rt-chart'), serien, {
+    format: (v) => geld(v),
+    achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null),
+  });
+
+  // Warnungen für das Szenario „Tatsächlich“
+  let warnung = '';
+  if (renditeSzenario === 'tatsaechlich') {
+    const extrem = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.prozent > EXTREM_AB);
+    const unsicher = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.unsicher && p.renditeSeitAuflage.prozent <= EXTREM_AB);
+    const fehlt = daten.positionen.filter((p) => !p.renditeSeitAuflage).map((p) => p.name);
+    if (extrem.length) {
+      const roh = projektion('tatsaechlich', 1, monate, true).ende;
+      warnung += `⚠️ Mit ${zahl(MARKT_RENDITE, 1)} % statt ihrer Historie gerechnet: ${extrem.map((p) => `${p.name} (${zahl(p.renditeSeitAuflage.prozent, 0)} % p. a.)`).join(', ')}. ` +
+        `Ungekappt wären es bei 1b ${geld(roh)} – über 25 Jahre nicht belastbar. `;
+    }
+    if (unsicher.length) warnung += `Veraltet oder geschätzt: ${unsicher.map((p) => `${p.name} (Stand ${deDatum(p.renditeSeitAuflage.stand)})`).join(', ')}. `;
+    if (fehlt.length) warnung += `Ohne hinterlegte Rendite (mit ${zahl(MARKT_RENDITE, 1)} % gerechnet): ${fehlt.join(', ')}.`;
+  }
+  document.getElementById('rt-warnung').textContent = warnung;
+}
+
+function renteSpeichern() {
+  const zahlAus = (id) => Number(document.getElementById(id).value);
+  daten.rente = {
+    ...(daten.rente || {}),
+    wunschEntnahme: zahlAus('rt-wunsch'),
+    entnahmeJahre: zahlAus('rt-dauer'),
+    entnahmeRendite: zahlAus('rt-entnahme-rendite'),
+    inflation: zahlAus('rt-inflation'),
+    geburtsdatum: document.getElementById('rt-geburt').value || null,
+    rentenalter: Math.min(75, Math.max(55, parseInt(document.getElementById('rt-alter').value, 10) || RENTE_STANDARD.rentenalter)),
+  };
+  speichern();
+  renteAnzeigen();
+}
+
+// ---------- Zinseszins ----------
+
+let zinseszinsSicht = 'heute';
+
+// Bis heute, je Kauf: Gewinn = einfache Rendite (Jahresrendite × Jahre auf den Kaufbetrag) + Zinseszins (der Rest).
+// Gebühren, die als Anteilsverkauf abgingen, verkleinern alle Käufe einer Position anteilig.
+function zinseszinsBisHeute() {
+  const h = heute();
+  const zeilen = [];
+  const ohne = [];
+  const ergaenzt = [];
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    const umsaetze = daten.buchungen.filter((b) => b.posId === p.id && (b.status === 'historie' || b.status === 'bestaetigt'));
+    const kaeufe = umsaetze.filter((b) => b.betrag > 0 && b.stueck > 0).sort((a, b) => a.datum.localeCompare(b.datum));
+    if (!k || !p.historieVollstaendig || !kaeufe.length) { ohne.push(p.name); continue; }
+    // Anteile, die die Umsätze nicht erklären (z. B. vor dem ersten Export), als Kauf zu Beginn mit dem Rest-Investment
+    const fehlend = p.stueck - umsaetze.reduce((s, b) => s + b.stueck, 0);
+    if (fehlend > 1e-4) {
+      kaeufe.unshift({ datum: kaeufe[0].datum, stueck: fehlend, betrag: Math.max(0, p.investiert - kaeufe.reduce((s, b) => s + b.betrag, 0)) });
+      ergaenzt.push(p.name);
+    }
+    const anteil = p.stueck / kaeufe.reduce((s, b) => s + b.stueck, 0); // < 1: Gebühren als Anteilsverkauf
+    let einz = 0, einfach = 0, zins = 0;
+    for (const b of kaeufe) {
+      const jahre = (h - new Date(b.datum + 'T00:00:00')) / (365.25 * 864e5);
+      const wert = b.stueck * anteil * k.eur;
+      const gewinn = wert - b.betrag;
+      einz += b.betrag;
+      // unter einem Jahr oder im Minus: noch kein Zinseszins, alles zählt als einfache Rendite
+      if (jahre < 1 || wert <= b.betrag || b.betrag <= 0) { einfach += gewinn; continue; }
+      const r = Math.pow(wert / b.betrag, 1 / jahre) - 1;
+      const linear = b.betrag * r * jahre;
+      einfach += linear;
+      zins += gewinn - linear;
+    }
+    zeilen.push({ name: p.name, einz, einfach, zins });
+  }
+  const summe = (f) => zeilen.reduce((s, z) => s + z[f], 0);
+  return { zeilen, ohne, ergaenzt, einz: summe('einz'), einfach: summe('einfach'), zins: summe('zins') };
+}
+
+// Bis zur Rente: Einzahlungen, einfache Rendite (ohne Wiederanlage der Gewinne) und Zinseszins im Zeitverlauf
+function zinseszinsPrognose(szenario) {
+  const beginn = rentenbeginn();
+  if (!beginn || !kurse) return null;
+  const monate = monateBis(beginn);
+  const einz = new Array(monate + 1).fill(0), einfach = new Array(monate + 1).fill(0), gesamt = new Array(monate + 1).fill(0);
+  for (const p of daten.positionen) {
+    const k = kurse.preise[p.id];
+    if (!k) continue;
+    const r = renditeFuer(p, szenario) / 100, rm = Math.pow(1 + r, 1 / 12) - 1;
+    const rate = p.sparplan ? p.sparplan.betrag : 0;
+    let w = aktuellerBestand(p, k).stueck * k.eur, e = w, linear = 0;
+    for (let m = 0; m <= monate; m++) {
+      einz[m] += e; einfach[m] += linear; gesamt[m] += w;
+      linear += e * (r / 12); // einfache Verzinsung nur auf das Eingezahlte
+      w = w * (1 + rm) + rate;
+      e += rate;
+    }
+  }
+  return { monate, einz, einfach, gesamt };
+}
+
+// Gestapelte Flächen (Einzahlungen, Rendite, Zinseszins) mit Fadenkreuz
+function flaechenChart(el, tage, schichten, opt) {
+  const W = 340, H = 180, L = 4, R = 46, T = 10, B = 22;
+  const n = tage.length;
+  const oben = schichten.map((_, si) => tage.map((__, i) => schichten.slice(0, si + 1).reduce((s, sch) => s + Math.max(0, sch.werte[i]), 0)));
+  const max = Math.max(...oben[oben.length - 1]) * 1.08 || 1;
+  const x = (i) => L + (i / Math.max(1, n - 1)) * (W - L - R);
+  const y = (v) => T + (1 - v / max) * (H - T - B);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Zusammensetzung">`;
+  for (let g = 0; g <= 3; g++) {
+    const v = (max * g) / 3;
+    svg += `<line class="gitter" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
+    svg += `<text class="achse" x="${W - R + 6}" y="${y(v) + 3}">${istPrivat() ? '' : zahl(v / 1000, 0) + ' T€'}</text>`;
+  }
+  tage.forEach((t, i) => { const m = opt.achseX(t, i); if (m) svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${m}</text>`; });
+  schichten.forEach((sch, si) => {
+    const o = oben[si].map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+    const u = si === 0 ? `L${x(n - 1).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}`
+      : oben[si - 1].map((v, i) => [i, v]).reverse().map(([i, v]) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+    svg += `<path d="${o}${u}Z" fill="var(${sch.farbe})" opacity="0.85"/>`;
+  });
+  svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/><rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  el.innerHTML = svg;
+  const svgEl = el.querySelector('svg'), kreuz = el.querySelector('.kreuz'), tip = el.querySelector('.tip');
+  const zeigen = (ev) => {
+    const box = svgEl.getBoundingClientRect();
+    const i = Math.round((((ev.clientX - box.left) / box.width) * W - L) / (W - L - R) * (n - 1));
+    if (i < 0 || i >= n) return;
+    kreuz.setAttribute('x1', x(i)); kreuz.setAttribute('x2', x(i)); kreuz.setAttribute('visibility', 'visible');
+    tip.innerHTML = `<b>${MONATE[Number(tage[i].slice(5, 7)) - 1]} ${tage[i].slice(0, 4)}</b>` +
+      schichten.map((s) => `<br><i style="background: var(${s.farbe})"></i>${s.name}: ${geld(s.werte[i])}`).join('');
+    tip.hidden = false;
+    tip.style.left = Math.min(Math.max(0, (x(i) / W) * box.width - tip.offsetWidth / 2), box.width - tip.offsetWidth) + 'px';
+  };
+  svgEl.addEventListener('pointermove', zeigen);
+  svgEl.addEventListener('pointerdown', zeigen);
+  svgEl.addEventListener('pointerleave', () => { kreuz.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+}
+
+function stapelAnzeigen(teile) {
+  const summe = teile.reduce((s, t) => s + Math.max(0, t.wert), 0) || 1;
+  document.getElementById('zz-stapel').innerHTML = teile
+    .map((t) => `<span style="flex-grow: ${Math.max(0, t.wert) / summe}; background: var(${t.farbe})"></span>`).join('');
+  document.getElementById('zz-legende').innerHTML = teile
+    .map((t, i) => `<span class="k${i + 1}">${t.name} ${geld(t.wert)}</span>`).join('');
+}
+
+function zinseszinsAnzeigen() {
+  if (document.getElementById('ansicht-zinseszins').hidden) zeige('ansicht-zinseszins');
+  document.getElementById('zz-segmente').style.setProperty('--idx', zinseszinsSicht === 'heute' ? 0 : 1);
+  document.querySelectorAll('[data-zinseszins]').forEach((b) => b.classList.toggle('aktiv', b.dataset.zinseszins === zinseszinsSicht));
+  if (!kurse) return;
+  const betrag = document.getElementById('zz-betrag');
+  const liste = document.getElementById('zz-liste');
+  liste.innerHTML = '';
+
+  if (zinseszinsSicht === 'heute') {
+    const z = zinseszinsBisHeute();
+    document.getElementById('zz-titel').textContent = 'Zinseszins bis heute';
+    betrag.className = 'betrag ' + klasse(z.zins);
+    zaehle(betrag, z.zins, true);
+    const gewinn = z.einfach + z.zins;
+    document.getElementById('zz-unter').textContent = gewinn > 0
+      ? `${zahl((z.zins / gewinn) * 100, 1)} % deines Gewinns haben deine früheren Gewinne verdient.`
+      : 'Noch kein Gewinn, also auch noch kein Zinseszins.';
+    stapelAnzeigen([
+      { name: 'Einzahlungen', wert: z.einz, farbe: '--kat-1' },
+      { name: 'Rendite', wert: z.einfach, farbe: '--kat-3' },
+      { name: 'Zinseszins', wert: z.zins, farbe: '--kat-2' },
+    ]);
+    document.getElementById('zz-chart-karte').hidden = true;
+    document.getElementById('zz-liste-titel').hidden = document.getElementById('zz-liste-karte').hidden = false;
+    for (const zeile of z.zeilen.sort((a, b) => b.zins - a.zins)) {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert ${klasse(zeile.zins)}">${mitVorzeichen(zeile.zins)}<small>Zinseszins</small></span>`;
+      li.querySelector('.n').textContent = zeile.name;
+      li.querySelector('.name small').textContent = `${geld(zeile.einz)} eingezahlt · Rendite ${mitVorzeichen(zeile.einfach)}`;
+      liste.appendChild(li);
+    }
+    document.getElementById('zz-hinweis').textContent =
+      'Je Kauf: Rendite = Jahresrendite × Jahre auf den Kaufbetrag, Zinseszins = der Gewinn darüber hinaus. Käufe unter einem Jahr zählen noch ganz als Rendite.' +
+      (z.ergaenzt.length ? ` Anteile vor dem ersten Export als Kauf zu Beginn angenommen: ${z.ergaenzt.join(', ')}.` : '') +
+      (z.ohne.length ? ` Ohne Kaufhistorie nicht enthalten: ${z.ohne.join(', ')}.` : '');
+    return;
+  }
+
+  const p = zinseszinsPrognose(renditeSzenario);
+  document.getElementById('zz-liste-titel').hidden = document.getElementById('zz-liste-karte').hidden = true;
+  if (!p) {
+    document.getElementById('zz-titel').textContent = 'Bis zur Rente';
+    betrag.textContent = '–';
+    document.getElementById('zz-unter').textContent = 'Trage unter „Bis zur Rente“ dein Geburtsdatum ein.';
+    document.getElementById('zz-chart-karte').hidden = true;
+    return;
+  }
+  const m = p.monate;
+  const zins = p.gesamt.map((g, i) => g - p.einz[i] - p.einfach[i]);
+  const beginn = rentenbeginn();
+  document.getElementById('zz-titel').textContent =
+    `Zinseszins bis ${beginn.getFullYear()} · Szenario ${RENDITE_SZENARIEN[renditeSzenario].name}, weiter wie bisher`;
+  betrag.className = 'betrag pos';
+  zaehle(betrag, zins[m], true);
+  // Ab wann verdient der Zinseszins mehr als die einfache Rendite?
+  const kreuzung = zins.findIndex((z, i) => i > 0 && z > p.einfach[i]);
+  const jahr = kreuzung > 0 ? new Date(heute().getFullYear(), heute().getMonth() + kreuzung, 1).getFullYear() : null;
+  document.getElementById('zz-unter').textContent =
+    `${zahl((zins[m] / p.gesamt[m]) * 100, 0)} % deines Depots bei Rentenbeginn sind dann Zinseszins.` +
+    (jahr ? ` Ab ${jahr} ist er größer als die Rendite auf deine Einzahlungen.` : '');
+  stapelAnzeigen([
+    { name: 'Einzahlungen', wert: p.einz[m], farbe: '--kat-1' },
+    { name: 'Rendite', wert: p.einfach[m], farbe: '--kat-3' },
+    { name: 'Zinseszins', wert: zins[m], farbe: '--kat-2' },
+  ]);
+  document.getElementById('zz-chart-karte').hidden = false;
+  const tage = p.gesamt.map((_, i) => isoDatum(new Date(heute().getFullYear(), heute().getMonth() + i, 1)));
+  flaechenChart(document.getElementById('zz-chart'), tage, [
+    { name: 'Einzahlungen', werte: p.einz, farbe: '--kat-1' },
+    { name: 'Rendite', werte: p.einfach, farbe: '--kat-3' },
+    { name: 'Zinseszins', werte: zins, farbe: '--kat-2' },
+  ], { achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null) });
+  document.getElementById('zz-hinweis').textContent =
+    'Rendite = was deine Einzahlungen ohne Wiederanlage verdienen würden. Zinseszins = was die wiederangelegten Gewinne zusätzlich verdienen. ' +
+    `Rendite-Szenario wählst du unter „Bis zur Rente“.`;
 }
 
 // ---------- Rückblick ----------
@@ -1862,6 +2325,10 @@ function hauptRendern() {
   const plaene = daten.positionen.filter((p) => p.sparplan);
   const naechster = plaene.map((p) => naechsterTermin(p.sparplan.tag, heute())).sort((a, c) => a - c)[0];
   document.getElementById('mehr-sparplaene').textContent = naechster ? `nächster ${naechster.getDate()}.${naechster.getMonth() + 1}.` : '';
+  const zz = zinseszinsBisHeute();
+  document.getElementById('mehr-zinseszins').textContent = zz.zins > 0 ? `${mitVorzeichen(zz.zins)} bisher` : '';
+  const beginn = rentenbeginn();
+  document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
   const gEl = document.getElementById('gewinn-eur');
   gEl.className = 'wert ' + klasse(gewinn);
@@ -1902,6 +2369,18 @@ function checkAnzeigen() {
     liste.innerHTML = '<div class="karte leer unter">Keine offenen Buchungen – alles bestätigt.</div>';
   }
   for (const b of offen) liste.appendChild(checkKarte(b));
+
+  // Quartalsweise erinnern: Renditen seit Auflage sind von Hand gepflegt und veralten
+  const veraltet = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.stand &&
+    (heute() - new Date(p.renditeSeitAuflage.stand + 'T00:00:00')) / 864e5 > 92);
+  if (veraltet.length) {
+    const karte = document.createElement('div');
+    karte.className = 'hinweis';
+    karte.innerHTML = `<svg><use href="#i-kalender"/></svg><div><b>Renditen seit Auflage prüfen</b> · älter als 3 Monate: <span></span><br>
+      <button class="knopf" data-aktion="einstellungen">Zu den Einstellungen</button></div>`;
+    karte.querySelector('span').textContent = veraltet.map((p) => p.name).join(', ');
+    liste.prepend(karte);
+  }
 
   const auswahl = document.getElementById('gebuehr-pos');
   auswahl.innerHTML = '';
@@ -2031,8 +2510,13 @@ function einstellungenAnzeigen() {
         <div><label class="feldname">Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 6)}"></div>
         <div><label class="feldname">Investiert (€)</label><input type="text" inputmode="decimal" class="e-inv" value="${zahl(p.investiert, 2)}"></div>
       </div>
-      <div style="margin-top: 12px"><label class="feldname">Anlageart</label>
-        <select class="e-art">${ANLAGEARTEN.map((a) => `<option${a === anlageart(p) ? ' selected' : ''}>${a}</option>`).join('')}</select></div>`;
+      <div class="raster" style="margin-top: 12px">
+        <div><label class="feldname">Anlageart</label>
+          <select class="e-art">${ANLAGEARTEN.map((a) => `<option${a === anlageart(p) ? ' selected' : ''}>${a}</option>`).join('')}</select></div>
+        <div><label class="feldname">Rendite seit Auflage (% p. a.)</label>
+          <input type="text" inputmode="decimal" class="e-rendite" placeholder="leer = Markt" value="${p.renditeSeitAuflage ? zahl(p.renditeSeitAuflage.prozent, 1) : ''}"></div>
+      </div>
+      <p class="unter" style="margin: 6px 2px 0; font-size: 12px">${p.renditeSeitAuflage ? `Stand ${deDatum(p.renditeSeitAuflage.stand)} · ${p.renditeSeitAuflage.quelle}` : ''}</p>`;
     card.querySelector('.posname span').textContent = p.name;
     card.querySelector('.posname small').textContent = p.depot;
     liste.appendChild(card);
@@ -2049,9 +2533,19 @@ function positionenSpeichern() {
     const inv = parseZahl(card.querySelector('.e-inv').value);
     const p = daten.positionen.find((p) => p.id === card.dataset.id);
     if (!(stueck >= 0) || !(inv >= 0)) { alert(`Ungültige Zahl bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value]);
+    const renditeText = card.querySelector('.e-rendite').value.trim();
+    const rendite = renditeText ? parseZahl(renditeText) : null;
+    if (renditeText && !Number.isFinite(rendite)) { alert(`Ungültige Rendite bei „${p.name}“.`); return; }
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite]);
   }
-  for (const [p, stueck, inv, art] of neu) { p.stueck = stueck; p.investiert = inv; p.art = art; }
+  for (const [p, stueck, inv, art, rendite] of neu) {
+    p.stueck = stueck; p.investiert = inv; p.art = art;
+    if (rendite == null) delete p.renditeSeitAuflage;
+    else if (!p.renditeSeitAuflage || Math.abs(p.renditeSeitAuflage.prozent - rendite) > 1e-9) {
+      // geänderter Wert: neues Stand-Datum, Quelle „manuell“
+      p.renditeSeitAuflage = { ...(p.renditeSeitAuflage || {}), prozent: rendite, stand: isoDatum(heute()), quelle: 'manuell eingetragen' };
+    }
+  }
   speichern();
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
 }
@@ -2185,15 +2679,21 @@ function historieUebernehmen(paket) {
     zeilen.push(`${p.name}: ${eintrag.buchungen.length} Käufe, ${zahl(eintrag.stueck, 5)} Stück, ${eur.format(eintrag.investiert)}${ok ? ' ✓' : ' – passt NICHT zum Bestand, übersprungen'}`);
     if (ok) passend.push([p, eintrag]);
   }
-  if (!passend.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
-  if (!confirm('Folgende Umsätze übernehmen?\n\n' + zeilen.join('\n'))) return;
+  // Zusätzlich: Renditen seit Auflage und Renten-Eckdaten, falls in der Datei enthalten
+  const renditen = Object.entries(paket.renditen || {}).filter(([id]) => daten.positionen.some((p) => p.id === id));
+  if (renditen.length) zeilen.push(`Renditen seit Auflage für ${renditen.length} Positionen`);
+  if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
+  if (!passend.length && !renditen.length && !paket.rente) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const [p, eintrag] of passend) {
     daten.buchungen = daten.buchungen.filter((b) => !(b.posId === p.id && b.status === 'historie'));
     daten.buchungen.push(...eintrag.buchungen.map((b) => ({ ...b, posId: p.id, status: 'historie' })));
     p.historieVollstaendig = true;
   }
+  for (const [id, r] of renditen) daten.positionen.find((p) => p.id === id).renditeSeitAuflage = r;
+  if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
   speichern();
-  alert(`Übernommen für ${passend.length} Position${passend.length === 1 ? '' : 'en'}. Mach am besten gleich ein Backup.`);
+  alert('Übernommen. Mach am besten gleich ein Backup.');
   einstellungenAnzeigen();
 }
 
@@ -2237,6 +2737,10 @@ document.addEventListener('click', (e) => {
   if (aufteilung) { aufteilungNach = aufteilung; aufteilungAnzeigen(); return; }
   const rueckblick = e.target.closest('[data-rueckblick]')?.dataset.rueckblick;
   if (rueckblick) { rbModus = rueckblick; rbVersatz = 0; rueckblickAnzeigen(); return; }
+  const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
+  if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
+  const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
+  if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
   const posZeile = e.target.closest('li[data-pos]');
   if (posZeile) {
     detailHerkunft = posZeile.closest('#ansicht-gewinn') ? 'gewinn' : 'vermoegen';
@@ -2265,6 +2769,8 @@ document.addEventListener('click', (e) => {
     privat: privatUmschalten,
     aufteilung: () => { aufteilungNach = 'art'; zeige('ansicht-aufteilung'); aufteilungAnzeigen(); },
     sparplaene: sparplaeneAnzeigen,
+    zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
+    rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     prognose: prognoseAnzeigen,
     rueckblick: () => { rbModus = 'monat'; rbVersatz = 0; zeige('ansicht-rueckblick'); rueckblickAnzeigen(); },
     'rb-zurueck': () => { rbVersatz--; rueckblickAnzeigen(); },
@@ -2328,6 +2834,16 @@ for (const id of ['pg-rate', 'pg-rendite', 'pg-jahre']) {
     prognoseRahmen = requestAnimationFrame(prognoseRechnen);
   });
 }
+
+// Renten-Annahmen: Regler sofort, Datum und Alter beim Verlassen des Feldes übernehmen
+let renteRahmen = 0;
+for (const id of ['rt-wunsch', 'rt-dauer', 'rt-entnahme-rendite', 'rt-inflation']) {
+  document.getElementById(id).addEventListener('input', () => {
+    cancelAnimationFrame(renteRahmen);
+    renteRahmen = requestAnimationFrame(renteSpeichern);
+  });
+}
+for (const id of ['rt-geburt', 'rt-alter']) document.getElementById(id).addEventListener('change', renteSpeichern);
 
 // Privatsphäre-Modus vom letzten Mal übernehmen
 try {
