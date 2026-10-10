@@ -306,6 +306,10 @@
   .kachel.k5 { background: linear-gradient(145deg, #f472b6, #db2777); }
   .kachel.k6 { background: linear-gradient(145deg, #60a5fa, #2563eb); }
   .segmente.vier button { font-size: 13px; }
+  .zeile-wert { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+  .wert-gross { font-size: 30px; font-weight: 750; letter-spacing: -0.03em; white-space: nowrap; }
+  .chart .s0.gruen { stroke: var(--pos); }
+  .chart .ende.gruen, .chart .halo.gruen { fill: var(--pos); }
   .betrag.mittel-gross { font-size: 34px; margin: 2px 0 6px; }
   .karte.szenario .pill { margin-top: 10px; }
   .karte.ziel { background: radial-gradient(120% 120% at 100% 0%, var(--pos-weich), transparent 60%), var(--flaeche); }
@@ -455,19 +459,32 @@
       <div class="etikett">Gesamtvermögen <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="vermoegen" class="betrag skelett">00.000,00 €</div>
       <div id="investiert" class="unter">&nbsp;</div>
-      <div id="vermoegen-spark" class="spark" aria-hidden="true"></div>
     </div>
 
-    <div class="paar">
-      <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
-        <div class="etikett">Gewinn seit Eröffnung <svg class="chevron"><use href="#i-weiter"/></svg></div>
-        <div id="gewinn-eur" class="wert skelett">+0.000 €</div>
+    <div class="karte">
+      <div class="etikett">Entwicklung</div>
+      <div id="start-chart" class="chart"></div>
+    </div>
+
+    <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
+      <div class="etikett">Gewinn seit Eröffnung <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div class="zeile-wert">
+        <div id="gewinn-eur" class="wert-gross skelett">+0.000 €</div>
         <span id="gewinn-pct" class="pill">–</span>
       </div>
-      <div class="karte">
-        <div class="etikett">Zum Vortag</div>
-        <div id="tag-eur" class="wert skelett">+000 €</div>
+    </div>
+
+    <div class="karte">
+      <div class="etikett" id="gv-titel">Gewinn/Verlust zum Vortag</div>
+      <div class="zeile-wert">
+        <div id="tag-eur" class="wert-gross skelett">+000 €</div>
         <span id="tag-pct" class="pill">–</span>
+      </div>
+      <div class="segmente vier klein" id="gv-segmente" style="margin: 14px 0 0">
+        <button data-gv="vortag">Vortag</button>
+        <button data-gv="monat">MTD</button>
+        <button data-gv="jahr">YTD</button>
+        <button data-gv="gesamt">Gesamt</button>
       </div>
     </div>
 
@@ -827,7 +844,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2135'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-10.2148'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1537,8 +1554,8 @@ function linienChart(el, serien, opt) {
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="var(--akzent)" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="var(--akzent)" stop-opacity="0"/>
+      <stop offset="0" stop-color="var(${opt.gruen ? '--pos' : '--akzent'})" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="var(${opt.gruen ? '--pos' : '--akzent'})" stop-opacity="0"/>
     </linearGradient></defs>`;
   for (let g = 0; g <= 3; g++) {
     const v = min + ((max - min) * g) / 3;
@@ -1557,15 +1574,15 @@ function linienChart(el, serien, opt) {
     const s = serien[si];
     const d = s.punkte.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join('');
     if (si === 0) svg += `<path class="flaeche" fill="url(#${gid})" d="${d}L${x(tage.length - 1).toFixed(1)},${H - B}L${x(0).toFixed(1)},${H - B}Z"/>`;
-    svg += `<path class="linie s${si}" d="${d}"/>`;
+    svg += `<path class="linie s${si}${si === 0 && opt.gruen ? ' gruen' : ''}" d="${d}"/>`;
   });
   for (const [t, v] of opt.marker || []) {
     const i = tage.indexOf(t);
     if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`;
   }
   const letzter = serien[0].punkte[tage.length - 1][1];
-  svg += `<circle class="halo" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
-  svg += `<circle class="ende" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
+  svg += `<circle class="halo${opt.gruen ? ' gruen' : ''}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
+  svg += `<circle class="ende${opt.gruen ? ' gruen' : ''}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
   svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
   serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4.5" visibility="hidden"/>`; });
   svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
@@ -2417,6 +2434,15 @@ function rangliste(el, eintraege) {
   });
 }
 
+const GV_TITEL = {
+  vortag: 'Gewinn/Verlust zum Vortag',
+  monat: 'Gewinn/Verlust seit Monatsanfang (MTD)',
+  jahr: 'Gewinn/Verlust seit Jahresanfang (YTD)',
+  gesamt: 'Gewinn/Verlust seit Eröffnung',
+};
+let gvZeitraum = 'vortag';
+try { if (GV_TITEL[localStorage.getItem('depot-gv')]) gvZeitraum = localStorage.getItem('depot-gv'); } catch { /* nur Komfort */ }
+
 function hauptAnzeigen() {
   zeige('ansicht-haupt');
   hauptRendern();
@@ -2448,7 +2474,19 @@ function hauptRendern() {
   zaehle(vEl, b.wert, false);
   document.getElementById('investiert').textContent = `${geld(b.investiert)} investiert`;
   const verlauf = vermoegensVerlauf();
-  sparkline(document.getElementById('vermoegen-spark'), verlauf && verlauf.depot);
+  // Entwicklung: Monat und Jahr am Quartalsanfang auf der x-Achse, volle Euro auf der y-Achse
+  const startChart = document.getElementById('start-chart');
+  if (verlauf) {
+    const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
+    linienChart(startChart, [{ name: 'Vermögen', punkte: verlauf.depot }], {
+      gruen: true,
+      format: (v) => geld(v),
+      formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
+      achseX: (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null),
+    });
+  } else {
+    startChart.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
+  }
 
   // kleine Hinweise im Menü „Mehr“
   const arten = new Set(daten.positionen.map(anlageart)).size;
@@ -2462,14 +2500,26 @@ function hauptRendern() {
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
   const gEl = document.getElementById('gewinn-eur');
-  gEl.className = 'wert ' + klasse(gewinn);
+  gEl.className = 'wert-gross ' + klasse(gewinn);
   gEl.innerHTML = betragHTML(gewinn, true);
   setzePill(document.getElementById('gewinn-pct'), gewinn, pct(b.investiert ? (gewinn / b.investiert) * 100 : 0));
 
+  // Gewinn/Verlust mit wählbarem Zeitraum
+  let gv, basis;
+  if (gvZeitraum === 'vortag') { gv = b.tagAend; basis = b.vorherWert; }
+  else if (gvZeitraum === 'gesamt') { gv = gewinn; basis = b.investiert; }
+  else {
+    const zeilen = gewinnListe(gvZeitraum).zeilen;
+    gv = zeilen.reduce((s, z) => s + z.gewinn, 0);
+    basis = zeilen.reduce((s, z) => s + z.basis, 0);
+  }
+  document.getElementById('gv-titel').textContent = GV_TITEL[gvZeitraum];
+  document.getElementById('gv-segmente').style.setProperty('--idx', Object.keys(GV_TITEL).indexOf(gvZeitraum));
+  document.querySelectorAll('[data-gv]').forEach((el) => el.classList.toggle('aktiv', el.dataset.gv === gvZeitraum));
   const tEl = document.getElementById('tag-eur');
-  tEl.className = 'wert ' + klasse(b.tagAend);
-  tEl.innerHTML = betragHTML(b.tagAend, true);
-  setzePill(document.getElementById('tag-pct'), b.tagAend, pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0));
+  tEl.className = 'wert-gross ' + klasse(gv);
+  tEl.innerHTML = betragHTML(gv, true);
+  setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
 
   const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
   rangliste(document.getElementById('top'), sortiert.slice(0, 3));
@@ -2864,6 +2914,13 @@ function importieren(datei) {
 // ---------- Start ----------
 
 document.addEventListener('click', (e) => {
+  const gvWahl = e.target.closest('[data-gv]')?.dataset.gv;
+  if (gvWahl) {
+    gvZeitraum = gvWahl;
+    try { localStorage.setItem('depot-gv', gvWahl); } catch { /* nur Komfort */ }
+    hauptRendern();
+    return;
+  }
   const reiter = e.target.closest('[data-tab]')?.dataset.tab;
   if (reiter) { zeige(reiter); hauptRendern(); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
