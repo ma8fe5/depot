@@ -324,7 +324,7 @@
   .klippe .zahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; color: var(--text-2); }
   .klippe .zahlen b { display: block; font-size: 16px; color: var(--text); font-weight: 650; }
   .klippe .warnung { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--neg-weich); color: var(--neg); font-size: 14px; font-weight: 600; }
-  .zinsbild { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .zinsbild { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; text-align: center; }
   .zinsbild b { display: block; font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
   .zinsbild span { font-size: 12px; color: var(--text-2); }
   .stationen li { align-items: flex-start; }
@@ -594,7 +594,6 @@
     <div class="karte">
       <div class="etikett">Verlauf seit Jahresbeginn</div>
       <div id="vermoegen-chart" class="chart"></div>
-      <div class="legende"><span>Dein Depot</span><span class="l1">Gleiche Einzahlungen im MSCI World</span></div>
     </div>
     <div class="abschnitt">Positionen</div>
     <div class="karte liste-karte"><ul id="vermoegen-positionen" class="liste"></ul></div>
@@ -827,7 +826,6 @@
       <div class="etikett" id="gewinn-zeitraum"></div>
       <div id="gewinn-gesamt" class="betrag"></div>
       <span id="gewinn-gesamt-pct" class="pill"></span>
-      <div id="gewinn-benchmark" class="unter" style="margin-top: 14px"></div>
     </div>
     <div class="abschnitt">Positionen</div>
     <div class="karte liste-karte"><ul id="gewinn-positionen" class="liste"></ul></div>
@@ -985,14 +983,13 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1717'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1720'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
-const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
 const BACKUP_TAGE = 30;
 
 let daten = null;
-let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum, reihe } }, benchmark }
+let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum, reihe } } }
 
 // ---------- Hilfsfunktionen ----------
 
@@ -1322,8 +1319,7 @@ function checkFaellig() {
 function kursSymbole() {
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   return [...new Set(eodPos.map((p) => p.symbol)
-    .concat(eodPos.map(fxSymbol).filter(Boolean))
-    .concat([BENCHMARK.symbol]))];
+    .concat(eodPos.map(fxSymbol).filter(Boolean)))];
 }
 
 async function kurseHolen() {
@@ -1341,7 +1337,6 @@ async function kurseHolen() {
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   const symbole = kursSymbole();
-  let benchmark = null;
 
   try {
     const r = await fetch(`${daten.vermittler.replace(/\/$/, '')}/quotes?s=${symbole.join(',')}`,
@@ -1369,10 +1364,6 @@ async function kurseHolen() {
           : k.reihe;
       }
       preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum, reihe };
-    }
-    const bk = j.kurse[BENCHMARK.symbol];
-    if (bk && !bk.fehler && Array.isArray(bk.reihe)) {
-      benchmark = { eur: bk.schluss, vorherEur: bk.vorher, reihe: splitBereinigt(bk.reihe) };
     }
   } catch (e) {
     // Vermittler nicht erreichbar: alte Kurse bleiben stehen, ein Satz genügt statt einer Namensliste
@@ -1410,7 +1401,6 @@ async function kurseHolen() {
   const alt = (kurse && kurse.preise) || {};
   kurse = {
     abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler, hinweise,
-    benchmark: benchmark || (kurse && kurse.benchmark) || null,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   if (daten) historieFortschreiben(preise);
@@ -1625,10 +1615,6 @@ function gewinnAnzeigen() {
   gesamt.className = 'betrag ' + klasse(summe);
   zaehle(gesamt, summe, true);
   setzePill(document.getElementById('gewinn-gesamt-pct'), summe, pct(basis ? (summe / basis) * 100 : 0));
-  const bm = benchmarkGewinn(gewinnZeitraum, zeilen);
-  document.getElementById('gewinn-benchmark').textContent = bm
-    ? `Mit deinen Einzahlungen im ${BENCHMARK.name} wären es ${mitVorzeichen(bm.gewinn)} (${pct(bm.pct)}).`
-    : (gewinnZeitraum === 'eroeffnung' ? `Den Vergleich mit dem ${BENCHMARK.name} findest du bei Jahr, Monat und Gestern.` : '');
   for (const z of zeilen) {
     const li = document.createElement('li');
     li.className = 'tippbar';
@@ -1639,30 +1625,6 @@ function gewinnAnzeigen() {
     liste.appendChild(li);
   }
   if (fehlend.length) meldung.textContent = `Ohne Kursdaten für diesen Zeitraum: ${fehlend.join(', ')}`;
-}
-
-// „Was wäre, wenn“: Wert am Stichtag und jede spätere Einzahlung im Vergleichsindex angelegt
-function benchmarkGewinn(zeitraum, zeilen) {
-  const I = kurse && kurse.benchmark;
-  if (!I || zeitraum === 'eroeffnung') return null;
-  if (zeitraum === 'gestern') {
-    if (!I.vorherEur) return null;
-    const basis = zeilen.reduce((s, z) => s + z.basis, 0);
-    const gewinn = basis * (I.eur / I.vorherEur - 1);
-    return { gewinn, pct: basis ? (gewinn / basis) * 100 : 0 };
-  }
-  const iSt = kursAm(I.reihe, stichtag(zeitraum), 'bis');
-  if (!iSt) return null;
-  const wertSt = zeilen.reduce((s, z) => s + z.wertSt, 0);
-  let anteile = wertSt / iSt, einz = 0;
-  for (const z of zeilen) {
-    for (const c of z.einz) {
-      anteile += c.betrag / (kursAm(I.reihe, c.datum, 'ab') || I.eur);
-      einz += c.betrag;
-    }
-  }
-  const gewinn = anteile * I.eur - wertSt - einz;
-  return { gewinn, pct: wertSt + einz ? (gewinn / (wertSt + einz)) * 100 : 0 };
 }
 
 function bewertung() {
@@ -1727,10 +1689,7 @@ function vermoegenAnzeigen() {
   }
   const verlauf = vermoegensVerlauf();
   if (verlauf) {
-    linienChart(chartEl, [
-      { name: 'Depot', punkte: verlauf.depot },
-      { name: BENCHMARK.name, punkte: verlauf.benchmark },
-    ], { format: (v) => geld(v) });
+    linienChart(chartEl, [{ name: 'Depot', punkte: verlauf.depot }], { format: (v) => geld(v) });
   } else {
     chartEl.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
   }
@@ -1738,7 +1697,6 @@ function vermoegenAnzeigen() {
 
 // Tageswerte ab Stichtag (Standard: 31.12. des Vorjahres) bis zum Ende (Standard: letzter Kurs):
 // Depot = Summe (Stück am Tag × Kurs am Tag). Vor ihrem ersten Kauf zählt eine Position mit 0.
-// Vergleich = Depotwert am Stichtag plus alle Einzahlungen im Vergleichsindex angelegt
 function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
   const pos = [];
   let ende = start;
@@ -1774,19 +1732,7 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
     return [t, summe];
   });
 
-  let benchmark = null;
-  const I = kurse.benchmark;
-  const iStart = I && kursAm(I.reihe, start, 'bis');
-  if (iStart) {
-    const einz = pos.flatMap((x) => x.kaeufe.filter((c) => c.betrag > 0))
-      .map((c) => ({ datum: c.datum, anteile: c.betrag / (kursAm(I.reihe, c.datum, 'ab') || I.eur) }));
-    const basisAnteile = depot[0][1] / iStart;
-    benchmark = tage.map((t) => {
-      const anteile = basisAnteile + einz.filter((c) => c.datum <= t).reduce((s, c) => s + c.anteile, 0);
-      return [t, anteile * (kursAm(I.reihe, t, 'bis') || iStart)];
-    });
-  }
-  return { depot, benchmark };
+  return { depot };
 }
 
 // ---------- Charts ----------
@@ -2068,13 +2014,12 @@ function tagesgeldAnzeigen() {
 
   // Zinsen ↔ Sparpläne
   const sparMonat = daten.positionen.reduce((s, p) => s + (p.sparplan ? p.sparplan.betrag : 0), 0);
-  const msci = kurse && kurse.preise.eunl ? kurse.preise.eunl.eur : null;
   document.getElementById('tg-sparplan-karte').hidden = !(proJahr && sparMonat);
   if (proJahr && sparMonat) {
     document.getElementById('tg-sparplan').innerHTML = `
       <div><b>${zahl(((proJahr / 12) / sparMonat) * 100, 0)} %</b><span>deiner Sparraten bezahlen die Zinsen jeden Monat</span></div>
       <div><b>${zahl(proJahr / sparMonat, 1)}</b><span>Monate Sparplan finanziert pro Jahr</span></div>
-      <div><b>${msci ? zahl(proJahr / msci, 1) : '–'}</b><span>Anteile MSCI World pro Jahr</span></div>`;
+`;
   }
 
   // Hopping-Bilanz: alle Stationen, neueste oben
