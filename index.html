@@ -971,7 +971,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1806'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1809'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2691,6 +2691,13 @@ function renteSpeichern() {
 
 let zinseszinsSicht = 'heute';
 
+// Zinseszins entsteht nur, wenn Erträge im Wertpapier bleiben (thesaurierende ETFs und Fonds).
+// Einzelaktien mit ausgezahlter Dividende (Telekom) und Bitcoin haben keinen; in „Positionen“ änderbar.
+function legtWiederAn(p) {
+  if (typeof p.wiederanlage === 'boolean') return p.wiederanlage;
+  return ['ETF', 'Fonds'].includes(anlageart(p));
+}
+
 // Bis heute, je Kauf: Gewinn = einfache Rendite (Jahresrendite × Jahre auf den Kaufbetrag) + Zinseszins (der Rest).
 // Gebühren, die als Anteilsverkauf abgingen, verkleinern alle Käufe einer Position anteilig.
 function zinseszinsBisHeute() {
@@ -2717,13 +2724,13 @@ function zinseszinsBisHeute() {
       const gewinn = wert - b.betrag;
       einz += b.betrag;
       // unter einem Jahr oder im Minus: noch kein Zinseszins, alles zählt als einfache Rendite
-      if (jahre < 1 || wert <= b.betrag || b.betrag <= 0) { einfach += gewinn; continue; }
+      if (!legtWiederAn(p) || jahre < 1 || wert <= b.betrag || b.betrag <= 0) { einfach += gewinn; continue; }
       const r = Math.pow(wert / b.betrag, 1 / jahre) - 1;
       const linear = b.betrag * r * jahre;
       einfach += linear;
       zins += gewinn - linear;
     }
-    zeilen.push({ name: p.name, einz, einfach, zins });
+    zeilen.push({ name: p.name, einz, einfach, zins, wiederanlage: legtWiederAn(p) });
   }
   const summe = (f) => zeilen.reduce((s, z) => s + z[f], 0);
   return { zeilen, ohne, ergaenzt, einz: summe('einz'), einfach: summe('einfach'), zins: summe('zins') };
@@ -2814,11 +2821,11 @@ function zinseszinsAnzeigen() {
       const li = document.createElement('li');
       li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert ${klasse(zeile.zins)}">${mitVorzeichen(zeile.zins)}<small>Zinseszins</small></span>`;
       li.querySelector('.n').textContent = zeile.name;
-      li.querySelector('.name small').textContent = `${geld(zeile.einz)} eingezahlt · Rendite ${mitVorzeichen(zeile.einfach)}`;
+      li.querySelector('.name small').textContent = `${geld(zeile.einz)} eingezahlt · Rendite ${mitVorzeichen(zeile.einfach)}${zeile.wiederanlage ? '' : ' · Erträge ausgezahlt'}`;
       liste.appendChild(li);
     }
     document.getElementById('zz-hinweis').textContent =
-      'Je Kauf: Rendite = Jahresrendite × Jahre auf den Kaufbetrag, Zinseszins = der Gewinn darüber hinaus. Käufe unter einem Jahr zählen noch ganz als Rendite.' +
+      'Je Kauf: Rendite = Jahresrendite × Jahre auf den Kaufbetrag, Zinseszins = der Gewinn darüber hinaus. Käufe unter einem Jahr zählen noch ganz als Rendite. Wo Erträge ausgezahlt statt wieder angelegt werden (Einzelaktien, Bitcoin), gibt es keinen Zinseszins.' +
       (z.ergaenzt.length ? ` Anteile vor dem ersten Export als Kauf zu Beginn angenommen: ${z.ergaenzt.join(', ')}.` : '') +
       (z.ohne.length ? ` Ohne Kaufhistorie nicht enthalten: ${z.ohne.join(', ')}.` : '');
     return;
@@ -3388,6 +3395,10 @@ function positionenAnzeigen() {
       <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Anlageart</label>
           <select class="e-art">${ANLAGEARTEN.map((a) => `<option value="${a}"${a === anlageart(p) ? ' selected' : ''}>${ART_NAME[a] || a}</option>`).join('')}</select></div>
+        <div><label class="feldname">Erträge</label>
+          <select class="e-wieder"><option value="ja"${legtWiederAn(p) ? ' selected' : ''}>werden wieder angelegt</option><option value="nein"${legtWiederAn(p) ? '' : ' selected'}>werden ausgezahlt</option></select></div>
+      </div>
+      <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Rendite seit Auflage (% p. a.)</label>
           <input type="text" inputmode="decimal" class="e-rendite" placeholder="leer = Markt" value="${p.renditeSeitAuflage ? zahl(p.renditeSeitAuflage.prozent, 1) : ''}"></div>
       </div>
@@ -3411,10 +3422,12 @@ function positionenSpeichern() {
     const renditeText = card.querySelector('.e-rendite').value.trim();
     const rendite = renditeText ? parseZahl(renditeText) : null;
     if (renditeText && !Number.isFinite(rendite)) { alert(`Ungültige Rendite bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite]);
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite, card.querySelector('.e-wieder').value === 'ja']);
   }
-  for (const [p, stueck, inv, art, rendite] of neu) {
+  for (const [p, stueck, inv, art, rendite, wieder] of neu) {
     p.stueck = stueck; p.investiert = inv; p.art = art;
+    // nur speichern, wenn es vom Standard der Anlageart abweicht – sonst folgt es der Anlageart
+    if (wieder === ['ETF', 'Fonds'].includes(art)) delete p.wiederanlage; else p.wiederanlage = wieder;
     if (rendite == null) delete p.renditeSeitAuflage;
     else if (!p.renditeSeitAuflage || Math.abs(p.renditeSeitAuflage.prozent - rendite) > 1e-9) {
       // geänderter Wert: neues Stand-Datum, Quelle „manuell“
