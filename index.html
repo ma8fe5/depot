@@ -386,6 +386,7 @@
   .ring .mitte span { font-size: 13px; color: var(--text-2); }
   .farbpunkt { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
   .ring.klein { max-width: 190px; }
+  .paar .anteil { font-size: 13px; margin: -6px 0 10px; }
 
   /* ---------- Termine ---------- */
   .tag { width: 44px; flex-shrink: 0; text-align: center; border-radius: 10px; overflow: hidden; background: var(--flaeche-2); line-height: 1.1; }
@@ -507,18 +508,19 @@
     <div class="karte held tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
       <div class="etikett">Gesamtvermögen <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="gesamt" class="betrag skelett">00.000,00 €</div>
-      <div id="gesamt-unter" class="unter">&nbsp;</div>
     </div>
 
     <div class="paar">
       <div class="karte tippbar" data-tab="ansicht-haupt" role="button" tabindex="0">
         <div class="etikett">Depot <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-aktien"></div>
+        <span class="unter anteil" id="start-aktien-anteil"></span>
         <span class="pill" id="start-aktien-pill">–</span>
       </div>
       <div class="karte tippbar" data-tab="ansicht-tagesgeld" role="button" tabindex="0">
         <div class="etikett">Tagesgeld <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-tagesgeld"></div>
+        <span class="unter anteil" id="start-tagesgeld-anteil"></span>
         <span class="pill" id="start-tagesgeld-pill">–</span>
       </div>
     </div>
@@ -988,7 +990,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1756'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1801'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3093,7 +3095,8 @@ function hauptRendern() {
   gesamtEl.classList.remove('skelett');
   zaehle(gesamtEl, b.wert + tg, false);
   const anteil = (v) => (b.wert + tg ? zahl((v / (b.wert + tg)) * 100, 0) : '0');
-  document.getElementById('gesamt-unter').textContent = `Depot ${anteil(b.wert)} % · Tagesgeld ${anteil(tg)} %`;
+  document.getElementById('start-aktien-anteil').textContent = `${anteil(b.wert)} % vom Vermögen`;
+  document.getElementById('start-tagesgeld-anteil').textContent = `${anteil(tg)} % vom Vermögen`;
   document.getElementById('start-aktien').innerHTML = betragHTML(b.wert);
   setzePill(document.getElementById('start-aktien-pill'), b.tagAend, `${pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0)} Vortag`);
   document.getElementById('start-tagesgeld').innerHTML = betragHTML(tg);
