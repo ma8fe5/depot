@@ -615,19 +615,6 @@
     </div>
   </section>
 
-  <!-- Aufteilung -->
-  <section id="ansicht-aufteilung" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Aufteilung</h1></div>
-    <div class="segmente zwei" id="aufteilung-segmente">
-      <button data-aufteilung="art">Anlageart</button>
-      <button data-aufteilung="depot">Depot</button>
-    </div>
-    <div class="karte"><div id="aufteilung-ring" class="ring"></div></div>
-    <div class="karte liste-karte"><ul id="aufteilung-liste" class="liste"></ul></div>
-    <p class="fuss">Die Anlageart einer Position änderst du unter Einstellungen → Positionen.</p>
-  </section>
-
   <!-- Tagesgeld -->
   <section id="ansicht-tagesgeld" class="ansicht" hidden>
     <div class="kopf">
@@ -692,7 +679,7 @@
   <!-- Sparpläne & Termine -->
   <section id="ansicht-sparplaene" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Sparpläne</h1></div>
+    <div class="titel"><h1>Termine & Sparpläne</h1></div>
     <div class="paar">
       <div class="karte"><div class="etikett">Pro Monat</div><div class="wert" id="sp-monat"></div><span class="unter" id="sp-anzahl"></span></div>
       <div class="karte"><div class="etikett" id="sp-jahr-titel"></div><div class="wert" id="sp-jahr"></div><span class="unter" id="sp-jahr-hinweis"></span></div>
@@ -886,16 +873,19 @@
     </div>
   </section>
 
+  <!-- Positionen korrigieren (Menü → Pflegen) -->
+  <section id="ansicht-positionen" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Positionen</h1><div class="unterzeile">Stückzahl und investierter Betrag wie in deinem Depot. Offene, noch nicht bestätigte Buchungen sind hier nicht enthalten.</div></div>
+    <div id="positionen-liste"></div>
+    <div class="knoepfe"><button class="knopf breit" data-aktion="positionen-speichern">Änderungen speichern</button></div>
+    <p id="positionen-meldung" class="fuss"></p>
+  </section>
+
   <!-- Einstellungen -->
   <section id="ansicht-einstellungen" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Einstellungen</h1></div>
-
-    <div class="abschnitt">Monats-Check</div>
-    <div class="karte">
-      <p class="unter" id="check-info" style="margin: 0"></p>
-      <div class="knoepfe"><button class="knopf zweit" data-aktion="check">Check jetzt öffnen</button></div>
-    </div>
 
     <div class="abschnitt">Mitteilungen</div>
     <div class="karte">
@@ -920,8 +910,7 @@
     <div class="karte">
       <p class="unter" id="backup-info" style="margin: 0"></p>
       <div class="knoepfe">
-        <button class="knopf" data-aktion="export">Sichern</button>
-        <button class="knopf zweit" data-aktion="import">Laden</button>
+        <button class="knopf zweit" data-aktion="import">Backup laden</button>
       </div>
     </div>
 
@@ -930,12 +919,6 @@
       <p class="unter" style="margin: 0">Echte Käufe aus einer Datei <b>depot-historie.json</b> übernehmen. Ergänzt nur die Historie der enthaltenen Positionen, alles andere bleibt unverändert.</p>
       <div class="knoepfe"><button class="knopf zweit" data-aktion="historie-import">Umsätze importieren</button></div>
     </div>
-
-    <div class="abschnitt">Positionen korrigieren</div>
-    <p class="unter" style="margin: -2px 18px 12px">Stückzahl und investierter Betrag wie in deinem Depot. Offene, noch nicht bestätigte Buchungen sind hier nicht enthalten.</p>
-    <div id="positionen-liste"></div>
-    <div class="knoepfe"><button class="knopf breit" data-aktion="positionen-speichern">Änderungen speichern</button></div>
-    <p id="positionen-meldung" class="fuss"></p>
 
     <div class="abschnitt">Kurs-Vermittler</div>
     <div class="karte">
@@ -964,25 +947,27 @@
       <h1>Menü</h1>
       <button class="rund" data-aktion="menue-zu" aria-label="Menü schließen"><svg><use href="#i-schliessen"/></svg></button>
     </div>
-    <div class="abschnitt">Mein Depot heute</div>
-    <div class="karte liste-karte">
-      <ul class="liste menue">
-        <li class="tippbar" data-aktion="aufteilung"><span class="kachel kg-heute"><svg><use href="#i-torte"/></svg></span><span class="name">Aufteilung<small id="mehr-aufteilung"></small></span></li>
-        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Sparpläne & Termine<small id="mehr-sparplaene"></small></span></li>
-        <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
-      </ul>
-    </div>
-    <div class="abschnitt">Rückblick</div>
+    <div class="abschnitt">Auswerten</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
         <li class="tippbar" data-aktion="rueckblick"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Rückblick<small>Monat und Jahr</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
+        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
       </ul>
     </div>
-    <div class="abschnitt">Zukunft & Rente</div>
+    <div class="abschnitt">Planen</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
-        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
+        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Termine & Sparpläne<small id="mehr-sparplaene"></small></span></li>
+      </ul>
+    </div>
+    <div class="abschnitt">Pflegen</div>
+    <div class="karte liste-karte">
+      <ul class="liste menue">
+        <li class="tippbar" data-aktion="check"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Monats-Check<small id="mehr-check"></small></span></li>
+        <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
+        <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen korrigieren<small>Stück, Investiert, Anlageart</small></span></li>
+        <li class="tippbar" data-aktion="export"><span class="kachel kg-heute"><svg><use href="#i-wolke"/></svg></span><span class="name">Backup sichern<small id="mehr-backup"></small></span></li>
       </ul>
     </div>
     <div class="karte liste-karte" style="margin-top: 24px">
@@ -1003,7 +988,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1746'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1756'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1902,7 +1887,6 @@ function anlageart(p) {
   return 'Aktie';
 }
 
-let aufteilungNach = 'art';
 
 // Anzeigename der Anlageart (intern bleiben die Werte aus ANLAGEARTEN)
 const ART_NAME = { Aktie: 'Einzelaktien', Krypto: 'Bitcoin' };
@@ -1940,27 +1924,6 @@ function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
     li.querySelector('.name').textContent = name;
     listeEl.appendChild(li);
   });
-}
-
-function aufteilungAnzeigen() {
-  document.getElementById('aufteilung-segmente').style.setProperty('--idx', aufteilungNach === 'art' ? 0 : 1);
-  document.querySelectorAll('[data-aufteilung]').forEach((b) => b.classList.toggle('aktiv', b.dataset.aufteilung === aufteilungNach));
-  if (document.getElementById('ansicht-aufteilung').hidden) zeige('ansicht-aufteilung');
-  if (!kurse) return;
-
-  let teile;
-  if (aufteilungNach === 'art') teile = anlagearten();
-  else {
-    const gruppen = new Map();
-    for (const w of bewertung().werte) {
-      const name = daten.positionen.find((x) => x.id === w.id).depot;
-      gruppen.set(name, (gruppen.get(name) || 0) + w.wert);
-    }
-    for (const k of tgAktiv()) if (k.stand > 0) gruppen.set(`Tagesgeld ${k.bank}`, (gruppen.get(`Tagesgeld ${k.bank}`) || 0) + k.stand);
-    teile = [...gruppen.entries()].sort((a, c) => c[1] - a[1]);
-  }
-  ringZeichnen(document.getElementById('aufteilung-ring'), document.getElementById('aufteilung-liste'), teile,
-    `${teile.length} ${aufteilungNach === 'art' ? 'Anlagearten' : 'Depots'}`);
 }
 
 // ---------- Tagesgeld ----------
@@ -2358,9 +2321,12 @@ function sparplaeneAnzeigen() {
       }
     }
   }
-  let check = ersterSamstag(h.getFullYear(), h.getMonth());
-  if (daten.letzterCheck === monatKey(h) || check < h) check = ersterSamstag(h.getFullYear(), h.getMonth() + 1);
-  termine.push({ datum: check, name: 'Monats-Check', info: 'Käufe bestätigen', betrag: null, typ: 'check' });
+  termine.push({ datum: naechsterCheck(), name: 'Monats-Check', info: 'Käufe und Kontostände bestätigen', betrag: null, typ: 'check' });
+  // Tagesgeld: Ende des Aktionszinses = Zinsen kommen, Geld zieht um
+  for (const k of tgAktiv().filter((x) => x.termin && x.termin >= isoDatum(h))) {
+    const zinsen = k.auszahlung === 'termin' && k.aufgelaufen ? tgAufgelaufen(k, new Date(k.termin + 'T00:00:00')) : null;
+    termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? `Zinsen ≈ ${geld(zinsen)} · Bankwechsel` : 'Aktionszins endet · Bankwechsel', betrag: k.stand, typ: 'tagesgeld' });
+  }
   termine.sort((a, b) => a.datum - b.datum);
 
   const liste = document.getElementById('sp-termine');
@@ -3146,8 +3112,10 @@ function hauptRendern() {
   entwicklungAnzeigen();
 
   // kleine Hinweise im Menü „Mehr“
-  const arten = new Set(daten.positionen.map(anlageart)).size + (tg ? 1 : 0);
-  document.getElementById('mehr-aufteilung').textContent = `${arten} Anlagearten`;
+  const nc = naechsterCheck();
+  document.getElementById('mehr-check').textContent = `nächster ${nc.getDate()}.${nc.getMonth() + 1}.`;
+  const tageBackup = daten.letztesBackup ? Math.floor((Date.now() - new Date(daten.letztesBackup)) / 864e5) : null;
+  document.getElementById('mehr-backup').textContent = tageBackup == null ? 'noch keins' : tageBackup === 0 ? 'heute gesichert' : `vor ${tageBackup} ${tageBackup === 1 ? 'Tag' : 'Tagen'}`;
   const plaene = daten.positionen.filter((p) => p.sparplan);
   const naechster = plaene.map((p) => naechsterTermin(p.sparplan.tag, heute())).sort((a, c) => a - c)[0];
   document.getElementById('mehr-sparplaene').textContent = naechster ? `nächster ${naechster.getDate()}.${naechster.getMonth() + 1}.` : '';
@@ -3259,7 +3227,7 @@ function checkAnzeigen() {
     const karte = document.createElement('div');
     karte.className = 'hinweis';
     karte.innerHTML = `<svg><use href="#i-kalender"/></svg><div><b>Renditen seit Auflage prüfen</b> · älter als 3 Monate: <span></span><br>
-      <button class="knopf" data-aktion="einstellungen">Zu den Einstellungen</button></div>`;
+      <button class="knopf" data-aktion="positionen">Zu den Positionen</button></div>`;
     karte.querySelector('span').textContent = veraltet.map((p) => p.name).join(', ');
     liste.prepend(karte);
   }
@@ -3377,12 +3345,15 @@ function checkBestaetigen() {
 
 // ---------- Einstellungen ----------
 
-function einstellungenAnzeigen() {
+// Nächster Monats-Check: erster Samstag im Monat, nach erledigtem Check der im Folgemonat
+function naechsterCheck() {
   const h = heute();
-  let naechster = ersterSamstag(h.getFullYear(), h.getMonth());
-  if (daten.letzterCheck === monatKey(h) || naechster < h) naechster = ersterSamstag(h.getFullYear(), h.getMonth() + 1);
-  document.getElementById('check-info').textContent =
-    `Offene Buchungen: ${offeneBuchungen().length} · nächster Check am ${naechster.toLocaleDateString('de-DE')}`;
+  let d = ersterSamstag(h.getFullYear(), h.getMonth());
+  if (daten.letzterCheck === monatKey(h) || d < h) d = ersterSamstag(h.getFullYear(), h.getMonth() + 1);
+  return d;
+}
+
+function einstellungenAnzeigen() {
   document.getElementById('backup-info').textContent = daten.letztesBackup
     ? `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
     : 'Noch kein Backup von diesem iPhone.';
@@ -3395,7 +3366,10 @@ function einstellungenAnzeigen() {
   document.getElementById('schutz-an').hidden = geschuetzt;
   document.getElementById('schutz-aus').hidden = !geschuetzt;
   pushStatusAnzeigen();
+  zeige('ansicht-einstellungen');
+}
 
+function positionenAnzeigen() {
   const liste = document.getElementById('positionen-liste');
   liste.innerHTML = '';
   for (const p of daten.positionen) {
@@ -3410,7 +3384,7 @@ function einstellungenAnzeigen() {
       </div>
       <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Anlageart</label>
-          <select class="e-art">${ANLAGEARTEN.map((a) => `<option${a === anlageart(p) ? ' selected' : ''}>${a}</option>`).join('')}</select></div>
+          <select class="e-art">${ANLAGEARTEN.map((a) => `<option value="${a}"${a === anlageart(p) ? ' selected' : ''}>${ART_NAME[a] || a}</option>`).join('')}</select></div>
         <div><label class="feldname">Rendite seit Auflage (% p. a.)</label>
           <input type="text" inputmode="decimal" class="e-rendite" placeholder="leer = Markt" value="${p.renditeSeitAuflage ? zahl(p.renditeSeitAuflage.prozent, 1) : ''}"></div>
       </div>
@@ -3420,7 +3394,7 @@ function einstellungenAnzeigen() {
     liste.appendChild(card);
   }
   document.getElementById('positionen-meldung').textContent = '';
-  zeige('ansicht-einstellungen');
+  zeige('ansicht-positionen');
 }
 
 function positionenSpeichern() {
@@ -3749,8 +3723,7 @@ document.addEventListener('click', (e) => {
   if (reiter) { reiterZeigen(reiter); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
   if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
-  const aufteilung = e.target.closest('[data-aufteilung]')?.dataset.aufteilung;
-  if (aufteilung) { aufteilungNach = aufteilung; aufteilungAnzeigen(); return; }
+
   const rueckblick = e.target.closest('[data-rueckblick]')?.dataset.rueckblick;
   if (rueckblick) { rbModus = rueckblick; rbVersatz = 0; rueckblickAnzeigen(); return; }
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
@@ -3786,10 +3759,10 @@ document.addEventListener('click', (e) => {
     'schutz-zuruecksetzen': schutzZuruecksetzen,
     menue: menueOeffnen,
     'menue-zu': () => {},
-    aufteilung: () => { aufteilungNach = 'art'; zeige('ansicht-aufteilung'); aufteilungAnzeigen(); },
     sparplaene: sparplaeneAnzeigen,
     tagesgeld: tagesgeldAnzeigen,
     'tg-konten': tgKontenAnzeigen,
+    positionen: positionenAnzeigen,
     tops: () => { zeige('ansicht-tops'); hauptRendern(); },
     'tg-speichern': tgSpeichern,
     'tg-neu': tgNeu,
