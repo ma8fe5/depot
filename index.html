@@ -852,7 +852,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-10.2217'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1223'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1188,7 +1188,7 @@ async function kurseHolen() {
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   const symbole = [...new Set(eodPos.map((p) => p.symbol)
-    .concat(eodPos.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : [])
+    .concat(eodPos.map(fxSymbol).filter(Boolean))
     .concat([BENCHMARK.symbol]))];
   let benchmark = null;
 
@@ -1199,20 +1199,21 @@ async function kurseHolen() {
     if (r.status === 401) hinweise.push('Zugangsschlüssel fehlt oder ist falsch (Einstellungen → Kurs-Vermittler).');
     if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
     if (j.veraltet) hinweise.push('Kursdienst gerade nicht erreichbar – zuletzt gespeicherte Kurse.');
-    const fx = j.kurse['EURUSD.FOREX'];
     for (const p of eodPos) {
       const k = j.kurse[p.symbol];
       if (!k || k.fehler || k.schluss == null) { fehler.push(p.name); continue; }
+      // Fremdwährung (z. B. USD, CAD): Kurs des Euro in dieser Währung, etwa EURCAD.FOREX
+      const fx = fxSymbol(p) ? j.kurse[fxSymbol(p)] : null;
       let faktor = 1;
-      if (p.waehrung === 'USD') {
+      if (fxSymbol(p)) {
         if (!fx || fx.fehler) { fehler.push(p.name); continue; }
-        faktor = 1 / fx.schluss; // Vortag mit demselben Wechselkurs, damit nur die Fondsbewegung zählt
+        faktor = 1 / fx.schluss; // Vortag mit demselben Wechselkurs, damit nur die Kursbewegung zählt
       }
-      // Tagesreihe in Euro, bei USD mit dem Wechselkurs des jeweiligen Tages
+      // Tagesreihe in Euro, bei Fremdwährung mit dem Wechselkurs des jeweiligen Tages
       let reihe = null;
       if (Array.isArray(k.reihe)) {
         k.reihe = splitBereinigt(k.reihe);
-        reihe = p.waehrung === 'USD'
+        reihe = fx
           ? (fx.reihe ? k.reihe.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || fx.schluss)]) : null)
           : k.reihe;
       }
@@ -1281,6 +1282,10 @@ function kursAm(reihe, datum, richtung) {
 // ---------- Lange Kurshistorie (einmalig vom Vermittler, bei EODHD „Historian“) ----------
 
 const HISTORIE_SPEICHER = 'depot-historie-kurse-v1';
+// Wechselkurs-Symbol für Positionen in Fremdwährung (EUR-Positionen und Krypto in Euro: keins)
+function fxSymbol(p) {
+  return p.quelle === 'eodhd' && p.waehrung && p.waehrung !== 'EUR' ? `EUR${p.waehrung}.FOREX` : null;
+}
 const historieSymbol = (p) => (p.quelle === 'coingecko' ? 'BTC-EUR.CC' : p.symbol);
 let historieKurse = {};
 try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {}; } catch { historieKurse = {}; }
@@ -1288,7 +1293,7 @@ try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {};
 // Holt fehlende Historien; vollständige bleiben auf dem iPhone, der Vermittler hat sie ohnehin dauerhaft gespeichert
 async function historieLaden() {
   const symbole = [...new Set(daten.positionen.map(historieSymbol)
-    .concat(daten.positionen.some((p) => p.waehrung === 'USD') ? ['EURUSD.FOREX'] : []))];
+    .concat(daten.positionen.map(fxSymbol).filter(Boolean)))];
   let neu = false;
   for (const s of symbole) {
     if (historieKurse[s]) continue;
@@ -1316,8 +1321,8 @@ function langeReihe(p, k) {
   const cacheSchluessel = `${p.id}:${kurse.abgerufen}`;
   if (langeReihenCache.has(cacheSchluessel)) return langeReihenCache.get(cacheSchluessel);
   let alt = h.reihe;
-  if (p.waehrung === 'USD') {
-    const fx = historieKurse['EURUSD.FOREX'];
+  if (fxSymbol(p)) {
+    const fx = historieKurse[fxSymbol(p)];
     if (!fx) return k.reihe || [];
     alt = alt.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || 1)]);
   }
@@ -2453,7 +2458,7 @@ function detailAnzeigen(posId) {
     `${mitVorzeichen(gewinn)} · ${pct(inv ? (gewinn / inv) * 100 : 0)} seit Eröffnung`);
 
   const zeilen = [
-    ['Kurs', eur.format(k.eur)],
+    ['Kurs', k.eur < 1 ? `${zahl(k.eur, 4)} €` : eur.format(k.eur)], // Pennystock: mehr Nachkommastellen
     ['Kursdatum', k.datum ? deDatum(k.datum) : '–'],
     ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–', k.vorherEur ? k.eur - k.vorherEur : 0],
     ['Stück', istPrivat() ? '••••' : zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
@@ -2575,7 +2580,7 @@ function entwicklungAnzeigen() {
     chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum fehlen noch Kursdaten.</p>';
   }
   hinweis.textContent = vollstaendig ? ''
-    : `Kurse ab ${deDatum(ersterVollerTag)} – die ältere Historie wird nach der Buchung bei EODHD automatisch geladen.`;
+    : `Kurse ab ${deDatum(ersterVollerTag)} – ältere Jahre folgen, sobald die Kurshistorie importiert ist.`;
 }
 
 const GV_TITEL = {
@@ -2983,8 +2988,12 @@ async function exportieren() {
 function historieUebernehmen(paket) {
   const zeilen = [];
   const passend = [];
+  // Neue Positionen (z. B. eine Einzelaktie), die es auf dem iPhone noch nicht gibt
+  const neu = (paket.neuePositionen || []).filter((n) => n.id && !daten.positionen.some((p) => p.id === n.id));
+  for (const n of neu) zeilen.push(`Neue Position: ${n.name} (${n.symbol}, ${n.waehrung})`);
+  const bekannt = (id) => daten.positionen.find((x) => x.id === id) || neu.find((x) => x.id === id);
   for (const [posId, eintrag] of Object.entries(paket.positionen || {})) {
-    const p = daten.positionen.find((x) => x.id === posId);
+    const p = bekannt(posId);
     if (!p) { zeilen.push(`${posId}: unbekannte Position, übersprungen`); continue; }
     const bestaetigt = daten.buchungen.filter((b) => b.posId === posId && b.status === 'bestaetigt');
     const sollStueck = p.stueck - bestaetigt.reduce((s, b) => s + b.stueck, 0);
@@ -2994,12 +3003,17 @@ function historieUebernehmen(paket) {
     if (ok) passend.push([p, eintrag]);
   }
   // Zusätzlich: Renditen seit Auflage und Renten-Eckdaten, falls in der Datei enthalten
-  const renditen = Object.entries(paket.renditen || {}).filter(([id]) => daten.positionen.some((p) => p.id === id));
+  const renditen = Object.entries(paket.renditen || {}).filter(([id]) => bekannt(id));
   if (renditen.length) zeilen.push(`Renditen seit Auflage für ${renditen.length} Positionen`);
   if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
-  if (!passend.length && !renditen.length && !paket.rente) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !renditen.length && !paket.rente && !neu.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
-  for (const [p, eintrag] of passend) {
+  for (const n of neu) {
+    const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
+    daten.positionen.push({ id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan: sparplan || null });
+  }
+  for (const [q, eintrag] of passend) {
+    const p = daten.positionen.find((x) => x.id === q.id);
     daten.buchungen = daten.buchungen.filter((b) => !(b.posId === p.id && b.status === 'historie'));
     daten.buchungen.push(...eintrag.buchungen.map((b) => ({ ...b, posId: p.id, status: 'historie' })));
     p.historieVollstaendig = true;
@@ -3009,6 +3023,7 @@ function historieUebernehmen(paket) {
   speichern();
   alert('Übernommen. Mach am besten gleich ein Backup.');
   einstellungenAnzeigen();
+  if (neu.length) kurseHolen().then(historieLaden); // Kurse der neuen Position gleich mitladen
 }
 
 let dateiZweck = 'backup';
