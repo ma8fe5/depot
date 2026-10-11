@@ -885,7 +885,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1356'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1425'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1323,27 +1323,15 @@ const historieSymbol = (p) => (p.quelle === 'coingecko' ? 'BTC-EUR.CC' : p.symbo
 let historieKurse = {};
 try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {}; } catch { historieKurse = {}; }
 
-// Holt fehlende Historien; vollständige bleiben auf dem iPhone, der Vermittler hat sie ohnehin dauerhaft gespeichert
-async function historieLaden() {
-  const symbole = [...new Set(daten.positionen.map(historieSymbol)
-    .concat(daten.positionen.map(fxSymbol).filter(Boolean)))];
-  let neu = false;
-  for (const s of symbole) {
-    if (historieKurse[s]) continue;
-    try {
-      const r = await vermittler(`/historie?s=${encodeURIComponent(s)}`);
-      const j = await r.json();
-      if (r.ok && !j.fehler && j.vollstaendig !== false && Array.isArray(j.reihe)) {
-        historieKurse[s] = { erster: j.erster, reihe: splitBereinigt(j.reihe) };
-        neu = true;
-      }
-    } catch (e) { console.error(e); }
+// Lange Kurshistorie kommt per Import aus depot-historie.json („kurshistorie“, aus den ariva-CSV-Dateien).
+// Kein Abruf beim Vermittler: EODHD liefert im Gratis-Paket nur ein Jahr und jeder Abruf zählt gegen das Tageslimit.
+function kurshistorieUebernehmen(kh) {
+  for (const [symbol, h] of Object.entries(kh)) {
+    if (!Array.isArray(h.reihe) || !h.reihe.length) continue;
+    historieKurse[symbol] = { erster: h.erster || h.reihe[0][0], reihe: h.reihe, waehrung: h.waehrung, quelle: h.quelle };
   }
-  if (neu) {
-    try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
-    langeReihenCache.clear();
-    if (daten && hauptseiteSichtbar()) hauptRendern();
-  }
+  try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
+  langeReihenCache.clear();
 }
 
 // Tagesreihe in Euro über den ganzen Zeitraum: lange Historie + aktuelle Reihe (die aktuelle hat Vorrang)
@@ -1354,7 +1342,7 @@ function langeReihe(p, k) {
   const cacheSchluessel = `${p.id}:${kurse.abgerufen}`;
   if (langeReihenCache.has(cacheSchluessel)) return langeReihenCache.get(cacheSchluessel);
   let alt = h.reihe;
-  if (fxSymbol(p)) {
+  if (fxSymbol(p) && h.waehrung !== 'EUR') { // Historie in Fremdwährung umrechnen (ariva-Daten sind schon in Euro)
     const fx = historieKurse[fxSymbol(p)];
     if (!fx) return k.reihe || [];
     alt = alt.map(([d, c]) => [d, c / (kursAm(fx.reihe, d, 'bis') || 1)]);
@@ -3279,8 +3267,13 @@ function historieUebernehmen(paket) {
   if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
   // Tagesgeldkonten nur übernehmen, wenn es auf dem iPhone noch keine gibt (sonst gelten die Stände aus der App)
   const tgNeu = !tgKonten().length && paket.tagesgeld && Array.isArray(paket.tagesgeld.konten) ? paket.tagesgeld.konten : [];
+  const kh = Object.entries(paket.kurshistorie || {});
+  if (kh.length) {
+    const ab = kh.map(([, h]) => h.erster).sort()[0];
+    zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
+  }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -3306,7 +3299,8 @@ function historieUebernehmen(paket) {
   if (tgNeu.length) tgTermineSenden();
   alert('Übernommen. Mach am besten gleich ein Backup.');
   einstellungenAnzeigen();
-  if (neu.length) kurseHolen().then(historieLaden); // Kurse der neuen Position gleich mitladen
+  if (kh.length) kurshistorieUebernehmen(paket.kurshistorie);
+  if (neu.length) kurseHolen(); // Kurse der neuen Position gleich mitladen
 }
 
 let dateiZweck = 'backup';
@@ -3594,7 +3588,7 @@ function nachLaden() {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   offeneBuchungenErzeugen();
   hauptAnzeigen();
-  kurseHolen().then(historieLaden); // Historie nur einmalig: was schon da ist, wird nicht erneut geladen
+  kurseHolen();
   tgTermineAbgleichen();
 }
 
