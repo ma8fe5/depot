@@ -313,6 +313,12 @@
   .chip.aktiv { background: var(--akzent); color: #fff; }
   .chip:disabled { opacity: 0.35; cursor: default; }
   /* Tagesgeld-Cockpit */
+  .verteilung .betrag { font-size: 34px; font-weight: 750; letter-spacing: -0.03em; margin: 2px 0 12px; }
+  .stapel { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; margin-bottom: 6px; }
+  .stapel i { display: block; height: 100%; }
+  .verteilung .liste { margin: 0 -18px -8px; }
+  .verteilung .liste li { min-height: 0; padding: 11px 18px; }
+  .verteilung .farbpunkt { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .zinsuhr { font-variant-numeric: tabular-nums; }
   .zinsuhr .nach { font-size: 0.5em; font-weight: 650; color: var(--pos); letter-spacing: 0; }
   .klippe .kopfzeile { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
@@ -626,6 +632,14 @@
       <div class="kopf-knoepfe">
         <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
       </div>
+    </div>
+
+    <!-- Übersicht: Verteilung auf die Konten -->
+    <div class="karte verteilung">
+      <div class="etikett">Verteilung</div>
+      <div class="betrag" id="tg-gesamt"></div>
+      <div class="stapel" id="tg-stapel"></div>
+      <ul class="liste" id="tg-verteilung"></ul>
     </div>
 
     <!-- Zins-Uhr: läuft sekündlich mit -->
@@ -983,7 +997,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1720'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1729'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1970,7 +1984,25 @@ function tagesgeldAnzeigen() {
   zeige('ansicht-tagesgeld');
   const aktiv = tgAktiv();
   const h = isoDatum(heute());
-  document.getElementById('tg-kopf').textContent = `${geld(tgSumme())} auf ${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}`;
+  const letzterStand = aktiv.map((k) => k.standDatum).filter(Boolean).sort().pop();
+  document.getElementById('tg-kopf').textContent = `${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}${letzterStand ? ` · Stand ${deDatum(letzterStand)}` : ''}`;
+
+  // Verteilung auf die Konten: Stapelbalken + Liste (Bank, Zinssatz, Betrag, Anteil)
+  const summeTg = tgSumme();
+  const sortiert = aktiv.slice().sort((a, b) => b.stand - a.stand);
+  document.getElementById('tg-gesamt').innerHTML = betragHTML(summeTg);
+  document.getElementById('tg-stapel').innerHTML = sortiert.filter((k) => k.stand > 0)
+    .map((k, i) => `<i style="flex: ${k.stand}; background: var(--kat-${(i % 5) + 1})"></i>`).join('');
+  const verteilung = document.getElementById('tg-verteilung');
+  verteilung.innerHTML = '';
+  sortiert.forEach((k, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span>
+      <span class="name"><span class="n"></span><small>${k.zins ? `${zahl(k.zins, 2)} % p. a.` : 'Zinssatz fehlt'}${k.termin ? ` · bis ${deDatum(k.termin)}` : ''}</small></span>
+      <span class="wert">${geld(k.stand)}<small>${summeTg ? zahl((k.stand / summeTg) * 100, 1) : '0'} %</small></span>`;
+    li.querySelector('.n').textContent = k.bank;
+    verteilung.appendChild(li);
+  });
 
   // Zins-Uhr
   const proJahr = aktiv.reduce((s, k) => s + (k.stand * (k.zins || 0)) / 100, 0);
