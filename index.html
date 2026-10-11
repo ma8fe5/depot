@@ -385,6 +385,7 @@
   .ring .mitte b { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
   .ring .mitte span { font-size: 13px; color: var(--text-2); }
   .farbpunkt { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
+  .ring.klein { max-width: 190px; }
 
   /* ---------- Termine ---------- */
   .tag { width: 44px; flex-shrink: 0; text-align: center; border-radius: 10px; overflow: hidden; background: var(--flaeche-2); line-height: 1.1; }
@@ -511,7 +512,7 @@
 
     <div class="paar">
       <div class="karte tippbar" data-tab="ansicht-haupt" role="button" tabindex="0">
-        <div class="etikett">Aktien <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div class="etikett">Depot <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-aktien"></div>
         <span class="pill" id="start-aktien-pill">–</span>
       </div>
@@ -521,15 +522,20 @@
         <span class="pill" id="start-tagesgeld-pill">–</span>
       </div>
     </div>
+    <div class="karte">
+      <div class="etikett">Anlagearten</div>
+      <div id="start-ring" class="ring klein"></div>
+      <ul id="start-arten" class="liste" style="margin: 6px -18px -8px"></ul>
+    </div>
     <p id="start-status" class="fuss"></p>
   </section>
 
-  <!-- Aktien (linker Reiter): alle Wertpapiere inkl. ETFs, Fonds, Bitcoin -->
+  <!-- Depot (linker Reiter): alle Wertpapiere inkl. ETFs, Fonds, Bitcoin -->
   <section id="ansicht-haupt" class="ansicht" hidden>
     <div class="kopf">
       <div>
         <div class="datum">Wertpapiere, ETFs, Fonds & Bitcoin</div>
-        <h1>Aktien</h1>
+        <h1>Depot</h1>
       </div>
       <div class="kopf-knoepfe">
         <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
@@ -584,7 +590,7 @@
 
   <!-- Tops & Lows (zweiter Reiter) -->
   <section id="ansicht-tops" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Aktien</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
     <div class="titel"><h1>Tops & Lows</h1><div class="unterzeile" id="tops-datum">Veränderung zum letzten Handelstag</div></div>
     <div class="ranglisten">
       <div class="karte"><div class="etikett">Top 3</div><ul id="top" class="liste"></ul></div>
@@ -945,7 +951,7 @@
 
 <!-- Tableiste unten -->
 <nav id="tabbar" class="tabbar" hidden aria-label="Hauptbereiche">
-  <button data-tab="ansicht-haupt"><svg><use href="#i-chart"/></svg><span>Aktien</span></button>
+  <button data-tab="ansicht-haupt"><svg><use href="#i-chart"/></svg><span>Depot</span></button>
   <button data-tab="ansicht-start"><svg><use href="#i-haus"/></svg><span>Gesamtvermögen</span></button>
   <button data-tab="ansicht-tagesgeld"><svg><use href="#i-bank"/></svg><span>Tagesgeld</span></button>
 </nav>
@@ -997,7 +1003,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1729'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1746'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1898,50 +1904,63 @@ function anlageart(p) {
 
 let aufteilungNach = 'art';
 
+// Anzeigename der Anlageart (intern bleiben die Werte aus ANLAGEARTEN)
+const ART_NAME = { Aktie: 'Einzelaktien', Krypto: 'Bitcoin' };
+const artName = (p) => ART_NAME[anlageart(p)] || anlageart(p);
+
+// Aufteilung nach Anlageart inkl. Tagesgeld: [[name, wert], ...] absteigend
+function anlagearten() {
+  const gruppen = new Map();
+  for (const w of bewertung().werte) {
+    const name = artName(daten.positionen.find((x) => x.id === w.id));
+    gruppen.set(name, (gruppen.get(name) || 0) + w.wert);
+  }
+  if (tgSumme() > 0) gruppen.set('Tagesgeld', tgSumme());
+  return [...gruppen.entries()].sort((a, c) => c[1] - a[1]);
+}
+
+// Ring mit kleiner Lücke zwischen den Segmenten, darunter die Liste mit Betrag und Anteil
+function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
+  const summe = teile.reduce((s, t) => s + t[1], 0);
+  const R = 80, U = 2 * Math.PI * R, LUECKE = teile.length > 1 ? 3 : 0;
+  let versatz = 0;
+  const kreise = teile.map(([, wert], i) => {
+    const laenge = summe ? (wert / summe) * U : 0;
+    const k = `<circle class="segment" cx="100" cy="100" r="${R}" stroke="var(--kat-${(i % 5) + 1})"
+      stroke-dasharray="${Math.max(0, laenge - LUECKE)} ${U}" stroke-dashoffset="${-versatz}"/>`;
+    versatz += laenge;
+    return k;
+  }).join('');
+  ringEl.innerHTML = `<svg viewBox="0 0 200 200">${kreise}</svg><div class="mitte"><b>${geld(summe)}</b><span>${unterzeile}</span></div>`;
+  listeEl.innerHTML = '';
+  teile.forEach(([name, wert], i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span><span class="name"></span>
+      <span class="wert">${geld(wert)}<small>${summe ? zahl((wert / summe) * 100, 1) : '0'} %</small></span>`;
+    li.querySelector('.name').textContent = name;
+    listeEl.appendChild(li);
+  });
+}
+
 function aufteilungAnzeigen() {
   document.getElementById('aufteilung-segmente').style.setProperty('--idx', aufteilungNach === 'art' ? 0 : 1);
   document.querySelectorAll('[data-aufteilung]').forEach((b) => b.classList.toggle('aktiv', b.dataset.aufteilung === aufteilungNach));
   if (document.getElementById('ansicht-aufteilung').hidden) zeige('ansicht-aufteilung');
   if (!kurse) return;
 
-  const b = bewertung();
-  const gruppen = new Map();
-  for (const w of b.werte) {
-    const p = daten.positionen.find((x) => x.id === w.id);
-    const name = aufteilungNach === 'art' ? anlageart(p) : p.depot;
-    gruppen.set(name, (gruppen.get(name) || 0) + w.wert);
+  let teile;
+  if (aufteilungNach === 'art') teile = anlagearten();
+  else {
+    const gruppen = new Map();
+    for (const w of bewertung().werte) {
+      const name = daten.positionen.find((x) => x.id === w.id).depot;
+      gruppen.set(name, (gruppen.get(name) || 0) + w.wert);
+    }
+    for (const k of tgAktiv()) if (k.stand > 0) gruppen.set(`Tagesgeld ${k.bank}`, (gruppen.get(`Tagesgeld ${k.bank}`) || 0) + k.stand);
+    teile = [...gruppen.entries()].sort((a, c) => c[1] - a[1]);
   }
-  // Tagesgeld: als Anlageart zusammen, nach Depot je Bank
-  for (const k of tgAktiv()) {
-    if (!(k.stand > 0)) continue;
-    const name = aufteilungNach === 'art' ? 'Tagesgeld' : `Tagesgeld ${k.bank}`;
-    gruppen.set(name, (gruppen.get(name) || 0) + k.stand);
-  }
-  const teile = [...gruppen.entries()].sort((a, c) => c[1] - a[1]);
-  const summe = teile.reduce((s, t) => s + t[1], 0);
-
-  // Ring: ein Kreis je Teil, mit kleiner Lücke zwischen den Segmenten
-  const R = 80, U = 2 * Math.PI * R, LUECKE = teile.length > 1 ? 3 : 0;
-  let versatz = 0;
-  const kreise = teile.map(([, wert], i) => {
-    const laenge = (wert / summe) * U;
-    const k = `<circle class="segment" cx="100" cy="100" r="${R}" stroke="var(--kat-${(i % 5) + 1})"
-      stroke-dasharray="${Math.max(0, laenge - LUECKE)} ${U}" stroke-dashoffset="${-versatz}"/>`;
-    versatz += laenge;
-    return k;
-  }).join('');
-  document.getElementById('aufteilung-ring').innerHTML =
-    `<svg viewBox="0 0 200 200">${kreise}</svg><div class="mitte"><b>${geld(summe)}</b><span>${teile.length} ${aufteilungNach === 'art' ? 'Anlagearten' : 'Depots'}</span></div>`;
-
-  const liste = document.getElementById('aufteilung-liste');
-  liste.innerHTML = '';
-  teile.forEach(([name, wert], i) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span><span class="name"></span>
-      <span class="wert">${geld(wert)}<small>${zahl((wert / summe) * 100, 1)} %</small></span>`;
-    li.querySelector('.name').textContent = name;
-    liste.appendChild(li);
-  });
+  ringZeichnen(document.getElementById('aufteilung-ring'), document.getElementById('aufteilung-liste'), teile,
+    `${teile.length} ${aufteilungNach === 'art' ? 'Anlagearten' : 'Depots'}`);
 }
 
 // ---------- Tagesgeld ----------
@@ -3108,7 +3127,7 @@ function hauptRendern() {
   gesamtEl.classList.remove('skelett');
   zaehle(gesamtEl, b.wert + tg, false);
   const anteil = (v) => (b.wert + tg ? zahl((v / (b.wert + tg)) * 100, 0) : '0');
-  document.getElementById('gesamt-unter').textContent = `Aktien ${anteil(b.wert)} % · Tagesgeld ${anteil(tg)} %`;
+  document.getElementById('gesamt-unter').textContent = `Depot ${anteil(b.wert)} % · Tagesgeld ${anteil(tg)} %`;
   document.getElementById('start-aktien').innerHTML = betragHTML(b.wert);
   setzePill(document.getElementById('start-aktien-pill'), b.tagAend, `${pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0)} Vortag`);
   document.getElementById('start-tagesgeld').innerHTML = betragHTML(tg);
@@ -3116,6 +3135,8 @@ function hauptRendern() {
   const tgPill = document.getElementById('start-tagesgeld-pill');
   tgPill.className = 'pill';
   tgPill.textContent = konten ? `${konten} ${konten === 1 ? 'Konto' : 'Konten'}` : 'kein Konto';
+  const artTeile = anlagearten();
+  ringZeichnen(document.getElementById('start-ring'), document.getElementById('start-arten'), artTeile, `${artTeile.length} Anlagearten`);
 
   const vEl = document.getElementById('vermoegen');
   vEl.classList.remove('skelett');
