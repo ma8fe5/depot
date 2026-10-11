@@ -987,7 +987,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1904'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1917'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2858,7 +2858,7 @@ function zinseszinsAnzeigen() {
   if (!p) {
     document.getElementById('zz-titel').textContent = 'Bis zur Rente';
     betrag.textContent = '–';
-    document.getElementById('zz-unter').textContent = Bis„Bis zur Rente“ dein Geburtsdatum ein.';
+    document.getElementById('zz-unter').textContent = 'Trage unter „Prognose bis zur Rente“ dein Geburtsdatum ein.';
     document.getElementById('zz-chart-karte').hidden = true;
     return;
   }
@@ -2900,7 +2900,7 @@ function zinseszinsAnzeigen() {
   ], { achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null) });
   document.getElementById('zz-hinweis').textContent =
     'Rendite = was deine Einzahlungen ohne Wiederanlage verdienen würden. Zinseszins = was die wiederangelegten Gewinne zusätzlich verdienen. ' +
-    Bis„Bis zur Rente“.';
+    'Das gewählte Szenario gilt auch auf der Seite „Prognose bis zur Rente“.';
 }
 
 // ---------- Gewinn zwischen zwei Stichtagen (Gewinn-Seite: Jahr und Monat) ----------
