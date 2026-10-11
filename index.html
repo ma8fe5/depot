@@ -730,10 +730,10 @@
     <p class="fuss" id="zz-hinweis"></p>
   </section>
 
-  <!-- Bis zur Rente -->
+  <!-- Prognose bis zur Rente -->
   <section id="ansicht-rente" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
+    <div class="titel"><h1>Prognose bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
     <div class="segmente drei" id="rt-segmente">
       <button data-rendite="moderat">Moderat</button>
       <button data-rendite="realistisch">Realistisch</button>
@@ -951,7 +951,7 @@
       <ul class="liste menue">
         <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>jedes Jahr, jeder Monat</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
-        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
+        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Prognose bis zur Rente<small id="mehr-rente"></small></span></li>
       </ul>
     </div>
     <div class="abschnitt">Planen</div>
@@ -987,7 +987,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1856'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1904'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2858,7 +2858,7 @@ function zinseszinsAnzeigen() {
   if (!p) {
     document.getElementById('zz-titel').textContent = 'Bis zur Rente';
     betrag.textContent = '–';
-    document.getElementById('zz-unter').textContent = 'Trage unter „Bis zur Rente“ dein Geburtsdatum ein.';
+    document.getElementById('zz-unter').textContent = Bis„Bis zur Rente“ dein Geburtsdatum ein.';
     document.getElementById('zz-chart-karte').hidden = true;
     return;
   }
@@ -2900,7 +2900,7 @@ function zinseszinsAnzeigen() {
   ], { achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null) });
   document.getElementById('zz-hinweis').textContent =
     'Rendite = was deine Einzahlungen ohne Wiederanlage verdienen würden. Zinseszins = was die wiederangelegten Gewinne zusätzlich verdienen. ' +
-    'Das gewählte Szenario gilt auch auf der Seite „Bis zur Rente“.';
+    Bis„Bis zur Rente“.';
 }
 
 // ---------- Gewinn zwischen zwei Stichtagen (Gewinn-Seite: Jahr und Monat) ----------
