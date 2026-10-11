@@ -375,6 +375,8 @@
   .sim li.summe { font-weight: 650; }
   .segmente.zwei { grid-template-columns: repeat(2, 1fr); }
   .segmente.zwei::before { width: calc((100% - 6px) / 2); }
+  .segmente.drei { grid-template-columns: repeat(3, 1fr); }
+  .segmente.drei::before { width: calc((100% - 6px) / 3); }
   .segmente.vier { grid-template-columns: repeat(4, 1fr); }
 
   /* ---------- Aufteilung ---------- */
@@ -717,11 +719,10 @@
   <section id="ansicht-rente" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
-    <div class="segmente vier" id="rt-segmente">
+    <div class="segmente drei" id="rt-segmente">
       <button data-rendite="moderat">Moderat</button>
       <button data-rendite="realistisch">Realistisch</button>
       <button data-rendite="markt">Markt</button>
-      <button data-rendite="tatsaechlich">Tatsächlich</button>
     </div>
     <p class="unter" id="rt-rendite-info" style="margin: -4px 4px 14px"></p>
     <div class="karte szenario">
@@ -971,7 +972,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1813'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1843'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2481,7 +2482,6 @@ const RENDITE_SZENARIEN = {
   moderat: { name: 'Moderat', info: '5 % pro Jahr für alle Positionen – vorsichtig' },
   realistisch: { name: 'Realistisch', info: '7 % pro Jahr – etwas unter dem langfristigen Aktienmittel' },
   markt: { name: 'Markt', info: '7,5 % pro Jahr – langfristige Marktrendite seit 1970 für alle Positionen' },
-  tatsaechlich: { name: 'Tatsächlich', info: 'Rendite seit Auflage je Position – Werte über 20 % p. a. mit Marktrendite' },
 };
 const MARKT_RENDITE = 7.5;
 let renditeSzenario = 'realistisch';
@@ -2504,16 +2504,14 @@ function monateBis(datum) {
   return Math.max(0, (datum.getFullYear() - h.getFullYear()) * 12 + datum.getMonth() - h.getMonth());
 }
 
-// Über 20 % p. a. ist eine Historie für 25 Jahre nicht fortschreibbar -> dort Marktrendite (ungekappt nur als Randnotiz)
-const EXTREM_AB = 20;
-function renditeFuer(p, szenario, ungekappt = false) {
+// Jahresrendite je Position: eigene Einstellung aus der Simulation, sonst das Szenario.
+// (Ein Szenario „Rendite seit Auflage“ gab es bis 10/2026 – entfernt, weil es vor allem den Starttermin der Fonds misst.)
+function renditeFuer(p, szenario) {
   const eigen = simEinstellung(p).rendite;
   if (eigen != null) return eigen; // in der Simulation selbst eingestellt
   if (szenario === 'moderat') return 5;
   if (szenario === 'realistisch') return 7;
-  if (szenario === 'markt' || !p.renditeSeitAuflage) return MARKT_RENDITE;
-  const r = p.renditeSeitAuflage.prozent;
-  return !ungekappt && r > EXTREM_AB ? MARKT_RENDITE : r;
+  return MARKT_RENDITE;
 }
 
 // Hochrechnung je Position (siehe simulieren); sparFaktor 0 = ab sofort nichts mehr einzahlen
@@ -2614,20 +2612,7 @@ function renteAnzeigen() {
     achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null),
   });
 
-  // Warnungen für das Szenario „Tatsächlich“
   let warnung = '';
-  if (renditeSzenario === 'tatsaechlich') {
-    const extrem = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.prozent > EXTREM_AB);
-    const unsicher = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.unsicher && p.renditeSeitAuflage.prozent <= EXTREM_AB);
-    const fehlt = daten.positionen.filter((p) => !p.renditeSeitAuflage).map((p) => p.name);
-    if (extrem.length) {
-      const roh = projektion('tatsaechlich', 1, monate, true).ende;
-      warnung += `⚠️ Mit ${zahl(MARKT_RENDITE, 1)} % statt ihrer Historie gerechnet: ${extrem.map((p) => `${p.name} (${zahl(p.renditeSeitAuflage.prozent, 0)} % p. a.)`).join(', ')}. ` +
-        `Ungekappt wären es bei 1b ${geld(roh)} – über 25 Jahre nicht belastbar. `;
-    }
-    if (unsicher.length) warnung += `Veraltet oder geschätzt: ${unsicher.map((p) => `${p.name} (Stand ${deDatum(p.renditeSeitAuflage.stand)})`).join(', ')}. `;
-    if (fehlt.length) warnung += `Ohne hinterlegte Rendite (mit ${zahl(MARKT_RENDITE, 1)} % gerechnet): ${fehlt.join(', ')}.`;
-  }
   // Ausgezahlte Dividenden: gehören dir, stecken aber nicht im Depotwert
   const mitDividende = daten.positionen.filter((p) => dividendenRendite(p, kurse.preise[p.id]) > 0);
   if (mitDividende.length && bisher.ausgezahlt > 0) {
@@ -3245,18 +3230,6 @@ function checkAnzeigen() {
     liste.prepend(karte);
   }
 
-  // Quartalsweise erinnern: Renditen seit Auflage sind von Hand gepflegt und veralten
-  const veraltet = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.stand &&
-    (heute() - new Date(p.renditeSeitAuflage.stand + 'T00:00:00')) / 864e5 > 92);
-  if (veraltet.length) {
-    const karte = document.createElement('div');
-    karte.className = 'hinweis';
-    karte.innerHTML = `<svg><use href="#i-kalender"/></svg><div><b>Renditen seit Auflage prüfen</b> · älter als 3 Monate: <span></span><br>
-      <button class="knopf" data-aktion="positionen">Zu den Positionen</button></div>`;
-    karte.querySelector('span').textContent = veraltet.map((p) => p.name).join(', ');
-    liste.prepend(karte);
-  }
-
   const auswahl = document.getElementById('gebuehr-pos');
   auswahl.innerHTML = '';
   for (const p of daten.positionen) {
@@ -3416,10 +3389,7 @@ function positionenAnzeigen() {
       <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Dividende je Aktie (€/Jahr)</label>
           <input type="text" inputmode="decimal" class="e-dividende" placeholder="keine" value="${p.dividende ? zahl(p.dividende, 2) : ''}"></div>
-        <div><label class="feldname">Rendite seit Auflage (% p. a.)</label>
-          <input type="text" inputmode="decimal" class="e-rendite" placeholder="leer = Markt" value="${p.renditeSeitAuflage ? zahl(p.renditeSeitAuflage.prozent, 1) : ''}"></div>
-      </div>
-      <p class="unter" style="margin: 6px 2px 0; font-size: 12px">${p.renditeSeitAuflage ? `Stand ${deDatum(p.renditeSeitAuflage.stand)} · ${p.renditeSeitAuflage.quelle}` : ''}</p>`;
+      </div>`;
     card.querySelector('.posname span').textContent = p.name;
     card.querySelector('.posname small').textContent = p.depot;
     liste.appendChild(card);
@@ -3436,24 +3406,16 @@ function positionenSpeichern() {
     const inv = parseZahl(card.querySelector('.e-inv').value);
     const p = daten.positionen.find((p) => p.id === card.dataset.id);
     if (!(stueck >= 0) || !(inv >= 0)) { alert(`Ungültige Zahl bei „${p.name}“.`); return; }
-    const renditeText = card.querySelector('.e-rendite').value.trim();
-    const rendite = renditeText ? parseZahl(renditeText) : null;
-    if (renditeText && !Number.isFinite(rendite)) { alert(`Ungültige Rendite bei „${p.name}“.`); return; }
     const divText = card.querySelector('.e-dividende').value.trim();
     const dividende = divText ? parseZahl(divText) : null;
     if (divText && !(dividende >= 0)) { alert(`Ungültige Dividende bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite, card.querySelector('.e-wieder').value === 'ja', dividende]);
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, card.querySelector('.e-wieder').value === 'ja', dividende]);
   }
-  for (const [p, stueck, inv, art, rendite, wieder, dividende] of neu) {
+  for (const [p, stueck, inv, art, wieder, dividende] of neu) {
     if (dividende) p.dividende = dividende; else delete p.dividende;
     p.stueck = stueck; p.investiert = inv; p.art = art;
     // nur speichern, wenn es vom Standard der Anlageart abweicht – sonst folgt es der Anlageart
     if (wieder === ['ETF', 'Fonds'].includes(art)) delete p.wiederanlage; else p.wiederanlage = wieder;
-    if (rendite == null) delete p.renditeSeitAuflage;
-    else if (!p.renditeSeitAuflage || Math.abs(p.renditeSeitAuflage.prozent - rendite) > 1e-9) {
-      // geänderter Wert: neues Stand-Datum, Quelle „manuell“
-      p.renditeSeitAuflage = { ...(p.renditeSeitAuflage || {}), prozent: rendite, stand: isoDatum(heute()), quelle: 'manuell eingetragen' };
-    }
   }
   speichern();
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
@@ -3635,9 +3597,7 @@ function historieUebernehmen(paket) {
     zeilen.push(`${p.name}: ${eintrag.buchungen.length} Käufe, ${zahl(eintrag.stueck, 5)} Stück, ${eur.format(eintrag.investiert)}${ok ? ' ✓' : ' – passt NICHT zum Bestand, übersprungen'}`);
     if (ok) passend.push([p, eintrag]);
   }
-  // Zusätzlich: Renditen seit Auflage und Renten-Eckdaten, falls in der Datei enthalten
-  const renditen = Object.entries(paket.renditen || {}).filter(([id]) => bekannt(id));
-  if (renditen.length) zeilen.push(`Renditen seit Auflage für ${renditen.length} Positionen`);
+  // Zusätzlich: Renten-Eckdaten, falls in der Datei enthalten („renditen“ seit Auflage werden nicht mehr verwendet)
   if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
   // Tagesgeldkonten nur übernehmen, wenn es auf dem iPhone noch keine gibt (sonst gelten die Stände aus der App)
   const tgNeu = !tgKonten().length && paket.tagesgeld && Array.isArray(paket.tagesgeld.konten) ? paket.tagesgeld.konten : [];
@@ -3666,7 +3626,7 @@ function historieUebernehmen(paket) {
     zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
   }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length && !angaben.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length && !angaben.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -3678,7 +3638,6 @@ function historieUebernehmen(paket) {
     daten.buchungen.push(...eintrag.buchungen.map((b) => ({ ...b, posId: p.id, status: 'historie' })));
     p.historieVollstaendig = true;
   }
-  for (const [id, r] of renditen) daten.positionen.find((p) => p.id === id).renditeSeitAuflage = r;
   if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
   for (const [q, a] of angaben) {
     const p = daten.positionen.find((x) => x.id === q.id);
