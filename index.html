@@ -972,7 +972,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1843'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1847'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2612,13 +2612,8 @@ function renteAnzeigen() {
     achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null),
   });
 
-  let warnung = '';
-  // Ausgezahlte Dividenden: gehören dir, stecken aber nicht im Depotwert
-  const mitDividende = daten.positionen.filter((p) => dividendenRendite(p, kurse.preise[p.id]) > 0);
-  if (mitDividende.length && bisher.ausgezahlt > 0) {
-    warnung += `${warnung ? ' ' : ''}Nicht im Depotwert: bis zum Rentenbeginn ≈ ${geld(bisher.ausgezahlt)} ausgezahlte Dividenden (${mitDividende.map((p) => `${p.name} ${geld(p.dividende)} je Aktie`).join(', ')}). Dort wächst der Depotwert nur um die Kursrendite.`;
-  }
-  document.getElementById('rt-warnung').textContent = warnung;
+  // Ausgezahlte Dividenden fließen nicht ins Depot (User-Wunsch: rechnen ja, aber kein Hinweis dazu)
+  document.getElementById('rt-warnung').textContent = '';
 }
 
 // Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
