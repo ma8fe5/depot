@@ -885,7 +885,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1425'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1435'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1295,6 +1295,7 @@ async function kurseHolen() {
     benchmark: benchmark || (kurse && kurse.benchmark) || null,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
+  if (daten) historieFortschreiben(preise);
   if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
@@ -1328,8 +1329,34 @@ try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {};
 function kurshistorieUebernehmen(kh) {
   for (const [symbol, h] of Object.entries(kh)) {
     if (!Array.isArray(h.reihe) || !h.reihe.length) continue;
-    historieKurse[symbol] = { erster: h.erster || h.reihe[0][0], reihe: h.reihe, waehrung: h.waehrung, quelle: h.quelle };
+    // Was die App nach dem Ende der Datei schon selbst fortgeschrieben hat, bleibt erhalten
+    const bisher = historieKurse[symbol];
+    const ende = h.reihe[h.reihe.length - 1][0];
+    const danach = bisher && bisher.waehrung === 'EUR' ? bisher.reihe.filter(([d]) => d > ende) : [];
+    historieKurse[symbol] = { erster: h.erster || h.reihe[0][0], reihe: h.reihe.concat(danach), waehrung: h.waehrung, quelle: h.quelle };
   }
+  try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
+  langeReihenCache.clear();
+}
+
+// Hängt neue Schlusskurse (in Euro) dauerhaft an die lange Historie an. Die Tagesreihe vom Vermittler
+// reicht nur bis Dezember des Vorjahres zurück – ohne das Fortschreiben entstünde jedes Jahr eine Lücke.
+function historieFortschreiben(preise) {
+  const heuteIso = isoDatum(heute()); // heutiger Wert ist bei Bitcoin noch kein Schlusskurs
+  let geaendert = false;
+  for (const p of daten.positionen) {
+    const k = preise[p.id];
+    if (!k || !Array.isArray(k.reihe) || !k.reihe.length) continue;
+    const s = historieSymbol(p);
+    const h = historieKurse[s] || (historieKurse[s] = { erster: k.reihe[0][0], reihe: [], waehrung: 'EUR', quelle: 'Tageskurse der App' });
+    if (h.waehrung !== 'EUR') continue;
+    const letztes = h.reihe.length ? h.reihe[h.reihe.length - 1][0] : '';
+    const neu = k.reihe.filter(([d]) => d > letztes && d < heuteIso);
+    if (!neu.length) continue;
+    h.reihe = h.reihe.concat(neu);
+    geaendert = true;
+  }
+  if (!geaendert) return;
   try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
   langeReihenCache.clear();
 }
@@ -3229,7 +3256,8 @@ async function exportieren() {
   daten.letztesBackup = new Date().toISOString();
   speichern();
   const name = `depot-daten ${isoDatum(heute())}.json`; // Datum im Namen: iOS überschreibt nicht, so bleibt die Reihenfolge klar
-  const datei = new File([JSON.stringify(daten, null, 2)], name, { type: 'application/json' });
+  // Kurshistorie mitsichern (öffentliche Kurse, liegt sonst nur im Browser-Speicher dieses iPhones)
+  const datei = new File([JSON.stringify({ ...daten, kurshistorie: historieKurse }, null, 2)], name, { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [datei] })) {
     try { await navigator.share({ files: [datei] }); } catch (e) { if (e.name !== 'AbortError') alert('Teilen fehlgeschlagen: ' + e.message); }
   } else {
@@ -3323,6 +3351,7 @@ function importieren(datei) {
       if (!Array.isArray(neu.positionen) || !neu.vermittler) throw new Error('Unbekanntes Format');
       if (daten && !confirm('Vorhandene Daten auf diesem iPhone durch die Datei ersetzen?')) return;
       neu.buchungen = neu.buchungen || [];
+      if (neu.kurshistorie) { kurshistorieUebernehmen(neu.kurshistorie); delete neu.kurshistorie; }
       neu.letztesBackup = new Date().toISOString(); // die geladene Datei ist selbst das aktuelle Backup
       daten = neu;
       speichern();
