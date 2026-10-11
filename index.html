@@ -971,7 +971,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1809'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1813'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2443,25 +2443,35 @@ function zielPosition() {
   return gewaehlt || daten.positionen.find((p) => p.sparplan && anlageart(p) === 'ETF') || daten.positionen[0];
 }
 
-// Monat für Monat je Position: Wert, Eingezahltes und einfache Rendite (ohne Wiederanlage), aufsummiert
+// Dividendenrendite einer Position, deren Erträge ausgezahlt werden (Dividende je Aktie / aktueller Kurs)
+function dividendenRendite(p, k) {
+  return !legtWiederAn(p) && p.dividende > 0 && k && k.eur > 0 ? p.dividende / k.eur : 0;
+}
+
+// Monat für Monat je Position: Wert, Eingezahltes und einfache Rendite (ohne Wiederanlage), aufsummiert.
+// Ausgezahlte Dividenden bleiben nicht im Depot: Der Wert wächst nur um die Kursrendite (Gesamtrendite − Dividendenrendite),
+// die Dividenden werden getrennt aufsummiert (ausgezahlt).
 function simulieren(szenario, monate, { sparFaktor = 1, extra = null, ungekappt = false } = {}) {
   const gesamt = new Array(monate + 1).fill(0), einz = new Array(monate + 1).fill(0), linear = new Array(monate + 1).fill(0);
   const jePosition = {};
+  let ausgezahlt = 0;
   for (const p of daten.positionen) {
     const k = kurse && kurse.preise[p.id];
     if (!k) continue;
-    const r = renditeFuer(p, szenario, ungekappt) / 100, rm = Math.pow(1 + r, 1 / 12) - 1;
+    const d = dividendenRendite(p, k);
+    const r = (1 + renditeFuer(p, szenario, ungekappt) / 100) / (1 + d) - 1, rm = Math.pow(1 + r, 1 / 12) - 1;
     const rate = simRate(p) * sparFaktor + (extra && extra.posId === p.id ? extra.betrag : 0);
     let w = aktuellerBestand(p, k).stueck * k.eur, e = w, lin = 0;
     for (let m = 0; m <= monate; m++) {
       gesamt[m] += w; einz[m] += e; linear[m] += lin;
       if (m === monate) jePosition[p.id] = w;
       lin += e * (r / 12);
+      if (m < monate) ausgezahlt += w * (d / 12);
       w = w * (1 + rm) + rate;
       e += rate;
     }
   }
-  return { gesamt, einz, linear, ende: gesamt[monate], jePosition };
+  return { gesamt, einz, linear, ende: gesamt[monate], jePosition, ausgezahlt };
 }
 
 // ---------- Rente: Annahmen und Szenarien ----------
@@ -2509,7 +2519,7 @@ function renditeFuer(p, szenario, ungekappt = false) {
 // Hochrechnung je Position (siehe simulieren); sparFaktor 0 = ab sofort nichts mehr einzahlen
 function projektion(szenario, sparFaktor, monate, ungekappt = false, extra = null) {
   const s = simulieren(szenario, monate, { sparFaktor, ungekappt, extra });
-  return { reihe: s.gesamt, ende: s.ende, jePosition: s.jePosition };
+  return { reihe: s.gesamt, ende: s.ende, jePosition: s.jePosition, ausgezahlt: s.ausgezahlt };
 }
 
 // Kapital, das eine Entnahme in heutiger Kaufkraft über n Jahre trägt (Entnahme wächst mit der Inflation)
@@ -2617,6 +2627,11 @@ function renteAnzeigen() {
     }
     if (unsicher.length) warnung += `Veraltet oder geschätzt: ${unsicher.map((p) => `${p.name} (Stand ${deDatum(p.renditeSeitAuflage.stand)})`).join(', ')}. `;
     if (fehlt.length) warnung += `Ohne hinterlegte Rendite (mit ${zahl(MARKT_RENDITE, 1)} % gerechnet): ${fehlt.join(', ')}.`;
+  }
+  // Ausgezahlte Dividenden: gehören dir, stecken aber nicht im Depotwert
+  const mitDividende = daten.positionen.filter((p) => dividendenRendite(p, kurse.preise[p.id]) > 0);
+  if (mitDividende.length && bisher.ausgezahlt > 0) {
+    warnung += `${warnung ? ' ' : ''}Nicht im Depotwert: bis zum Rentenbeginn ≈ ${geld(bisher.ausgezahlt)} ausgezahlte Dividenden (${mitDividende.map((p) => `${p.name} ${geld(p.dividende)} je Aktie`).join(', ')}). Dort wächst der Depotwert nur um die Kursrendite.`;
   }
   document.getElementById('rt-warnung').textContent = warnung;
 }
@@ -3399,6 +3414,8 @@ function positionenAnzeigen() {
           <select class="e-wieder"><option value="ja"${legtWiederAn(p) ? ' selected' : ''}>werden wieder angelegt</option><option value="nein"${legtWiederAn(p) ? '' : ' selected'}>werden ausgezahlt</option></select></div>
       </div>
       <div class="raster" style="margin-top: 12px">
+        <div><label class="feldname">Dividende je Aktie (€/Jahr)</label>
+          <input type="text" inputmode="decimal" class="e-dividende" placeholder="keine" value="${p.dividende ? zahl(p.dividende, 2) : ''}"></div>
         <div><label class="feldname">Rendite seit Auflage (% p. a.)</label>
           <input type="text" inputmode="decimal" class="e-rendite" placeholder="leer = Markt" value="${p.renditeSeitAuflage ? zahl(p.renditeSeitAuflage.prozent, 1) : ''}"></div>
       </div>
@@ -3422,9 +3439,13 @@ function positionenSpeichern() {
     const renditeText = card.querySelector('.e-rendite').value.trim();
     const rendite = renditeText ? parseZahl(renditeText) : null;
     if (renditeText && !Number.isFinite(rendite)) { alert(`Ungültige Rendite bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite, card.querySelector('.e-wieder').value === 'ja']);
+    const divText = card.querySelector('.e-dividende').value.trim();
+    const dividende = divText ? parseZahl(divText) : null;
+    if (divText && !(dividende >= 0)) { alert(`Ungültige Dividende bei „${p.name}“.`); return; }
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, rendite, card.querySelector('.e-wieder').value === 'ja', dividende]);
   }
-  for (const [p, stueck, inv, art, rendite, wieder] of neu) {
+  for (const [p, stueck, inv, art, rendite, wieder, dividende] of neu) {
+    if (dividende) p.dividende = dividende; else delete p.dividende;
     p.stueck = stueck; p.investiert = inv; p.art = art;
     // nur speichern, wenn es vom Standard der Anlageart abweicht – sonst folgt es der Anlageart
     if (wieder === ['ETF', 'Fonds'].includes(art)) delete p.wiederanlage; else p.wiederanlage = wieder;
@@ -3628,6 +3649,9 @@ function historieUebernehmen(paket) {
       ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`
       : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`);
   }
+  // Ergänzende Angaben zu Positionen (z. B. Dividende je Aktie)
+  const angaben = Object.entries(paket.positionsAngaben || {}).map(([id, a]) => [bekannt(id), a]).filter(([p]) => p);
+  for (const [p, a] of angaben) if (a.dividende != null) zeilen.push(`${p.name}: Dividende ${eur.format(a.dividende)} je Aktie (wird ausgezahlt)`);
   // Konditionen bestehender Tagesgeldkonten (Zinssatz, Aktionsende, aufgelaufene Zinsen) – nach id, sonst nach Bankname
   const konditionen = [];
   for (const [id, kd] of Object.entries(paket.tagesgeldKonditionen || {})) {
@@ -3642,7 +3666,7 @@ function historieUebernehmen(paket) {
     zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
   }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length && !angaben.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -3656,6 +3680,10 @@ function historieUebernehmen(paket) {
   }
   for (const [id, r] of renditen) daten.positionen.find((p) => p.id === id).renditeSeitAuflage = r;
   if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
+  for (const [q, a] of angaben) {
+    const p = daten.positionen.find((x) => x.id === q.id);
+    if (a.dividende != null) p.dividende = a.dividende;
+  }
   for (const [konto, kd] of konditionen) {
     Object.assign(konto, {
       zins: kd.zins, zinsDanach: kd.zinsDanach != null ? kd.zinsDanach : null, auszahlung: kd.auszahlung || 'taeglich',
