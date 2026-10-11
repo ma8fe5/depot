@@ -985,7 +985,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1716'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1717'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -3904,7 +3904,7 @@ try { localStorage.removeItem('depot-privat'); } catch { /* nur Komfort */ }
     if (!document.getElementById('menue').hidden) { modus = 'menue'; ansicht = document.querySelector('.menue-panel'); return; }
     if (!ansicht) return;
     if (t.clientX < 28 && ansicht.querySelector('.navi .zurueck')) modus = 'zurueck';
-    else if (REITER.includes(ansicht.id) && window.scrollY <= 0) modus = 'ziehen';
+    else if ((REITER.includes(ansicht.id) || ansicht.id === 'ansicht-tops') && window.scrollY <= 0) modus = 'ziehen';
   }, { passive: true });
 
   document.addEventListener('touchmove', (e) => {
