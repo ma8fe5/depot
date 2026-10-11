@@ -885,7 +885,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1441'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1452'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1016,7 +1016,11 @@ async function entschluesseln(paket) {
   return new TextDecoder().decode(klar);
 }
 
+let kopieZeit = null;
 function speichern() {
+  // Bestandskopie für die Morgen-Mitteilung gebündelt nachziehen (z. B. nach Monats-Check oder Tagesgeld-Änderung)
+  clearTimeout(kopieZeit);
+  kopieZeit = setTimeout(bestandskopieSchreiben, 800);
   if (!schutzAktiv()) {
     localStorage.setItem(SPEICHER, JSON.stringify(daten));
     return;
@@ -1206,6 +1210,14 @@ function checkFaellig() {
 
 // ---------- Kurse ----------
 
+// Symbole für /quotes – dieselbe Liste nutzt die Morgen-Mitteilung, damit der Vermittler aus seinem Speicher antwortet
+function kursSymbole() {
+  const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
+  return [...new Set(eodPos.map((p) => p.symbol)
+    .concat(eodPos.map(fxSymbol).filter(Boolean))
+    .concat([BENCHMARK.symbol]))];
+}
+
 async function kurseHolen() {
   const status = document.getElementById('status');
   if (!navigator.onLine) {
@@ -1220,9 +1232,7 @@ async function kurseHolen() {
   const hinweise = [];
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
-  const symbole = [...new Set(eodPos.map((p) => p.symbol)
-    .concat(eodPos.map(fxSymbol).filter(Boolean))
-    .concat([BENCHMARK.symbol]))];
+  const symbole = kursSymbole();
   let benchmark = null;
 
   try {
@@ -1296,6 +1306,7 @@ async function kurseHolen() {
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   if (daten) historieFortschreiben(preise);
+  if (daten) bestandskopieSchreiben();
   if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
@@ -3155,6 +3166,48 @@ function positionenSpeichern() {
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
 }
 
+// ---------- Bestandskopie für die Morgen-Mitteilung ----------
+// Der Hintergrund-Dienst (sw.js) rechnet um 9 Uhr die Tagesbilanz ohne Face ID. Dafür liegen Stückzahlen,
+// Tagesgeld-Summe und Vermittler-Zugang verschlüsselt in IndexedDB – mit einem eigenen, nicht exportierbaren
+// Schlüssel, der das iPhone nie verlässt. Nichts davon geht an Cloudflare.
+
+function mitteilungsSpeicher(modus, aktion) {
+  return new Promise((ok, fehler) => {
+    const r = indexedDB.open('depot-mitteilung', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onerror = () => fehler(r.error);
+    r.onsuccess = () => {
+      const anfrage = aktion(r.result.transaction('kv', modus).objectStore('kv'));
+      anfrage.onsuccess = () => ok(anfrage.result);
+      anfrage.onerror = () => fehler(anfrage.error);
+    };
+  });
+}
+
+async function bestandskopieSchreiben() {
+  try {
+    if (!daten || !kurse || !daten.vermittler || !('indexedDB' in window)) return;
+    let key = await mitteilungsSpeicher('readonly', (s) => s.get('schluessel'));
+    if (!key) {
+      key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+      await mitteilungsSpeicher('readwrite', (s) => s.put(key, 'schluessel'));
+    }
+    const positionen = daten.positionen.map((p) => {
+      const k = kurse.preise[p.id];
+      return { name: p.name, quelle: p.quelle, symbol: p.symbol, waehrung: p.waehrung, stueck: k ? aktuellerBestand(p, k).stueck : p.stueck };
+    }).filter((p) => p.stueck > 0);
+    const inhalt = JSON.stringify({
+      vermittler: daten.vermittler, token: daten.vermittlerToken || null,
+      symbole: kursSymbole(), positionen, tagesgeld: tgSumme(),
+    });
+    const iv = zufall(12);
+    const geheim = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(inhalt));
+    await mitteilungsSpeicher('readwrite', (s) => s.put({ iv: b64(iv), daten: b64(geheim) }, 'stand'));
+  } catch (e) {
+    console.error('Bestandskopie', e); // Mitteilung fällt dann auf den neutralen Text zurück
+  }
+}
+
 // ---------- Mitteilungen (Web Push) ----------
 // Der Vermittler schickt Di–Sa um 9 Uhr eine neutrale Mitteilung ohne Depotdaten.
 
@@ -3190,7 +3243,7 @@ async function pushStatusAnzeigen() {
   }
   const abo = await pushAbo();
   info.textContent = abo
-    ? 'Aktiv: Dienstag bis Samstag um 9 Uhr kommt eine Mitteilung, sobald neue Schlusskurse da sind (ohne Depotdaten). Dazu um 9 Uhr die Erinnerungen an deine Tagesgeld-Termine (mit Bank und Betrag).'
+    ? 'Aktiv: Dienstag bis Samstag um 9 Uhr deine Tagesbilanz (Veränderung zum Vortag, Gesamtvermögen, bester und schwächster Wert) – das iPhone rechnet sie selbst, deine Bestände verlassen es nicht. Dazu um 9 Uhr die Erinnerungen an deine Tagesgeld-Termine.'
     : 'Aus. Auf Wunsch erinnert dich die App Dienstag bis Samstag um 9 Uhr an die Veränderung zum Vortag.';
   an.hidden = !!abo;
   test.hidden = aus.hidden = !abo;
