@@ -776,32 +776,6 @@
     <p class="fuss">Werte nominal, darunter in heutiger Kaufkraft. Ohne Steuern (bei Entnahme fällt Abgeltungsteuer auf Gewinne an) und ohne Kosten. Keine Garantie und keine Anlageberatung.</p>
   </section>
 
-  <!-- Rückblick -->
-  <section id="ansicht-rueckblick" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Rückblick</h1></div>
-    <div class="segmente zwei" id="rb-segmente">
-      <button data-rueckblick="monat">Monat</button>
-      <button data-rueckblick="jahr">Jahr</button>
-    </div>
-    <div class="periode">
-      <button class="rund klein" id="rb-zurueck" data-aktion="rb-zurueck" aria-label="Früher">‹</button>
-      <span id="rb-periode"></span>
-      <button class="rund klein" id="rb-vor" data-aktion="rb-vor" aria-label="Später">›</button>
-    </div>
-    <div class="karte held">
-      <div class="etikett">Gewinn im Zeitraum</div>
-      <div class="betrag" id="rb-gewinn"></div>
-      <span class="pill" id="rb-pct"></span>
-    </div>
-    <div class="paar">
-      <div class="karte"><div class="etikett">Bester Wert</div><div class="name-gross" id="rb-bester"></div><span class="pill" id="rb-bester-w"></span></div>
-      <div class="karte"><div class="etikett">Schwächster Wert</div><div class="name-gross" id="rb-schwaechster"></div><span class="pill" id="rb-schwaechster-w"></span></div>
-    </div>
-    <div class="karte liste-karte"><dl class="zeilen" id="rb-zahlen"></dl></div>
-    <p class="fuss" id="rb-hinweis"></p>
-  </section>
-
   <!-- Detail einer Position -->
   <section id="ansicht-detail" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="detail-zurueck"><svg><use href="#i-zurueck"/></svg> <span id="detail-zurueck-text">Zurück</span></button></div>
@@ -831,11 +805,18 @@
       <button data-zeitraum="monat">Monat</button>
       <button data-zeitraum="gestern">Gestern</button>
     </div>
+    <!-- Blättern durch frühere Jahre und Monate (bei Jahr und Monat) -->
+    <div class="periode" id="gw-periode-zeile" hidden>
+      <button class="rund klein" id="gw-zurueck" data-aktion="gw-zurueck" aria-label="Früher">‹</button>
+      <span id="gw-periode"></span>
+      <button class="rund klein" id="gw-vor" data-aktion="gw-vor" aria-label="Später">›</button>
+    </div>
     <div class="karte held">
       <div class="etikett" id="gewinn-zeitraum"></div>
       <div id="gewinn-gesamt" class="betrag"></div>
       <span id="gewinn-gesamt-pct" class="pill"></span>
     </div>
+    <div class="karte liste-karte" id="gw-zahlen-karte" hidden><dl class="zeilen" id="gw-zahlen"></dl></div>
     <div class="abschnitt">Positionen</div>
     <div class="karte liste-karte"><ul id="gewinn-positionen" class="liste"></ul></div>
     <p id="gewinn-meldung" class="fuss"></p>
@@ -952,7 +933,7 @@
     <div class="abschnitt">Auswerten</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
-        <li class="tippbar" data-aktion="rueckblick"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Rückblick<small>Monat und Jahr</small></span></li>
+        <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>jedes Jahr, jeder Monat</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
         <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Bis zur Rente<small id="mehr-rente"></small></span></li>
       </ul>
@@ -990,7 +971,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1801'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1806'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1595,6 +1576,37 @@ function gewinnListe(zeitraum) {
   return { zeilen: zeilen.sort((a, b) => b.gewinn - a.gewinn), fehlend };
 }
 
+// Blättern bei Jahr und Monat: 0 = laufender Zeitraum, -1 = davor usw. (früher die Seite „Rückblick“)
+let gwVersatz = 0;
+
+// Erster Kauf über alle Positionen – weiter zurück lässt sich nicht blättern
+function eroeffnungsDatum() {
+  let erste = null;
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    const d = k ? ersterKauf(p, k) : null;
+    if (d && (!erste || d < erste)) erste = d;
+  }
+  return erste;
+}
+
+// Start (Stichtag, letzter Tag davor), Ende und Titel eines Jahres bzw. Monats mit Versatz
+function gwZeitraum(art, versatz) {
+  const h = heute(), heuteIso = isoDatum(h);
+  if (art === 'jahr') {
+    const j = h.getFullYear() + versatz;
+    const ende = `${j}-12-31` < heuteIso ? `${j}-12-31` : heuteIso;
+    return { start: `${j - 1}-12-31`, ende, titel: versatz === 0 ? `${j} · bis heute` : String(j), name: `Gewinn ${j}` };
+  }
+  const m = new Date(h.getFullYear(), h.getMonth() + versatz, 1);
+  const monatsende = isoDatum(new Date(m.getFullYear(), m.getMonth() + 1, 0));
+  const monat = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(m);
+  return {
+    start: isoDatum(new Date(m.getFullYear(), m.getMonth(), 0)), ende: monatsende < heuteIso ? monatsende : heuteIso,
+    titel: versatz === 0 ? `${monat} · bis heute` : monat, name: `Gewinn im ${monat}`,
+  };
+}
+
 function gewinnAnzeigen() {
   const reihenfolge = Object.keys(ZEITRAEUME);
   document.getElementById('segmente').style.setProperty('--idx', reihenfolge.indexOf(gewinnZeitraum));
@@ -1602,26 +1614,61 @@ function gewinnAnzeigen() {
     el.classList.toggle('aktiv', el.dataset.zeitraum === gewinnZeitraum);
   });
   const titel = document.getElementById('gewinn-zeitraum');
-  titel.textContent = ZEITRAEUME[gewinnZeitraum] +
-    (gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat' ? ` · Stichtag ${deDatum(stichtag(gewinnZeitraum))}` : '');
-
   const liste = document.getElementById('gewinn-positionen');
   liste.innerHTML = '';
   const meldung = document.getElementById('gewinn-meldung');
   meldung.textContent = '';
-  const sichtbar = !document.getElementById('ansicht-gewinn').hidden;
-  if (!sichtbar) zeige('ansicht-gewinn');
+  if (document.getElementById('ansicht-gewinn').hidden) zeige('ansicht-gewinn');
+  const blaettern = gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat';
+  document.getElementById('gw-periode-zeile').hidden = !blaettern;
+  document.getElementById('gw-zahlen-karte').hidden = !blaettern;
   if (!kurse) {
     meldung.textContent = 'Noch keine Kurse geladen.';
     return;
   }
-  const { zeilen, fehlend } = gewinnListe(gewinnZeitraum);
+
+  let zeilen, fehlend = [], zusatz = null;
+  if (blaettern) {
+    const z = gwZeitraum(gewinnZeitraum, gwVersatz);
+    const erste = eroeffnungsDatum();
+    document.getElementById('gw-periode').textContent = z.titel;
+    document.getElementById('gw-zurueck').disabled = !erste || z.start < erste;
+    document.getElementById('gw-vor').disabled = gwVersatz >= 0;
+    titel.textContent = gwVersatz === 0 ? `${ZEITRAEUME[gewinnZeitraum]} · Stichtag ${deDatum(z.start)}` : z.name;
+    const a = auswertung(z.start, z.ende);
+    zeilen = a.zeilen.slice().sort((x, y) => y.gewinn - x.gewinn);
+    zusatz = a;
+    meldung.textContent = `Stichtag ${deDatum(z.start)} bis ${deDatum(z.ende)}.` + (a.geschaetzt ? ` Käufe vor ${schaetzGrenze()} teils aus dem Sparplan geschätzt.` : '');
+  } else {
+    titel.textContent = ZEITRAEUME[gewinnZeitraum];
+    ({ zeilen, fehlend } = gewinnListe(gewinnZeitraum));
+  }
+
   const summe = zeilen.reduce((s, z) => s + z.gewinn, 0);
   const basis = zeilen.reduce((s, z) => s + z.basis, 0);
   const gesamt = document.getElementById('gewinn-gesamt');
   gesamt.className = 'betrag ' + klasse(summe);
   zaehle(gesamt, summe, true);
   setzePill(document.getElementById('gewinn-gesamt-pct'), summe, pct(basis ? (summe / basis) * 100 : 0));
+
+  // Aufschlüsselung des Zeitraums
+  if (zusatz) {
+    const dl = document.getElementById('gw-zahlen');
+    dl.innerHTML = '';
+    for (const [name, wert] of [
+      ['Wert am Anfang', geld(zusatz.wertStart)],
+      ['Einzahlungen', geld(zusatz.einz)],
+      ['Gebühren', zusatz.gebuehren ? geld(zusatz.gebuehren) : '–'],
+      ['Wert am Ende', geld(zusatz.wertEnde)],
+    ]) {
+      const reihe = document.createElement('div');
+      reihe.innerHTML = '<dt></dt><dd></dd>';
+      reihe.querySelector('dt').textContent = name;
+      reihe.querySelector('dd').textContent = wert;
+      dl.appendChild(reihe);
+    }
+  }
+
   for (const z of zeilen) {
     const li = document.createElement('li');
     li.className = 'tippbar';
@@ -2816,9 +2863,8 @@ function zinseszinsAnzeigen() {
     `Rendite-Szenario wählst du unter „Bis zur Rente“.`;
 }
 
-// ---------- Rückblick ----------
+// ---------- Gewinn zwischen zwei Stichtagen (Gewinn-Seite: Jahr und Monat) ----------
 
-let rbModus = 'monat', rbVersatz = 0;
 
 // Gewinn zwischen zwei Stichtagen: Wert am Ende − Wert am Anfang − Einzahlungen dazwischen
 function auswertung(startIso, endeIso) {
@@ -2827,86 +2873,40 @@ function auswertung(startIso, endeIso) {
   for (const p of daten.positionen) {
     const k = kurse && kurse.preise[p.id];
     if (!k || !k.reihe) continue;
-    const kursStart = kursAm(k.reihe, startIso, 'bis');
-    const kursEnde = k.datum && endeIso >= k.datum ? k.eur : kursAm(k.reihe, endeIso, 'bis');
-    if (kursStart == null || kursEnde == null) continue;
-    const { stueck } = aktuellerBestand(p, k);
+    const reihe = langeReihe(p, k); // lange Historie, damit auch frühere Jahre gehen
+    // Vor dem ersten Kauf gibt es die Position nicht (wie im Entwicklung-Chart)
+    const erste = ersterKauf(p, k);
+    if (erste && endeIso < erste) continue;
+    const { stueck, inv } = aktuellerBestand(p, k);
     const kaeufe = kaeufeNach(p, k, startIso);
     const danach = kaeufe.filter((c) => c.datum > endeIso);
     const drin = kaeufe.filter((c) => c.datum <= endeIso);
     if (drin.some((c) => c.geschaetzt)) geschaetzt = true;
     const stueckEnde = Math.max(0, stueck - danach.reduce((s, c) => s + c.stueck, 0));
-    const stueckStart = Math.max(0, stueck - kaeufe.reduce((s, c) => s + c.stueck, 0));
-    const einz = drin.reduce((s, c) => s + c.betrag, 0);
+    let stueckStart = Math.max(0, stueck - kaeufe.reduce((s, c) => s + c.stueck, 0));
+    let einz = drin.reduce((s, c) => s + c.betrag, 0);
+    if (erste && startIso < erste) {
+      // Zeitraum enthält die Eröffnung: Anteile, die keine einzelnen Käufe erklären (z. B. ältere FNZ-Bestände),
+      // kommen am ersten Kauftag dazu – als Einzahlung in Höhe des noch nicht erklärten Investments
+      const alleEinz = kaeufeNach(p, k, '0000-00-00').reduce((s, c) => s + c.betrag, 0);
+      if (stueckStart > 0) einz += Math.max(0, inv - alleEinz);
+      stueckStart = 0;
+    }
+    const kursStart = stueckStart > 0 ? kursAm(reihe, startIso, 'bis') : 0;
+    const kursEnde = k.datum && endeIso >= k.datum ? k.eur : kursAm(reihe, endeIso, 'bis');
+    if (kursStart == null || kursEnde == null) continue;
     const wertStart = stueckStart * kursStart, wertEnde = stueckEnde * kursEnde;
     if (wertStart === 0 && wertEnde === 0) continue;
     const gebuehren = daten.buchungen
       .filter((b) => b.posId === p.id && b.art === 'gebuehr' && (b.status === 'historie' || b.status === 'bestaetigt') && b.datum > startIso && b.datum <= endeIso)
       .reduce((s, b) => s + (b.gebuehrEur || 0), 0);
-    zeilen.push({ name: p.name, wertStart, wertEnde, einz, gebuehren, gewinn: wertEnde - wertStart - einz });
+    zeilen.push({ id: p.id, name: p.name, wertStart, wertEnde, einz, gebuehren, gewinn: wertEnde - wertStart - einz, basis: wertStart + einz });
   }
   const summe = (f) => zeilen.reduce((s, z) => s + z[f], 0);
   return {
     zeilen, geschaetzt,
     wertStart: summe('wertStart'), wertEnde: summe('wertEnde'), einz: summe('einz'), gebuehren: summe('gebuehren'), gewinn: summe('gewinn'),
   };
-}
-
-function rueckblickAnzeigen() {
-  document.getElementById('rb-segmente').style.setProperty('--idx', rbModus === 'monat' ? 0 : 1);
-  document.querySelectorAll('[data-rueckblick]').forEach((b) => b.classList.toggle('aktiv', b.dataset.rueckblick === rbModus));
-  if (document.getElementById('ansicht-rueckblick').hidden) zeige('ansicht-rueckblick');
-  if (!kurse) return;
-
-  const h = heute();
-  let start, ende, titel, frueher;
-  if (rbModus === 'monat') {
-    // Kursdaten reichen bis Dezember des Vorjahres zurück -> ab Januar auswertbar
-    const m = new Date(h.getFullYear(), h.getMonth() + rbVersatz, 1);
-    start = isoDatum(new Date(m.getFullYear(), m.getMonth(), 0));
-    const monatsende = new Date(m.getFullYear(), m.getMonth() + 1, 0);
-    ende = isoDatum(monatsende < h ? monatsende : h);
-    titel = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(m) + (rbVersatz === 0 ? ' · bis heute' : '');
-    frueher = m.getMonth() > 0;
-  } else {
-    start = isoDatum(new Date(h.getFullYear(), 0, 0));
-    ende = isoDatum(h);
-    titel = `${h.getFullYear()} · bis heute`;
-    frueher = false;
-  }
-  document.getElementById('rb-periode').textContent = titel;
-  document.getElementById('rb-zurueck').disabled = !frueher;
-  document.getElementById('rb-vor').disabled = rbVersatz >= 0;
-
-  const a = auswertung(start, ende);
-  const basis = a.wertStart + a.einz;
-  const gEl = document.getElementById('rb-gewinn');
-  gEl.className = 'betrag ' + klasse(a.gewinn);
-  zaehle(gEl, a.gewinn, true);
-  setzePill(document.getElementById('rb-pct'), a.gewinn, pct(basis ? (a.gewinn / basis) * 100 : 0));
-
-  const sortiert = a.zeilen.slice().sort((x, y) => y.gewinn - x.gewinn);
-  for (const [id, z] of [['rb-bester', sortiert[0]], ['rb-schwaechster', sortiert[sortiert.length - 1]]]) {
-    document.getElementById(id).textContent = z ? z.name : '–';
-    if (z) setzePill(document.getElementById(id + '-w'), z.gewinn, mitVorzeichen(z.gewinn));
-  }
-
-  const dl = document.getElementById('rb-zahlen');
-  dl.innerHTML = '';
-  for (const [name, wert] of [
-    ['Wert am Anfang', geld(a.wertStart)],
-    ['Einzahlungen', geld(a.einz)],
-    ['Gebühren', a.gebuehren ? geld(a.gebuehren) : '–'],
-    ['Wert am Ende', geld(a.wertEnde)],
-  ]) {
-    const reihe = document.createElement('div');
-    reihe.innerHTML = '<dt></dt><dd></dd>';
-    reihe.querySelector('dt').textContent = name;
-    reihe.querySelector('dd').textContent = wert;
-    dl.appendChild(reihe);
-  }
-  document.getElementById('rb-hinweis').textContent =
-    `Stichtag ${deDatum(start)} bis ${deDatum(ende)}.` + (a.geschaetzt ? ` Käufe vor ${schaetzGrenze()} teils aus dem Sparplan geschätzt.` : '');
 }
 
 // ---------- Detail einer Position ----------
@@ -3725,10 +3725,8 @@ document.addEventListener('click', (e) => {
   const reiter = e.target.closest('[data-tab]')?.dataset.tab;
   if (reiter) { reiterZeigen(reiter); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
-  if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
+  if (zeitraum) { gewinnZeitraum = zeitraum; gwVersatz = 0; gewinnAnzeigen(); return; }
 
-  const rueckblick = e.target.closest('[data-rueckblick]')?.dataset.rueckblick;
-  if (rueckblick) { rbModus = rueckblick; rbVersatz = 0; rueckblickAnzeigen(); return; }
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
@@ -3753,7 +3751,7 @@ document.addEventListener('click', (e) => {
     'check-bestaetigen': checkBestaetigen,
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
-    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
+    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
     entsperren,
@@ -3774,9 +3772,8 @@ document.addEventListener('click', (e) => {
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
-    rueckblick: () => { rbModus = 'monat'; rbVersatz = 0; zeige('ansicht-rueckblick'); rueckblickAnzeigen(); },
-    'rb-zurueck': () => { rbVersatz--; rueckblickAnzeigen(); },
-    'rb-vor': () => { rbVersatz = Math.min(0, rbVersatz + 1); rueckblickAnzeigen(); },
+    'gw-zurueck': () => { gwVersatz--; gewinnAnzeigen(); },
+    'gw-vor': () => { gwVersatz = Math.min(0, gwVersatz + 1); gewinnAnzeigen(); },
     'push-an': pushEinschalten,
     'push-test': pushTest,
     'push-aus': pushAusschalten,
