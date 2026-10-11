@@ -312,6 +312,25 @@
     font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
   .chip.aktiv { background: var(--akzent); color: #fff; }
   .chip:disabled { opacity: 0.35; cursor: default; }
+  /* Tagesgeld-Cockpit */
+  .zinsuhr { font-variant-numeric: tabular-nums; }
+  .zinsuhr .nach { font-size: 0.5em; font-weight: 650; color: var(--pos); letter-spacing: 0; }
+  .klippe .kopfzeile { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .klippe .bank { font-weight: 700; font-size: 17px; }
+  .klippe .tage { font-size: 28px; font-weight: 750; letter-spacing: -0.03em; }
+  .klippe .tage small { font-size: 14px; font-weight: 600; color: var(--text-2); margin-left: 4px; }
+  .klippe .balken { height: 8px; border-radius: 99px; background: var(--flaeche-2); overflow: hidden; margin: 10px 0 12px; }
+  .klippe .balken i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--pos), #f0a020); }
+  .klippe .zahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; color: var(--text-2); }
+  .klippe .zahlen b { display: block; font-size: 16px; color: var(--text); font-weight: 650; }
+  .klippe .warnung { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--neg-weich); color: var(--neg); font-size: 14px; font-weight: 600; }
+  .zinsbild { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .zinsbild b { display: block; font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
+  .zinsbild span { font-size: 12px; color: var(--text-2); }
+  .stationen li { align-items: flex-start; }
+  .stationen .punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--akzent); margin-top: 5px; flex-shrink: 0; box-shadow: 0 0 0 4px var(--akzent-weich); }
+  .stationen .punkt.alt { background: var(--text-3); box-shadow: none; }
+
   /* Aktien-Reiter kompakt: alles auf einen Bildschirm */
   #ansicht-haupt .kopf { margin: 4px 2px 10px; }
   #ansicht-haupt .karte { padding: 14px 16px; margin-bottom: 10px; }
@@ -602,13 +621,37 @@
   <section id="ansicht-tagesgeld" class="ansicht" hidden>
     <div class="kopf">
       <div>
-        <div class="datum">Kontostände aus dem Monats-Check</div>
+        <div class="datum" id="tg-kopf"></div>
         <h1>Tagesgeld</h1>
       </div>
       <div class="kopf-knoepfe">
         <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
       </div>
     </div>
+
+    <!-- Zins-Uhr: läuft sekündlich mit -->
+    <div class="karte held">
+      <div class="etikett">Zins-Uhr · heute verdient</div>
+      <div class="betrag zinsuhr" id="tg-uhr">0,0000 €</div>
+      <div class="unter" id="tg-uhr-unter"></div>
+    </div>
+
+    <div id="tg-klippen"></div>
+
+    <div class="karte" id="tg-sparplan-karte" hidden>
+      <div class="etikett">Deine Zinsen arbeiten fürs Depot</div>
+      <div class="zinsbild" id="tg-sparplan"></div>
+    </div>
+
+    <div class="abschnitt">Hopping-Bilanz</div>
+    <div class="karte liste-karte"><ul id="tg-stationen" class="liste stationen"></ul></div>
+    <p class="fuss" id="tg-fuss"></p>
+  </section>
+
+  <!-- Tagesgeld-Konten pflegen (aus dem Menü) -->
+  <section id="ansicht-tg-konten" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Tagesgeld-Konten</h1><div class="unterzeile">Stände trägst du beim Monats-Check ein. Zinssatz und Aktionsende brauchst du nur einmal pro Bank.</div></div>
     <div class="paar">
       <div class="karte"><div class="etikett">Summe</div><div class="wert" id="tg-summe"></div><span class="unter" id="tg-anzahl"></span></div>
       <div class="karte"><div class="etikett">Zinsen erhalten</div><div class="wert" id="tg-zinsen"></div><span class="unter" id="tg-zinsen-seit"></span></div>
@@ -908,7 +951,7 @@
       <ul class="liste menue">
         <li class="tippbar" data-aktion="aufteilung"><span class="kachel kg-heute"><svg><use href="#i-torte"/></svg></span><span class="name">Aufteilung<small id="mehr-aufteilung"></small></span></li>
         <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Sparpläne & Termine<small id="mehr-sparplaene"></small></span></li>
-        <li class="tippbar" data-aktion="tagesgeld"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld<small id="mehr-tagesgeld"></small></span></li>
+        <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
       </ul>
     </div>
     <div class="abschnitt">Rückblick</div>
@@ -942,7 +985,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1701'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1714'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1942,16 +1985,149 @@ function aufteilungAnzeigen() {
 }
 
 // ---------- Tagesgeld ----------
-// daten.tagesgeld.konten: [{ id, bank, stand, standDatum, zinsen: [{ datum, betrag }], termin, geschlossen }]
-// termin = Tag, an dem Zinsen kommen und das Geld zur nächsten Bank umzieht (mit Push-Erinnerung um 9 Uhr)
+// daten.tagesgeld.konten: [{ id, bank, stand, standDatum, zinsen: [{ datum, betrag }], termin, geschlossen,
+//   zins (% p. a.), zinsDanach (% p. a. nach Aktionsende, null = unbekannt), auszahlung ('taeglich' | 'termin'),
+//   aufgelaufen: { betrag, datum } (bei Auszahlung am Termin: bis dahin angesammelte, noch nicht gutgeschriebene Zinsen) }]
+// termin = Ende des Aktionszinses: Zinsen kommen, das Geld zieht zur nächsten Bank (Push-Erinnerung um 9 Uhr)
 
 const tgKonten = () => ((daten.tagesgeld && daten.tagesgeld.konten) || []);
 const tgAktiv = () => tgKonten().filter((k) => !k.geschlossen);
 const tgSumme = () => tgAktiv().reduce((s, k) => s + k.stand, 0);
 const tgZinsen = (k) => (k.zinsen || []).reduce((s, z) => s + z.betrag, 0);
+const tgTagesZins = (k) => (k.stand * (k.zins || 0)) / 100 / 365;
+const tageZwischen = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5);
+
+// Bis jetzt angesammelte, noch nicht ausgezahlte Zinsen (Stand aus der Bank + seitdem hinzugekommen, sekundengenau)
+function tgAufgelaufen(k, jetzt = new Date()) {
+  if (k.auszahlung !== 'termin' || !k.aufgelaufen) return 0;
+  const ab = k.aufgelaufen.zeit ? new Date(k.aufgelaufen.zeit) : new Date(k.aufgelaufen.datum + 'T00:00:00');
+  const seit = (jetzt - ab) / 864e5;
+  return k.aufgelaufen.betrag + tgTagesZins(k) * Math.max(0, seit);
+}
+
+// Beginn der Station: aus den aufgelaufenen Zinsen zurückgerechnet (≈), sonst Tag der Erfassung
+function tgBeginn(k) {
+  const tag = tgTagesZins(k);
+  if (k.auszahlung === 'termin' && k.aufgelaufen && tag > 0) {
+    const d = new Date(k.aufgelaufen.datum + 'T00:00:00');
+    d.setDate(d.getDate() - Math.round(k.aufgelaufen.betrag / tag));
+    return { datum: isoDatum(d), geschaetzt: true };
+  }
+  return { datum: k.angelegt || null, geschaetzt: false };
+}
+
+// ---------- Tagesgeld-Reiter: Hopping-Cockpit ----------
+
+let zinsUhr = null;
 
 function tagesgeldAnzeigen() {
   zeige('ansicht-tagesgeld');
+  const aktiv = tgAktiv();
+  const h = isoDatum(heute());
+  document.getElementById('tg-kopf').textContent = `${geld(tgSumme())} auf ${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}`;
+
+  // Zins-Uhr
+  const proJahr = aktiv.reduce((s, k) => s + (k.stand * (k.zins || 0)) / 100, 0);
+  const ohneZins = aktiv.filter((k) => !k.zins).map((k) => k.bank);
+  document.getElementById('tg-uhr-unter').textContent = proJahr
+    ? `≈ ${geld(proJahr / 12)} pro Monat · ${geld(proJahr)} pro Jahr bei heutigen Zinsen${ohneZins.length ? ` (ohne ${ohneZins.join(', ')}: Zinssatz fehlt)` : ''}`
+    : 'Trag unter Menü → Tagesgeld-Konten die Zinssätze ein, dann läuft die Uhr.';
+
+  // Zins-Klippen: Aktionsende je Konto
+  const klippen = document.getElementById('tg-klippen');
+  klippen.innerHTML = '';
+  for (const k of aktiv.filter((x) => x.termin).sort((a, b) => a.termin.localeCompare(b.termin))) {
+    const rest = tageZwischen(h, k.termin);
+    const tag = tgTagesZins(k);
+    const danach = k.zinsDanach != null ? k.zinsDanach : 0;
+    const warten = (k.stand * ((k.zins || 0) - danach)) / 100 / 365;
+    // Laufzeitbalken: Beginn aus den aufgelaufenen Zinsen zurückgerechnet, sonst ab Erfassung
+    const beginn = tgBeginn(k).datum || h;
+    const gesamt = Math.max(1, tageZwischen(beginn, k.termin));
+    const anteil = Math.min(100, Math.max(0, (tageZwischen(beginn, h) / gesamt) * 100));
+    const auszahlung = k.auszahlung === 'termin' && k.aufgelaufen ? tgAufgelaufen(k, new Date(k.termin + 'T00:00:00')) : null;
+    const card = document.createElement('div');
+    card.className = 'karte klippe';
+    card.dataset.id = k.id;
+    card.innerHTML = `
+      <div class="kopfzeile"><span class="bank"></span><span class="unter">${k.zins ? `${zahl(k.zins, 2)} % bis ${deDatum(k.termin)}` : `Aktion bis ${deDatum(k.termin)}`}</span></div>
+      <div class="tage">${rest > 0 ? `${rest}<small>${rest === 1 ? 'Tag' : 'Tage'} bis zur Zins-Klippe</small>` : rest === 0 ? 'Heute<small>Zinsen kommen, Zeit zu wechseln</small>' : `${-rest}<small>Tage über der Klippe</small>`}</div>
+      <div class="balken"><i style="width:${anteil}%"></i></div>
+      <div class="zahlen">
+        ${k.auszahlung === 'termin' ? `<div>Aufgelaufen<b data-live-aufgelaufen="${k.id}">${geld(tgAufgelaufen(k))}</b></div>
+        <div>Auszahlung am ${deDatum(k.termin).slice(0, 6)}<b>${auszahlung != null ? `≈ ${geld(auszahlung)}` : '–'}</b></div>` : ''}
+        <div>Danach<b>${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}</b></div>
+        <div>Jeder Tag Warten kostet<b>${k.zins ? geld(warten) : '–'}</b></div>
+      </div>
+      ${rest <= 7 ? `<div class="warnung">${rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.'}</div>
+        <div class="knoepfe"><button class="knopf breit" data-aktion="tg-wechsel">Bankwechsel durchführen</button></div>` : ''}
+      ${k.zinsDanach == null && k.zins ? '<p class="unter" style="margin: 10px 0 0; font-size: 12px">Anschlusszins unbekannt – gerechnet mit 0 %.</p>' : ''}`;
+    card.querySelector('.bank').textContent = k.bank;
+    klippen.appendChild(card);
+  }
+
+  // Zinsen ↔ Sparpläne
+  const sparMonat = daten.positionen.reduce((s, p) => s + (p.sparplan ? p.sparplan.betrag : 0), 0);
+  const msci = kurse && kurse.preise.eunl ? kurse.preise.eunl.eur : null;
+  document.getElementById('tg-sparplan-karte').hidden = !(proJahr && sparMonat);
+  if (proJahr && sparMonat) {
+    document.getElementById('tg-sparplan').innerHTML = `
+      <div><b>${zahl(((proJahr / 12) / sparMonat) * 100, 0)} %</b><span>deiner Sparraten bezahlen die Zinsen jeden Monat</span></div>
+      <div><b>${zahl(proJahr / sparMonat, 1)}</b><span>Monate Sparplan finanziert pro Jahr</span></div>
+      <div><b>${msci ? zahl(proJahr / msci, 1) : '–'}</b><span>Anteile MSCI World pro Jahr</span></div>`;
+  }
+
+  // Hopping-Bilanz: alle Stationen, neueste oben
+  const stationen = document.getElementById('tg-stationen');
+  stationen.innerHTML = '';
+  const alle = tgKonten().slice().sort((a, b) => (b.angelegt || '').localeCompare(a.angelegt || ''));
+  let erhaltenSumme = 0, aufgelaufenSumme = 0;
+  for (const k of alle) {
+    const erhalten = tgZinsen(k);
+    const offen = k.geschlossen ? 0 : tgAufgelaufen(k);
+    erhaltenSumme += erhalten;
+    aufgelaufenSumme += offen;
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="punkt${k.geschlossen ? ' alt' : ''}"></span><span class="name"><span class="n"></span><small></small></span>
+      <span class="wert pos">${mitVorzeichen(erhalten + offen)}<small>${offen ? 'inkl. aufgelaufen' : 'Zinsen'}</small></span>`;
+    li.querySelector('.n').textContent = `${k.bank}${k.zins ? ` · ${zahl(k.zins, 2)} %` : ''}`;
+    const b = tgBeginn(k);
+    const ab = b.datum ? `${b.geschaetzt ? 'ca. ' : ''}${deDatum(b.datum)}` : '?';
+    li.querySelector('small').textContent = k.geschlossen
+      ? `${ab} – ${deDatum(k.geschlossen)}`
+      : `seit ${ab}${k.auszahlung === 'taeglich' ? ' · Zinsen täglich' : ''}${k.auszahlung === 'termin' && k.termin ? ` · bis ${deDatum(k.termin)}` : ''}`;
+    stationen.appendChild(li);
+  }
+  const summe = document.createElement('li');
+  summe.innerHTML = `<span class="name"><b>Zinsen insgesamt</b><small>${geld(erhaltenSumme)} erhalten · ${geld(aufgelaufenSumme)} aufgelaufen</small></span><span class="wert pos">${mitVorzeichen(erhaltenSumme + aufgelaufenSumme)}</span>`;
+  stationen.prepend(summe);
+  const beginnErfassung = alle.map((k) => k.angelegt).filter(Boolean).sort()[0];
+  document.getElementById('tg-fuss').textContent = beginnErfassung
+    ? `Erfasst seit ${deDatum(beginnErfassung)}: Zinsen davor sind nicht enthalten. Täglich gutgeschriebene Zinsen kommen über den Monats-Check dazu.`
+    : '';
+
+  // Uhr starten (läuft nur, solange der Reiter sichtbar ist)
+  clearInterval(zinsUhr);
+  const ticken = () => {
+    if (document.getElementById('ansicht-tagesgeld').hidden) { clearInterval(zinsUhr); return; }
+    const jetzt = new Date();
+    const anteilTag = (jetzt - new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate())) / 864e5;
+    const heuteVerdient = aktiv.reduce((s, k) => s + tgTagesZins(k), 0) * anteilTag;
+    const [vorne, hinten] = zahl(heuteVerdient, 4).split(',');
+    document.getElementById('tg-uhr').innerHTML = `${vorne},${hinten.slice(0, 2)}<span class="nach">${hinten.slice(2)}</span> €`;
+    document.querySelectorAll('[data-live-aufgelaufen]').forEach((el) => {
+      const k = aktiv.find((x) => x.id === el.dataset.liveAufgelaufen);
+      if (k) el.textContent = geld(tgAufgelaufen(k, jetzt));
+    });
+  };
+  ticken();
+  zinsUhr = setInterval(ticken, 1000);
+}
+
+// ---------- Tagesgeld-Konten pflegen ----------
+
+function tgKontenAnzeigen() {
+  zeige('ansicht-tg-konten');
   const aktiv = tgAktiv();
   document.getElementById('tg-summe').innerHTML = betragHTML(tgSumme());
   document.getElementById('tg-anzahl').textContent = `${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}`;
@@ -1989,7 +2165,16 @@ function tgKarte(k) {
     <div class="feld"><label class="feldname">Bank</label><input type="text" class="tg-bank" autocomplete="off"></div>
     <div class="raster">
       <div><label class="feldname">Stand (€)</label><input type="text" inputmode="decimal" class="tg-stand" value="${k.stand != null ? zahl(k.stand, 2) : ''}"></div>
-      <div><label class="feldname">Termin Zinsen & Wechsel</label><input type="date" class="tg-termin" value="${k.termin || ''}"></div>
+      <div><label class="feldname">Zinssatz (% p. a.)</label><input type="text" inputmode="decimal" class="tg-zins" value="${k.zins != null ? zahl(k.zins, 2) : ''}"></div>
+    </div>
+    <div class="raster" style="margin-top: 12px">
+      <div><label class="feldname">Aktionszins bis</label><input type="date" class="tg-termin" value="${k.termin || ''}"></div>
+      <div><label class="feldname">Zins danach (%)</label><input type="text" inputmode="decimal" class="tg-danach" placeholder="unbekannt" value="${k.zinsDanach != null ? zahl(k.zinsDanach, 2) : ''}"></div>
+    </div>
+    <div class="raster" style="margin-top: 12px">
+      <div><label class="feldname">Zinsen kommen</label>
+        <select class="tg-auszahlung"><option value="taeglich"${k.auszahlung !== 'termin' ? ' selected' : ''}>täglich / monatlich</option><option value="termin"${k.auszahlung === 'termin' ? ' selected' : ''}>am Aktionsende</option></select></div>
+      <div><label class="feldname">Aufgelaufen heute (€)</label><input type="text" inputmode="decimal" class="tg-aufgelaufen" placeholder="0,00" value="${k.auszahlung === 'termin' && k.aufgelaufen ? zahl(tgAufgelaufen(k), 2) : ''}"></div>
     </div>
     ${k.id ? '<div class="knoepfe"><button class="knopf zweit" data-aktion="tg-wechsel">Bankwechsel</button><button class="textknopf" data-aktion="tg-loeschen">Entfernen</button></div>' : ''}`;
   card.querySelector('.posname span').textContent = k.bank || 'Neues Konto';
@@ -2005,9 +2190,13 @@ function tgSpeichern() {
     const bank = card.querySelector('.tg-bank').value.trim();
     const stand = parseZahl(card.querySelector('.tg-stand').value);
     const termin = card.querySelector('.tg-termin').value || null;
+    const feld = (cls) => { const t = card.querySelector(cls).value.trim(); return t ? parseZahl(t) : null; };
+    const zins = feld('.tg-zins'), zinsDanach = feld('.tg-danach'), aufgelaufen = feld('.tg-aufgelaufen');
+    const auszahlung = card.querySelector('.tg-auszahlung').value;
     if (!bank) { alert('Bitte bei jedem Konto die Bank angeben.'); return; }
     if (!(stand >= 0)) { alert(`Bitte einen gültigen Stand für „${bank}“ eintragen.`); return; }
-    eingaben.push({ id: card.dataset.id, bank, stand, termin });
+    if ([zins, zinsDanach, aufgelaufen].some((v) => v != null && !(v >= 0))) { alert(`Bitte Zinssätze und aufgelaufene Zinsen für „${bank}“ prüfen.`); return; }
+    eingaben.push({ id: card.dataset.id, bank, stand, termin, zins, zinsDanach, auszahlung, aufgelaufen });
   }
   daten.tagesgeld = daten.tagesgeld || { konten: [] };
   const h = isoDatum(heute());
@@ -2018,10 +2207,14 @@ function tgSpeichern() {
       daten.tagesgeld.konten.push(k);
     }
     if (k.stand !== e.stand) k.standDatum = h;
-    Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin });
+    // Aufgelaufene Zinsen nur neu stempeln, wenn sich der Wert geändert hat (sonst läuft die Uhr weiter)
+    const aufgelaufen = e.auszahlung === 'termin' && e.aufgelaufen != null
+      ? (k.aufgelaufen && Math.abs(tgAufgelaufen({ ...k, auszahlung: 'termin' }) - e.aufgelaufen) < 0.005 ? k.aufgelaufen : { betrag: e.aufgelaufen, datum: h, zeit: new Date().toISOString() })
+      : null;
+    Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen });
   }
   speichern();
-  tagesgeldAnzeigen();
+  tgKontenAnzeigen();
   tgTermineSenden(true);
 }
 
@@ -2042,7 +2235,7 @@ function tgLoeschen(e) {
   if (!k || !confirm(`Konto „${k.bank}“ ganz entfernen? Für einen Bankwechsel nimm lieber „Wechsel zur neuen Bank“ – dann bleiben die Zinsen erhalten.`)) return;
   daten.tagesgeld.konten = daten.tagesgeld.konten.filter((x) => x !== k);
   speichern();
-  tagesgeldAnzeigen();
+  tgKontenAnzeigen();
   tgTermineSenden();
 }
 
@@ -2050,7 +2243,8 @@ function tgLoeschen(e) {
 function tgWechsel(e) {
   const k = tgKontoAus(e);
   if (!k) return;
-  const zinsText = prompt(`Wie viel Zinsen hat ${k.bank} zuletzt ausgezahlt? (€, 0 wenn keine)`, '0');
+  const vorschlag = k.auszahlung === 'termin' && k.aufgelaufen ? zahl(tgAufgelaufen(k), 2) : '0';
+  const zinsText = prompt(`Wie viel Zinsen hat ${k.bank} zuletzt ausgezahlt? (€, 0 wenn keine)`, vorschlag);
   if (zinsText == null) return;
   const zins = parseZahl(zinsText || '0');
   if (!(zins >= 0)) { alert('Ungültiger Zinsbetrag.'); return; }
@@ -2062,14 +2256,14 @@ function tgWechsel(e) {
   if (!(betrag >= 0)) { alert('Ungültiger Betrag.'); return; }
   const h = isoDatum(heute());
   if (zins > 0) k.zinsen.push({ datum: h, betrag: zins });
-  Object.assign(k, { stand: 0, standDatum: h, geschlossen: h, termin: null, nachfolger: neueBank });
+  Object.assign(k, { stand: 0, standDatum: h, geschlossen: h, termin: null, nachfolger: neueBank, aufgelaufen: null });
   daten.tagesgeld.konten.push({
     id: `tg-${Date.now()}`, bank: neueBank, stand: betrag, standDatum: h, zinsen: [], angelegt: h, termin: null, geschlossen: null,
   });
   speichern();
-  tagesgeldAnzeigen();
+  tgKontenAnzeigen();
   tgTermineSenden();
-  toast(`Umgezogen zu ${neueBank}. Den nächsten Termin kannst du beim neuen Konto eintragen.`, null, null, 3500);
+  toast(`Umgezogen zu ${neueBank}. Trag jetzt Zinssatz und Aktionsende der neuen Bank ein.`, null, null, 4000);
 }
 
 // Erinnerungen an den Vermittler geben; er schickt sie am Termin um 9 Uhr (mit Bank und Betrag, User-Wahl)
@@ -3446,13 +3640,21 @@ function historieUebernehmen(paket) {
       ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`
       : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`);
   }
+  // Konditionen bestehender Tagesgeldkonten (Zinssatz, Aktionsende, aufgelaufene Zinsen) – nach id, sonst nach Bankname
+  const konditionen = [];
+  for (const [id, kd] of Object.entries(paket.tagesgeldKonditionen || {})) {
+    const konto = tgAktiv().find((k) => k.id === id) || tgAktiv().find((k) => kd.bank && k.bank.toLowerCase() === kd.bank.toLowerCase());
+    if (!konto) continue;
+    konditionen.push([konto, kd]);
+    zeilen.push(`Tagesgeld ${konto.bank}: ${zahl(kd.zins, 2)} %${kd.auszahlung === 'termin' ? `, Zinsen am Aktionsende, aufgelaufen ${eur.format(kd.aufgelaufen.betrag)}` : ', Zinsen laufend'}`);
+  }
   const kh = Object.entries(paket.kurshistorie || {});
   if (kh.length) {
     const ab = kh.map(([, h]) => h.erster).sort()[0];
     zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
   }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -3466,6 +3668,13 @@ function historieUebernehmen(paket) {
   }
   for (const [id, r] of renditen) daten.positionen.find((p) => p.id === id).renditeSeitAuflage = r;
   if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
+  for (const [konto, kd] of konditionen) {
+    Object.assign(konto, {
+      zins: kd.zins, zinsDanach: kd.zinsDanach != null ? kd.zinsDanach : null, auszahlung: kd.auszahlung || 'taeglich',
+      aufgelaufen: kd.auszahlung === 'termin' ? kd.aufgelaufen : null,
+    });
+    if (kd.termin) konto.termin = kd.termin;
+  }
   // Nachträge wie im Monats-Check bestätigt: Bestand anpassen, Gebühr ohne Einzahlung
   for (const b of nachtraege) {
     const p = daten.positionen.find((x) => x.id === b.posId);
@@ -3582,6 +3791,7 @@ document.addEventListener('click', (e) => {
     aufteilung: () => { aufteilungNach = 'art'; zeige('ansicht-aufteilung'); aufteilungAnzeigen(); },
     sparplaene: sparplaeneAnzeigen,
     tagesgeld: tagesgeldAnzeigen,
+    'tg-konten': tgKontenAnzeigen,
     tops: () => { zeige('ansicht-tops'); hauptRendern(); },
     'tg-speichern': tgSpeichern,
     'tg-neu': tgNeu,
