@@ -312,6 +312,22 @@
     font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
   .chip.aktiv { background: var(--akzent); color: #fff; }
   .chip:disabled { opacity: 0.35; cursor: default; }
+  /* Aktien-Reiter kompakt: alles auf einen Bildschirm */
+  #ansicht-haupt .kopf { margin: 4px 2px 10px; }
+  #ansicht-haupt .karte { padding: 14px 16px; margin-bottom: 10px; }
+  #ansicht-haupt .paar { gap: 10px; margin-bottom: 10px; }
+  #ansicht-haupt .paar .karte { padding: 14px; margin-bottom: 0; }
+  #ansicht-haupt .paar .wert-gross { font-size: min(22px, 5.4vw); margin: 2px 0 8px; }
+  #ansicht-haupt .unter.klein { font-size: 12px; margin-top: auto; }
+  #ansicht-haupt .wert-gross { font-size: 26px; }
+  #ansicht-haupt .etikett { margin-bottom: 4px; }
+  #ansicht-haupt .chips { margin-bottom: 4px; }
+  #entw-hinweis:empty { display: none; }
+  #ansicht-haupt .chip { padding: 5px 11px; }
+  #ansicht-haupt .karte.liste-karte { padding-bottom: 2px; }
+  #tops-kurz li { min-height: 0; padding: 9px 16px; }
+  #tops-kurz li + li::before { left: 16px; }
+  #tops-kurz .rang-wert { flex-direction: row-reverse; align-items: center; gap: 10px; }
   .zeile-wert { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
   .wert-gross { font-size: 30px; font-weight: 750; letter-spacing: -0.03em; white-space: nowrap; }
   .chart .s0.gruen { stroke: var(--pos); }
@@ -495,34 +511,36 @@
       </div>
     </div>
 
-    <div class="karte held tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
-      <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
-      <div id="vermoegen" class="betrag skelett">00.000,00 €</div>
-      <div id="investiert" class="unter">&nbsp;</div>
-    </div>
-
-    <div class="karte">
-      <div class="etikett">Entwicklung</div>
-      <div class="chips" id="entw-chips"></div>
-      <div id="start-chart" class="chart"></div>
-      <p class="unter" id="entw-hinweis" style="margin: 8px 0 0; font-size: 12px"></p>
-    </div>
-
-    <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
-      <div class="etikett">Gewinn seit Eröffnung <svg class="chevron"><use href="#i-weiter"/></svg></div>
-      <div class="zeile-wert">
+    <!-- kompakt: alles auf einen iPhone-Bildschirm (nur die Fußzeile darf darunter liegen) -->
+    <div class="paar">
+      <div class="karte tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
+        <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div id="vermoegen" class="wert-gross skelett">00.000 €</div>
+        <span id="investiert" class="unter klein">&nbsp;</span>
+      </div>
+      <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
+        <div class="etikett">Gewinn gesamt <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div id="gewinn-eur" class="wert-gross skelett">+0.000 €</div>
         <span id="gewinn-pct" class="pill">–</span>
       </div>
     </div>
 
     <div class="karte">
-      <div class="etikett" id="gv-titel">Gewinn/Verlust zum Vortag</div>
+      <div class="etikett">Entwicklung</div>
+      <div class="chips" id="entw-chips"></div>
+      <div id="start-chart" class="chart"></div>
+      <p class="unter" id="entw-hinweis" style="margin: 6px 0 0; font-size: 12px"></p>
+    </div>
+
+    <div class="karte">
       <div class="zeile-wert">
-        <div id="tag-eur" class="wert-gross skelett">+000 €</div>
+        <div>
+          <div class="etikett" id="gv-titel">Gewinn/Verlust zum Vortag</div>
+          <div id="tag-eur" class="wert-gross skelett">+000 €</div>
+        </div>
         <span id="tag-pct" class="pill">–</span>
       </div>
-      <div class="segmente vier klein" id="gv-segmente" style="margin: 14px 0 0">
+      <div class="segmente vier klein" id="gv-segmente" style="margin: 10px 0 0">
         <button data-gv="vortag">Vortag</button>
         <button data-gv="monat">MTD</button>
         <button data-gv="jahr">YTD</button>
@@ -530,8 +548,8 @@
       </div>
     </div>
 
-    <div class="karte liste-karte tippbar" data-aktion="tops" role="button" tabindex="0" style="padding-top: 14px">
-      <div class="etikett" style="padding: 0 18px; margin-bottom: 2px">Tops & Lows <svg class="chevron"><use href="#i-weiter"/></svg></div>
+    <div class="karte liste-karte tippbar" data-aktion="tops" role="button" tabindex="0" style="padding-top: 12px">
+      <div class="etikett" style="padding: 0 16px; margin-bottom: 0">Tops & Lows <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <ul id="tops-kurz" class="liste"></ul>
     </div>
 
@@ -924,7 +942,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1510'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1701'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1637,7 +1655,8 @@ function vermoegenAnzeigen() {
     return;
   }
   const b = bewertung();
-  const tgListe = tgAktiv();
+  // Von der Aktien-Seite aus nur die Wertpapiere, von der Startseite aus alles inkl. Tagesgeld
+  const tgListe = letzterReiter === 'ansicht-haupt' ? [] : tgAktiv();
   document.getElementById('vermoegen-summe').textContent = tgListe.length
     ? `${geld(b.wert + tgSumme())} · ${geld(b.wert)} in ${b.werte.length} Positionen, ${geld(tgSumme())} Tagesgeld`
     : `${geld(b.wert)} in ${b.werte.length} Positionen`;
@@ -1737,7 +1756,7 @@ let chartNr = 0;
 function linienChart(el, serien, opt) {
   serien = serien.filter((s) => s.punkte && s.punkte.length);
   if (!serien.length) return;
-  const W = 340, H = 180, L = 4, R = 46, T = 10, B = 22;
+  const W = 340, H = opt.hoehe || 180, L = 4, R = 46, T = 10, B = 22;
   const tage = serien[0].punkte.map((p) => p[0]);
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
@@ -2865,6 +2884,7 @@ function entwicklungAnzeigen() {
   if (verlauf) {
     linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
       gruen: true,
+      hoehe: 110, // flacher, damit die Aktien-Seite auf einen Bildschirm passt
       format: (v) => geld(v),
       formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
       achseX,
