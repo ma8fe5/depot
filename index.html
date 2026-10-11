@@ -761,7 +761,7 @@
     <div class="karte leer-zustand">
       <div class="symbol"><svg><use href="#i-wolke"/></svg></div>
       <h2>Fast fertig</h2>
-      <p class="unter">Deine Daten sind auf dem iPhone aktualisiert. Sichere jetzt das Backup: im Teilen-Menü auf deinen Kurzbefehl <b>„Backup Depot App“</b> tippen und im OneDrive-Ordner „Depot App“ sichern.</p>
+      <p class="unter">Deine Daten sind auf dem iPhone aktualisiert. Sichere jetzt das Backup: im Teilen-Menü <b>„In Dateien sichern“</b> und deinen OneDrive-Ordner „Depot App“ wählen.</p>
       <div class="knoepfe">
         <button class="knopf breit" data-aktion="export">Backup sichern</button>
         <button class="textknopf" style="width:100%" data-aktion="zurueck">Später</button>
@@ -885,7 +885,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1351'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1356'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -2936,6 +2936,14 @@ function checkAnzeigen() {
   }
   if (!offen.length && tgAktiv().length) liste.innerHTML = '';
 
+  // Quartalsweise (Jan, Apr, Jul, Okt): alte Backups im OneDrive-Ordner aufräumen
+  if (heute().getMonth() % 3 === 0) {
+    const karte = document.createElement('div');
+    karte.className = 'hinweis';
+    karte.innerHTML = '<svg><use href="#i-wolke"/></svg><div><b>Alte Backups aufräumen</b> · Im OneDrive-Ordner „Depot App“ genügen die letzten zwei, drei Dateien „depot-daten …“. Ältere kannst du in der Dateien-App löschen.</div>';
+    liste.prepend(karte);
+  }
+
   // Quartalsweise erinnern: Renditen seit Auflage sind von Hand gepflegt und veralten
   const veraltet = daten.positionen.filter((p) => p.renditeSeitAuflage && p.renditeSeitAuflage.stand &&
     (heute() - new Date(p.renditeSeitAuflage.stand + 'T00:00:00')) / 864e5 > 92);
@@ -3232,7 +3240,7 @@ async function pushAusschalten() {
 async function exportieren() {
   daten.letztesBackup = new Date().toISOString();
   speichern();
-  const name = 'depot-daten.json';
+  const name = `depot-daten ${isoDatum(heute())}.json`; // Datum im Namen: iOS überschreibt nicht, so bleibt die Reihenfolge klar
   const datei = new File([JSON.stringify(daten, null, 2)], name, { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [datei] })) {
     try { await navigator.share({ files: [datei] }); } catch (e) { if (e.name !== 'AbortError') alert('Teilen fehlgeschlagen: ' + e.message); }
