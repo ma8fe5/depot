@@ -377,6 +377,10 @@
   .segmente.zwei::before { width: calc((100% - 6px) / 2); }
   .segmente.drei { grid-template-columns: repeat(3, 1fr); }
   #zz-schalter { margin: 0 0 14px; }
+  .liste.einkommen { margin: 12px -18px 0; }
+  .liste.einkommen li { min-height: 0; padding: 11px 18px; align-items: flex-start; }
+  .liste.einkommen .name, .liste.einkommen .name small { white-space: normal; }
+  .liste.einkommen li.offen .wert { color: var(--text-3); font-weight: 500; }
   .annahmen { margin: 12px 0 0; font-size: 13px; line-height: 1.45; }
   .segmente.drei::before { width: calc((100% - 6px) / 3); }
   .segmente.vier { grid-template-columns: repeat(4, 1fr); }
@@ -740,6 +744,15 @@
       <button data-rendite="markt">Markt</button>
     </div>
     <p class="unter" id="rt-rendite-info" style="margin: -4px 4px 14px"></p>
+    <!-- Einkommen aus allen Säulen (Daten per Import, Stand der Unterlagen) -->
+    <div class="karte held" id="rt-einkommen-karte" hidden>
+      <div class="etikett" id="rt-einkommen-titel"></div>
+      <div class="betrag mittel-gross" id="rt-einkommen"></div>
+      <div class="unter" id="rt-einkommen-unter"></div>
+      <ul class="liste einkommen" id="rt-saeulen"></ul>
+      <p class="unter annahmen" id="rt-einkommen-hinweis"></p>
+    </div>
+    <div class="abschnitt">Depot</div>
     <div class="karte szenario">
       <div class="etikett">1a · Ab sofort nichts mehr einzahlen</div>
       <div class="betrag mittel-gross" id="rt-a"></div>
@@ -987,7 +1000,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1917'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.2039'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2613,6 +2626,7 @@ function renteAnzeigen() {
       `Zielkapital ${geld(zielKapital)} ≈ ${geld(zielKapital / inflation)} heute.`;
     zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }).reihe;
   }
+  einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
   simListeAnzeigen(bisher.jePosition, sparplanSumme, bisher.ende);
   unterwegsRechnen();
 
@@ -2630,6 +2644,80 @@ function renteAnzeigen() {
 
   // Ausgezahlte Dividenden fließen nicht ins Depot (User-Wunsch: rechnen ja, aber kein Hinweis dazu)
   document.getElementById('rt-warnung').textContent = '';
+}
+
+// ---------- Einkommen ab Rentenbeginn aus allen Säulen ----------
+// daten.rente.vorsorge (per Import, persönliche Werte nie im Code):
+//   { id, name, art: 'rente' | 'kapital' | 'offen', kaufkraft: 'heute' | 'rentenbeginn',
+//     monat (Rente/Monat), sicher (heute schon sicher), kurve ({ '2': …, '4': … } Rente je Fondsrendite in %),
+//     garantie (Mindestrente), kapital, vergleichRente, quelle, hinweis }
+// Alles wird in heutige Kaufkraft umgerechnet (brutto, vor Steuern und Kranken-/Pflegeversicherung).
+
+// Wert zwischen den Stützstellen einer Modellrechnung ablesen (linear, außerhalb: Randwert)
+function kurveBei(kurve, prozent) {
+  const p = Object.keys(kurve).map(Number).sort((x, y) => x - y);
+  if (prozent <= p[0]) return kurve[p[0]];
+  if (prozent >= p[p.length - 1]) return kurve[p[p.length - 1]];
+  const i = p.findIndex((x) => x >= prozent);
+  const [x0, x1] = [p[i - 1], p[i]];
+  return kurve[x0] + ((prozent - x0) / (x1 - x0)) * (kurve[x1] - kurve[x0]);
+}
+
+function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
+  const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
+  const karte = document.getElementById('rt-einkommen-karte');
+  karte.hidden = !vorsorge.length;
+  if (!vorsorge.length) return;
+  const heute = (wert, kk) => (kk === 'heute' ? wert : wert / inflation); // Euro von 2052 → heutige Kaufkraft
+  const rendite = renditeFuer({ id: '' }, renditeSzenario);
+  const zeilen = [];
+  let topf = bisher.ende / inflation; // Depot (1b) in heutiger Kaufkraft
+  const topfTeile = [`Depot ${geld(topf)}`];
+  for (const v of vorsorge) {
+    if (v.art === 'rente') {
+      let monat = v.kurve ? kurveBei(v.kurve, rendite) : v.monat;
+      if (v.garantie != null) monat = Math.max(monat, v.garantie);
+      const h = heute(monat, v.kaufkraft);
+      const info = [];
+      if (v.sicher != null) info.push(`heute schon sicher ${geld(heute(v.sicher, v.kaufkraft))}`);
+      if (v.garantie != null) info.push(`garantiert ${geld(heute(v.garantie, v.kaufkraft))}`);
+      if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite, abgelesen`);
+      zeilen.push({ name: v.name, wert: h, info: info.join(' · ') });
+    } else if (v.art === 'kapital') {
+      const k = heute(v.kapital, v.kaufkraft);
+      topf += k;
+      topfTeile.push(`${v.name} ${geld(k)}`);
+      zeilen.push({ name: v.name, wert: k / faktor, info: `Kapital ${geld(k)} in den Entnahme-Topf${v.vergleichRente ? ` · als Rente wären es ≈ ${geld(heute(v.vergleichRente, v.kaufkraft))}` : ''}` });
+    } else {
+      zeilen.push({ name: v.name, wert: null, info: v.hinweis || 'Unterlagen folgen' });
+    }
+  }
+  // Entnahme aus dem Depot (1b) über die eingestellte Dauer
+  const nachRenten = vorsorge.findIndex((v) => v.art !== 'rente');
+  zeilen.splice(nachRenten < 0 ? zeilen.length : nachRenten, 0, {
+    name: `Entnahme Depot (${a.entnahmeJahre} Jahre)`, wert: (bisher.ende / inflation) / faktor,
+    info: `Depotwert ${geld(bisher.ende / inflation)} heute · Szenario ${RENDITE_SZENARIEN[renditeSzenario].name}`,
+  });
+  const summe = zeilen.reduce((s, z) => s + (z.wert || 0), 0);
+  const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
+  document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
+  zaehle(document.getElementById('rt-einkommen'), summe, false);
+  document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
+  const ul = document.getElementById('rt-saeulen');
+  ul.innerHTML = '';
+  for (const z of zeilen) {
+    const li = document.createElement('li');
+    if (z.wert == null) li.className = 'offen';
+    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
+    li.querySelector('.n').textContent = z.name;
+    li.querySelector('small').textContent = z.info;
+    li.querySelector('.wert').textContent = z.wert == null ? 'offen' : geld(z.wert);
+    ul.appendChild(li);
+  }
+  document.getElementById('rt-einkommen-hinweis').textContent =
+    `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet. ` +
+    `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite. ` +
+    'Noch ohne Steuern und Kranken-/Pflegeversicherung, Tagesgeld nicht enthalten.';
 }
 
 // Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
@@ -3632,6 +3720,9 @@ function historieUebernehmen(paket) {
   }
   // Zusätzlich: Renten-Eckdaten, falls in der Datei enthalten („renditen“ seit Auflage werden nicht mehr verwendet)
   if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
+  if (paket.rente && Array.isArray(paket.rente.vorsorge)) {
+    zeilen.push(`Altersvorsorge: ${paket.rente.vorsorge.map((v) => v.name).join(', ')}`);
+  }
   // Tagesgeldkonten nur übernehmen, wenn es auf dem iPhone noch keine gibt (sonst gelten die Stände aus der App)
   const tgNeu = !tgKonten().length && paket.tagesgeld && Array.isArray(paket.tagesgeld.konten) ? paket.tagesgeld.konten : [];
   // Einzelne Nachträge (z. B. eine Gebühr aus den FNZ-Umsätzen); jede Buchung nur einmal, erkennbar an ihrer id
