@@ -314,8 +314,8 @@
   .chip:disabled { opacity: 0.35; cursor: default; }
   /* Tagesgeld-Cockpit */
   .verteilung .betrag { font-size: 34px; font-weight: 750; letter-spacing: -0.03em; margin: 2px 0 12px; }
-  .stapel { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; margin-bottom: 6px; }
-  .stapel i { display: block; height: 100%; }
+  .vstapel { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; margin-bottom: 6px; }
+  .vstapel i { display: block; height: 100%; }
   .verteilung .liste { margin: 0 -18px -8px; }
   .verteilung .liste li { min-height: 0; padding: 11px 18px; }
   .verteilung .farbpunkt { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -376,6 +376,8 @@
   .segmente.zwei { grid-template-columns: repeat(2, 1fr); }
   .segmente.zwei::before { width: calc((100% - 6px) / 2); }
   .segmente.drei { grid-template-columns: repeat(3, 1fr); }
+  #zz-schalter { margin: 0 0 14px; }
+  .annahmen { margin: 12px 0 0; font-size: 13px; line-height: 1.45; }
   .segmente.drei::before { width: calc((100% - 6px) / 3); }
   .segmente.vier { grid-template-columns: repeat(4, 1fr); }
 
@@ -635,7 +637,7 @@
     <div class="karte verteilung">
       <div class="etikett">Verteilung</div>
       <div class="betrag" id="tg-gesamt"></div>
-      <div class="stapel" id="tg-stapel"></div>
+      <div class="vstapel" id="tg-stapel"></div>
       <ul class="liste" id="tg-verteilung"></ul>
     </div>
 
@@ -702,12 +704,25 @@
       <button data-zinseszins="heute">Bis heute</button>
       <button data-zinseszins="rente">Bis zur Rente</button>
     </div>
+    <!-- nur bei „Bis zur Rente“: Annahmen direkt hier umschalten -->
+    <div id="zz-schalter" hidden>
+      <div class="segmente drei klein" id="zz-szenario">
+        <button data-zz-szenario="moderat">Moderat 5 %</button>
+        <button data-zz-szenario="realistisch">Realistisch 7 %</button>
+        <button data-zz-szenario="markt">Markt 7,5 %</button>
+      </div>
+      <div class="segmente zwei klein" id="zz-einzahlen" style="margin-top: 8px">
+        <button data-zz-einzahlen="weiter">Weiter einzahlen</button>
+        <button data-zz-einzahlen="stopp">Ab heute nichts mehr</button>
+      </div>
+    </div>
     <div class="karte held">
       <div class="etikett" id="zz-titel"></div>
       <div class="betrag" id="zz-betrag"></div>
       <div class="unter" id="zz-unter"></div>
       <div class="stapel" id="zz-stapel"></div>
       <div class="legende" id="zz-legende"></div>
+      <p class="unter annahmen" id="zz-annahmen" hidden></p>
     </div>
     <div class="karte" id="zz-chart-karte"><div class="etikett">Entwicklung bis zur Rente</div><div id="zz-chart" class="chart"></div></div>
     <div class="abschnitt" id="zz-liste-titel">Je Position</div>
@@ -972,7 +987,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1847'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1856'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2463,8 +2478,9 @@ function simulieren(szenario, monate, { sparFaktor = 1, extra = null, ungekappt 
     const r = (1 + renditeFuer(p, szenario, ungekappt) / 100) / (1 + d) - 1, rm = Math.pow(1 + r, 1 / 12) - 1;
     const rate = simRate(p) * sparFaktor + (extra && extra.posId === p.id ? extra.betrag : 0);
     let w = aktuellerBestand(p, k).stueck * k.eur, e = w, lin = 0;
+    const wieder = legtWiederAn(p); // ohne Wiederanlage kein Zinseszins: der ganze Gewinn zählt als einfache Rendite
     for (let m = 0; m <= monate; m++) {
-      gesamt[m] += w; einz[m] += e; linear[m] += lin;
+      gesamt[m] += w; einz[m] += e; linear[m] += wieder ? lin : w - e;
       if (m === monate) jePosition[p.id] = w;
       lin += e * (r / 12);
       if (m < monate) ausgezahlt += w * (d / 12);
@@ -2685,6 +2701,7 @@ function renteSpeichern() {
 // ---------- Zinseszins ----------
 
 let zinseszinsSicht = 'heute';
+let zzEinzahlen = 'weiter'; // Bis zur Rente: 'weiter' = Sparpläne laufen weiter, 'stopp' = ab heute nichts mehr
 
 // Zinseszins entsteht nur, wenn Erträge im Wertpapier bleiben (thesaurierende ETFs und Fonds).
 // Einzelaktien mit ausgezahlter Dividende (Telekom) und Bitcoin haben keinen; in „Positionen“ änderbar.
@@ -2732,11 +2749,11 @@ function zinseszinsBisHeute() {
 }
 
 // Bis zur Rente: Einzahlungen, einfache Rendite (ohne Wiederanlage der Gewinne) und Zinseszins im Zeitverlauf
-function zinseszinsPrognose(szenario) {
+function zinseszinsPrognose(szenario, sparFaktor = 1) {
   const beginn = rentenbeginn();
   if (!beginn || !kurse) return null;
   const monate = monateBis(beginn);
-  const s = simulieren(szenario, monate);
+  const s = simulieren(szenario, monate, { sparFaktor });
   return { monate, einz: s.einz, einfach: s.linear, gesamt: s.gesamt };
 }
 
@@ -2797,6 +2814,8 @@ function zinseszinsAnzeigen() {
   liste.innerHTML = '';
 
   if (zinseszinsSicht === 'heute') {
+    document.getElementById('zz-schalter').hidden = true;
+    document.getElementById('zz-annahmen').hidden = true;
     const z = zinseszinsBisHeute();
     document.getElementById('zz-titel').textContent = 'Zinseszins bis heute';
     betrag.className = 'betrag ' + klasse(z.zins);
@@ -2826,7 +2845,15 @@ function zinseszinsAnzeigen() {
     return;
   }
 
-  const p = zinseszinsPrognose(renditeSzenario);
+  // Annahmen direkt auf der Seite umschalten (Szenario gilt auch für „Bis zur Rente“)
+  document.getElementById('zz-schalter').hidden = false;
+  const szIdx = Object.keys(RENDITE_SZENARIEN).indexOf(renditeSzenario);
+  document.getElementById('zz-szenario').style.setProperty('--idx', szIdx);
+  document.querySelectorAll('[data-zz-szenario]').forEach((b) => b.classList.toggle('aktiv', b.dataset.zzSzenario === renditeSzenario));
+  document.getElementById('zz-einzahlen').style.setProperty('--idx', zzEinzahlen === 'weiter' ? 0 : 1);
+  document.querySelectorAll('[data-zz-einzahlen]').forEach((b) => b.classList.toggle('aktiv', b.dataset.zzEinzahlen === zzEinzahlen));
+
+  const p = zinseszinsPrognose(renditeSzenario, zzEinzahlen === 'weiter' ? 1 : 0);
   document.getElementById('zz-liste-titel').hidden = document.getElementById('zz-liste-karte').hidden = true;
   if (!p) {
     document.getElementById('zz-titel').textContent = 'Bis zur Rente';
@@ -2838,8 +2865,19 @@ function zinseszinsAnzeigen() {
   const m = p.monate;
   const zins = p.gesamt.map((g, i) => g - p.einz[i] - p.einfach[i]);
   const beginn = rentenbeginn();
-  document.getElementById('zz-titel').textContent =
-    `Zinseszins bis ${beginn.getFullYear()} · Szenario ${RENDITE_SZENARIEN[renditeSzenario].name}, weiter wie bisher`;
+  const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
+  document.getElementById('zz-titel').textContent = `Zinseszins bis Rentenbeginn ${bis}`;
+  // Annahmen ausgeschrieben
+  const sparSumme = daten.positionen.reduce((s, x) => s + simRate(x), 0);
+  const ohneWieder = daten.positionen.filter((x) => kurse.preise[x.id] && !legtWiederAn(x)).map((x) => x.name);
+  const annahmen = document.getElementById('zz-annahmen');
+  annahmen.hidden = false;
+  annahmen.textContent = 'Annahmen: ' + [
+    zzEinzahlen === 'weiter' ? `${geld(sparSumme)} pro Monat wie bisher bis ${deDatum(isoDatum(beginn))}` : 'ab heute keine Einzahlungen mehr, nur das Angesparte wächst',
+    `${RENDITE_SZENARIEN[renditeSzenario].name} ${zahl(renditeFuer({ id: '' }, renditeSzenario), 1)} % p. a.`,
+    `Gewinne bleiben im Depot${ohneWieder.length ? ` (außer ${ohneWieder.join(', ')}: kein Zinseszins)` : ''}`,
+    'ohne Steuern',
+  ].join(' · ');
   betrag.className = 'betrag pos';
   zaehle(betrag, zins[m], true);
   // Ab wann verdient der Zinseszins mehr als die einfache Rendite?
@@ -2862,7 +2900,7 @@ function zinseszinsAnzeigen() {
   ], { achseX: (t, i) => (i > 0 && t.slice(5, 7) === '01' && Number(t.slice(0, 4)) % 5 === 0 ? t.slice(0, 4) : null) });
   document.getElementById('zz-hinweis').textContent =
     'Rendite = was deine Einzahlungen ohne Wiederanlage verdienen würden. Zinseszins = was die wiederangelegten Gewinne zusätzlich verdienen. ' +
-    `Rendite-Szenario wählst du unter „Bis zur Rente“.`;
+    'Das gewählte Szenario gilt auch auf der Seite „Bis zur Rente“.';
 }
 
 // ---------- Gewinn zwischen zwei Stichtagen (Gewinn-Seite: Jahr und Monat) ----------
@@ -3724,6 +3762,10 @@ document.addEventListener('click', (e) => {
 
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
+  const zzSz = e.target.closest('[data-zz-szenario]')?.dataset.zzSzenario;
+  if (zzSz) { renditeSzenario = zzSz; zinseszinsAnzeigen(); return; }
+  const zzEin = e.target.closest('[data-zz-einzahlen]')?.dataset.zzEinzahlen;
+  if (zzEin) { zzEinzahlen = zzEin; zinseszinsAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
   if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
   const posZeile = e.target.closest('li[data-pos]');
