@@ -885,7 +885,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1435'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1441'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -3295,13 +3295,21 @@ function historieUebernehmen(paket) {
   if (paket.rente) zeilen.push('Renten-Eckdaten (Geburtsdatum, Rentenalter, gesetzliche Rente)');
   // Tagesgeldkonten nur übernehmen, wenn es auf dem iPhone noch keine gibt (sonst gelten die Stände aus der App)
   const tgNeu = !tgKonten().length && paket.tagesgeld && Array.isArray(paket.tagesgeld.konten) ? paket.tagesgeld.konten : [];
+  // Einzelne Nachträge (z. B. eine Gebühr aus den FNZ-Umsätzen); jede Buchung nur einmal, erkennbar an ihrer id
+  const nachtraege = (paket.nachtraege || []).filter((b) => b.id && bekannt(b.posId) && !daten.buchungen.some((x) => x.id === b.id));
+  for (const b of nachtraege) {
+    const name = bekannt(b.posId).name;
+    zeilen.push(b.art === 'gebuehr'
+      ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`
+      : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`);
+  }
   const kh = Object.entries(paket.kurshistorie || {});
   if (kh.length) {
     const ab = kh.map(([, h]) => h.erster).sort()[0];
     zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
   }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !renditen.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -3315,6 +3323,13 @@ function historieUebernehmen(paket) {
   }
   for (const [id, r] of renditen) daten.positionen.find((p) => p.id === id).renditeSeitAuflage = r;
   if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
+  // Nachträge wie im Monats-Check bestätigt: Bestand anpassen, Gebühr ohne Einzahlung
+  for (const b of nachtraege) {
+    const p = daten.positionen.find((x) => x.id === b.posId);
+    p.stueck += b.stueck;
+    if (b.art !== 'gebuehr') p.investiert += b.betrag;
+    daten.buchungen.push({ ...b, status: 'bestaetigt' });
+  }
   if (tgNeu.length) {
     daten.tagesgeld = {
       konten: tgNeu.map((k) => ({
