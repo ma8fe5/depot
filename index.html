@@ -438,12 +438,12 @@
     </div>
   </section>
 
-  <!-- Hauptansicht -->
-  <section id="ansicht-haupt" class="ansicht" hidden>
+  <!-- Startseite: Gesamtvermögen (mittlerer Reiter) -->
+  <section id="ansicht-start" class="ansicht" hidden>
     <div class="kopf">
       <div>
         <div class="datum" id="heute-datum"></div>
-        <h1>Depot</h1>
+        <h1>Vermögen</h1>
       </div>
       <div class="kopf-knoepfe">
         <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
@@ -464,6 +464,39 @@
 
     <div class="karte held tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
       <div class="etikett">Gesamtvermögen <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div id="gesamt" class="betrag skelett">00.000,00 €</div>
+      <div id="gesamt-unter" class="unter">&nbsp;</div>
+    </div>
+
+    <div class="paar">
+      <div class="karte tippbar" data-tab="ansicht-haupt" role="button" tabindex="0">
+        <div class="etikett">Aktien <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div class="wert" id="start-aktien"></div>
+        <span class="pill" id="start-aktien-pill">–</span>
+      </div>
+      <div class="karte tippbar" data-tab="ansicht-tagesgeld" role="button" tabindex="0">
+        <div class="etikett">Tagesgeld <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div class="wert" id="start-tagesgeld"></div>
+        <span class="pill" id="start-tagesgeld-pill">–</span>
+      </div>
+    </div>
+    <p id="start-status" class="fuss"></p>
+  </section>
+
+  <!-- Aktien (linker Reiter): alle Wertpapiere inkl. ETFs, Fonds, Bitcoin -->
+  <section id="ansicht-haupt" class="ansicht" hidden>
+    <div class="kopf">
+      <div>
+        <div class="datum">Wertpapiere, ETFs, Fonds & Bitcoin</div>
+        <h1>Aktien</h1>
+      </div>
+      <div class="kopf-knoepfe">
+        <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
+      </div>
+    </div>
+
+    <div class="karte held tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
+      <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="vermoegen" class="betrag skelett">00.000,00 €</div>
       <div id="investiert" class="unter">&nbsp;</div>
     </div>
@@ -497,21 +530,19 @@
       </div>
     </div>
 
+    <div class="karte liste-karte tippbar" data-aktion="tops" role="button" tabindex="0" style="padding-top: 14px">
+      <div class="etikett" style="padding: 0 18px; margin-bottom: 2px">Tops & Lows <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <ul id="tops-kurz" class="liste"></ul>
+    </div>
+
     <p id="status" class="fuss"></p>
     <p class="fuss">Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · Übrige Kurse: Schlusskurse von EODHD</p>
   </section>
 
   <!-- Tops & Lows (zweiter Reiter) -->
   <section id="ansicht-tops" class="ansicht" hidden>
-    <div class="kopf">
-      <div>
-        <div class="datum" id="tops-datum">Veränderung zum letzten Handelstag</div>
-        <h1>Tops & Lows</h1>
-      </div>
-      <div class="kopf-knoepfe">
-        <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
-      </div>
-    </div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Aktien</button></div>
+    <div class="titel"><h1>Tops & Lows</h1><div class="unterzeile" id="tops-datum">Veränderung zum letzten Handelstag</div></div>
     <div class="ranglisten">
       <div class="karte"><div class="etikett">Top 3</div><ul id="top" class="liste"></ul></div>
       <div class="karte"><div class="etikett">Low 3</div><ul id="low" class="liste"></ul></div>
@@ -521,7 +552,7 @@
 
   <!-- Vermögen je Position -->
   <section id="ansicht-vermoegen" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Vermögen</h1><div class="unterzeile" id="vermoegen-summe"></div></div>
     <div class="karte">
       <div class="etikett">Verlauf seit Jahresbeginn</div>
@@ -538,7 +569,7 @@
 
   <!-- Aufteilung -->
   <section id="ansicht-aufteilung" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Aufteilung</h1></div>
     <div class="segmente zwei" id="aufteilung-segmente">
       <button data-aufteilung="art">Anlageart</button>
@@ -551,8 +582,15 @@
 
   <!-- Tagesgeld -->
   <section id="ansicht-tagesgeld" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
-    <div class="titel"><h1>Tagesgeld</h1><div class="unterzeile">Kontostände trägst du beim Monats-Check ein. Zählt zum Gesamtvermögen, nicht zu Gewinn und Rendite.</div></div>
+    <div class="kopf">
+      <div>
+        <div class="datum">Kontostände aus dem Monats-Check</div>
+        <h1>Tagesgeld</h1>
+      </div>
+      <div class="kopf-knoepfe">
+        <button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button>
+      </div>
+    </div>
     <div class="paar">
       <div class="karte"><div class="etikett">Summe</div><div class="wert" id="tg-summe"></div><span class="unter" id="tg-anzahl"></span></div>
       <div class="karte"><div class="etikett">Zinsen erhalten</div><div class="wert" id="tg-zinsen"></div><span class="unter" id="tg-zinsen-seit"></span></div>
@@ -573,7 +611,7 @@
 
   <!-- Sparpläne & Termine -->
   <section id="ansicht-sparplaene" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Sparpläne</h1></div>
     <div class="paar">
       <div class="karte"><div class="etikett">Pro Monat</div><div class="wert" id="sp-monat"></div><span class="unter" id="sp-anzahl"></span></div>
@@ -587,7 +625,7 @@
 
   <!-- Zinseszins -->
   <section id="ansicht-zinseszins" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Zinseszins</h1><div class="unterzeile">Gewinn, den deine früheren Gewinne erwirtschaften</div></div>
     <div class="segmente zwei" id="zz-segmente">
       <button data-zinseszins="heute">Bis heute</button>
@@ -608,7 +646,7 @@
 
   <!-- Bis zur Rente -->
   <section id="ansicht-rente" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
     <div class="segmente vier" id="rt-segmente">
       <button data-rendite="moderat">Moderat</button>
@@ -671,7 +709,7 @@
 
   <!-- Rückblick -->
   <section id="ansicht-rueckblick" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Rückblick</h1></div>
     <div class="segmente zwei" id="rb-segmente">
       <button data-rueckblick="monat">Monat</button>
@@ -716,7 +754,7 @@
 
   <!-- Gewinn je Position und Zeitraum -->
   <section id="ansicht-gewinn" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Gewinn</h1></div>
     <div class="segmente" id="segmente">
       <button data-zeitraum="eroeffnung">Eröffnung</button>
@@ -771,7 +809,7 @@
 
   <!-- Einstellungen -->
   <section id="ansicht-einstellungen" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Einstellungen</h1></div>
 
     <div class="abschnitt">Monats-Check</div>
@@ -834,8 +872,9 @@
 
 <!-- Tableiste unten -->
 <nav id="tabbar" class="tabbar" hidden aria-label="Hauptbereiche">
-  <button data-tab="ansicht-haupt"><svg><use href="#i-haus"/></svg><span>Startseite</span></button>
-  <button data-tab="ansicht-tops"><svg><use href="#i-topslows"/></svg><span>Tops & Lows</span></button>
+  <button data-tab="ansicht-haupt"><svg><use href="#i-chart"/></svg><span>Aktien</span></button>
+  <button data-tab="ansicht-start"><svg><use href="#i-haus"/></svg><span>Gesamtvermögen</span></button>
+  <button data-tab="ansicht-tagesgeld"><svg><use href="#i-bank"/></svg><span>Tagesgeld</span></button>
 </nav>
 
 <!-- Menü (Burger) -->
@@ -885,7 +924,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.1452'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-11.1510'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BENCHMARK = { symbol: 'EUNL.XETRA', name: 'MSCI World' };
@@ -1113,9 +1152,17 @@ function schutzZuruecksetzen() {
   zeige('ansicht-leer');
 }
 
-const REITER = ['ansicht-haupt', 'ansicht-tops'];
+const REITER = ['ansicht-haupt', 'ansicht-start', 'ansicht-tagesgeld'];
+let letzterReiter = 'ansicht-start'; // „Zurück“ führt zum Reiter, von dem man gekommen ist
+
+function reiterZeigen(id) {
+  if (id === 'ansicht-tagesgeld') { tagesgeldAnzeigen(); return; }
+  zeige(id);
+  hauptRendern();
+}
 
 function zeige(id) {
+  if (REITER.includes(id)) letzterReiter = id;
   document.querySelectorAll('.ansicht').forEach((el) => { el.hidden = el.id !== id; });
   // Tableiste nur auf den beiden Hauptseiten
   const mitTabs = REITER.includes(id);
@@ -1888,7 +1935,7 @@ function tagesgeldAnzeigen() {
   zeige('ansicht-tagesgeld');
   const aktiv = tgAktiv();
   document.getElementById('tg-summe').innerHTML = betragHTML(tgSumme());
-  document.getElementById('tg-anzahl').textContent = `${aktiv.length} Konto${aktiv.length === 1 ? '' : 'en'}`;
+  document.getElementById('tg-anzahl').textContent = `${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}`;
   const alle = tgKonten();
   document.getElementById('tg-zinsen').innerHTML = betragHTML(alle.reduce((s, k) => s + tgZinsen(k), 0));
   const seit = alle.map((k) => k.angelegt).filter(Boolean).sort()[0];
@@ -2839,8 +2886,7 @@ let gvZeitraum = 'vortag';
 try { if (GV_TITEL[localStorage.getItem('depot-gv')]) gvZeitraum = localStorage.getItem('depot-gv'); } catch { /* nur Komfort */ }
 
 function hauptAnzeigen() {
-  zeige('ansicht-haupt');
-  hauptRendern();
+  reiterZeigen(letzterReiter);
 }
 
 function hauptRendern() {
@@ -2865,12 +2911,25 @@ function hauptRendern() {
   const b = bewertung();
   const gewinn = b.wert - b.investiert;
   const tg = tgSumme();
+
+  // Startseite: Gesamtvermögen und die Kacheln Aktien / Tagesgeld
+  const gesamtEl = document.getElementById('gesamt');
+  gesamtEl.classList.remove('skelett');
+  zaehle(gesamtEl, b.wert + tg, false);
+  const anteil = (v) => (b.wert + tg ? zahl((v / (b.wert + tg)) * 100, 0) : '0');
+  document.getElementById('gesamt-unter').textContent = `Aktien ${anteil(b.wert)} % · Tagesgeld ${anteil(tg)} %`;
+  document.getElementById('start-aktien').innerHTML = betragHTML(b.wert);
+  setzePill(document.getElementById('start-aktien-pill'), b.tagAend, `${pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0)} Vortag`);
+  document.getElementById('start-tagesgeld').innerHTML = betragHTML(tg);
+  const konten = tgAktiv().length;
+  const tgPill = document.getElementById('start-tagesgeld-pill');
+  tgPill.className = 'pill';
+  tgPill.textContent = konten ? `${konten} ${konten === 1 ? 'Konto' : 'Konten'}` : 'kein Konto';
+
   const vEl = document.getElementById('vermoegen');
   vEl.classList.remove('skelett');
-  zaehle(vEl, b.wert + tg, false);
-  document.getElementById('investiert').textContent = tg
-    ? `${geld(b.investiert)} investiert · ${geld(tg)} Tagesgeld`
-    : `${geld(b.investiert)} investiert`;
+  zaehle(vEl, b.wert, false);
+  document.getElementById('investiert').textContent = `${geld(b.investiert)} investiert`;
   document.getElementById('mehr-tagesgeld').textContent = tg ? geld(tg) : '';
   entwicklungAnzeigen();
 
@@ -2910,6 +2969,16 @@ function hauptRendern() {
   const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
   rangliste(document.getElementById('top'), sortiert.slice(0, 3));
   rangliste(document.getElementById('low'), sortiert.slice(-3).reverse());
+  // Kurzfassung auf der Aktien-Seite: Bester und Schwächster
+  const kurz = document.getElementById('tops-kurz');
+  kurz.innerHTML = '';
+  for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="name"></span>
+      <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
+    li.querySelector('.name').textContent = e.name;
+    kurz.appendChild(li);
+  }
 
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
@@ -2918,6 +2987,7 @@ function hauptRendern() {
     ? `Schlusskurse vom ${deDatum(daten_[0])}` : 'Veränderung zum letzten Handelstag';
   status.innerHTML = '';
   status.append(`Aktualisiert ${zeit}${schluss}`, document.createElement('br'), 'Zum Aktualisieren nach unten ziehen');
+  document.getElementById('start-status').textContent = `Aktualisiert ${zeit}${schluss}`;
   const meldungen = [...(kurse.hinweise || [])];
   if (kurse.fehler && kurse.fehler.length) meldungen.push(`Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`);
   for (const text of meldungen) {
@@ -3449,7 +3519,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   const reiter = e.target.closest('[data-tab]')?.dataset.tab;
-  if (reiter) { zeige(reiter); hauptRendern(); return; }
+  if (reiter) { reiterZeigen(reiter); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
   if (zeitraum) { gewinnZeitraum = zeitraum; gewinnAnzeigen(); return; }
   const aufteilung = e.target.closest('[data-aufteilung]')?.dataset.aufteilung;
@@ -3492,6 +3562,7 @@ document.addEventListener('click', (e) => {
     aufteilung: () => { aufteilungNach = 'art'; zeige('ansicht-aufteilung'); aufteilungAnzeigen(); },
     sparplaene: sparplaeneAnzeigen,
     tagesgeld: tagesgeldAnzeigen,
+    tops: () => { zeige('ansicht-tops'); hauptRendern(); },
     'tg-speichern': tgSpeichern,
     'tg-neu': tgNeu,
     'tg-wechsel': () => tgWechsel(e),
