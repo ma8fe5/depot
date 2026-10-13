@@ -1001,7 +1001,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-13.1059'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-13.1106'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3082,14 +3082,14 @@ function detailAnzeigen(posId) {
   if (document.getElementById('ansicht-detail').hidden) zeige('ansicht-detail');
   detailPosId = posId;
 
-  // Zeitraum-Auswahl: Seit Eröffnung, frühere Jahre (absteigend), YTD, MTD, Vortag
+  // Zeitraum-Auswahl: Seit Eröffnung, dann nach Aktualität absteigend (Vortag, MTD, YTD, frühere Jahre)
   const lang = langeReihe(p, k);
   const erster = ersterKauf(p, k);
   const h = heute();
   const startJahr = Number((erster || isoDatum(h)).slice(0, 4));
   const jahre = [];
   for (let j = h.getFullYear() - 1; j >= startJahr; j--) jahre.push(String(j));
-  const wahl = ['eroeffnung', ...jahre, 'ytd', 'mtd', 'vortag'];
+  const wahl = ['eroeffnung', 'vortag', 'mtd', 'ytd', ...jahre];
   if (!wahl.includes(detailZeitraum)) detailZeitraum = 'ytd';
   const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', vortag: 'Vortag' };
   document.getElementById('detail-chips').innerHTML = wahl.map((z) =>
