@@ -815,7 +815,8 @@
       <span id="detail-gewinn" class="pill"></span>
     </div>
     <div class="karte">
-      <div class="etikett">Kurs seit Jahresbeginn</div>
+      <div class="etikett" id="detail-chart-titel">Kursentwicklung</div>
+      <div class="chips" id="detail-chips"></div>
       <div id="detail-chart" class="chart"></div>
       <div class="legende"><span>Kurs in €</span><span class="lk">Deine Käufe</span></div>
     </div>
@@ -1000,7 +1001,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-11.2039'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-13.1059'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3078,21 +3079,67 @@ function detailAnzeigen(posId) {
   const hinweis = document.getElementById('detail-hinweis');
   chartEl.innerHTML = '';
   hinweis.textContent = '';
-  zeige('ansicht-detail');
-  const start = stichtag('jahr');
-  if (k.reihe && k.reihe.length) {
-    const reihe = k.reihe.filter(([d]) => d >= start);
-    const kaeufe = kaeufeNach(p, k, start).filter((c) => c.stueck > 0 && c.betrag > 0);
-    const marker = kaeufe.map((c) => {
-      const tag = reihe.find(([d]) => d >= c.datum);
-      return tag ? [tag[0], tag[1]] : null;
-    }).filter(Boolean);
-    linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], { format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : 2), marker });
-    if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = `Käufe vor ${schaetzGrenze()} sind aus dem Sparplan geschätzt.`;
-  } else {
+  if (document.getElementById('ansicht-detail').hidden) zeige('ansicht-detail');
+  detailPosId = posId;
+
+  // Zeitraum-Auswahl: Seit Eröffnung, frühere Jahre (absteigend), YTD, MTD, Vortag
+  const lang = langeReihe(p, k);
+  const erster = ersterKauf(p, k);
+  const h = heute();
+  const startJahr = Number((erster || isoDatum(h)).slice(0, 4));
+  const jahre = [];
+  for (let j = h.getFullYear() - 1; j >= startJahr; j--) jahre.push(String(j));
+  const wahl = ['eroeffnung', ...jahre, 'ytd', 'mtd', 'vortag'];
+  if (!wahl.includes(detailZeitraum)) detailZeitraum = 'ytd';
+  const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', vortag: 'Vortag' };
+  document.getElementById('detail-chips').innerHTML = wahl.map((z) =>
+    `<button class="chip${z === detailZeitraum ? ' aktiv' : ''}" data-detail-zeit="${z}">${NAMEN[z] || z}</button>`).join('');
+
+  if (!lang.length) {
     chartEl.innerHTML = '<p class="unter">Keine Kursreihe vorhanden.</p>';
+    return;
   }
+  const letzter = lang[lang.length - 1][0];
+  let start, ende = letzter, titel;
+  if (detailZeitraum === 'eroeffnung') {
+    const d = new Date((erster || lang[0][0]) + 'T00:00:00'); d.setDate(d.getDate() - 1);
+    start = isoDatum(d); titel = 'seit Eröffnung';
+  } else if (detailZeitraum === 'ytd') { start = stichtag('jahr'); titel = 'seit Jahresbeginn'; }
+  else if (detailZeitraum === 'mtd') { start = stichtag('monat'); titel = 'seit Monatsbeginn'; }
+  else if (detailZeitraum === 'vortag') {
+    start = lang.length > 1 ? lang[lang.length - 2][0] : letzter; titel = 'zum Vortag';
+  } else {
+    const j = Number(detailZeitraum);
+    start = `${j - 1}-12-31`; ende = `${j}-12-31`; titel = `im Jahr ${j}`;
+  }
+  // Startpunkt = letzter Kurs am oder vor dem Stichtag, damit die Veränderung stimmt
+  const vorStart = lang.filter(([d]) => d <= start).pop();
+  const reihe = (vorStart ? [vorStart] : []).concat(lang.filter(([d]) => d > start && d <= ende));
+  if (reihe.length < 2) {
+    chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum gibt es keine Kurse.</p>';
+    document.getElementById('detail-chart-titel').textContent = `Kurs ${titel}`;
+    return;
+  }
+  const aend = (reihe[reihe.length - 1][1] / reihe[0][1] - 1) * 100;
+  document.getElementById('detail-chart-titel').textContent = `Kurs ${titel} · ${pct(aend)}`;
+  const kaeufe = kaeufeNach(p, k, start).filter((c) => c.stueck > 0 && c.betrag > 0 && c.datum <= ende);
+  const marker = kaeufe.map((c) => {
+    const tag = reihe.find(([d]) => d >= c.datum);
+    return tag ? [tag[0], tag[1]] : null;
+  }).filter(Boolean);
+  const spanneTage = (new Date(reihe[reihe.length - 1][0]) - new Date(reihe[0][0])) / 864e5;
+  const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
+  const achseX = spanneTage > 730
+    ? (t, i) => (i > 0 && t.slice(0, 4) !== reihe[i - 1][0].slice(0, 4) ? t.slice(0, 4) : null)
+    : spanneTage > 120 ? (t, i) => (i > 0 && t.slice(5, 7) !== reihe[i - 1][0].slice(5, 7) && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null)
+      : (t, i) => (i === 0 || i === reihe.length - 1 || (spanneTage > 10 && i % 5 === 0) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
+  linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], {
+    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0,
+  });
+  if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = `Käufe vor ${schaetzGrenze()} sind aus dem Sparplan geschätzt.`;
 }
+let detailZeitraum = 'ytd';
+let detailPosId = null;
 
 // ---------- Anzeige ----------
 
@@ -3853,6 +3900,8 @@ document.addEventListener('click', (e) => {
 
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
+  const dz = e.target.closest('[data-detail-zeit]')?.dataset.detailZeit;
+  if (dz) { detailZeitraum = dz; detailAnzeigen(detailPosId); return; }
   const zzSz = e.target.closest('[data-zz-szenario]')?.dataset.zzSzenario;
   if (zzSz) { renditeSzenario = zzSz; zinseszinsAnzeigen(); return; }
   const zzEin = e.target.closest('[data-zz-einzahlen]')?.dataset.zzEinzahlen;
