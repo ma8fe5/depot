@@ -924,6 +924,12 @@
     </div>
     <div class="abschnitt">Käufe</div>
     <div class="karte liste-karte"><ul id="pos-kaeufe" class="liste"></ul></div>
+    <p class="unter" id="pos-summe" style="margin: -4px 18px 12px; font-size: 13px"></p>
+    <div class="hinweis" id="pos-abweichung" hidden>
+      <svg><use href="#i-kalender"/></svg>
+      <div><b>Angaben weichen von den Käufen ab</b> · <span id="pos-abweichung-text"></span><br>
+        <button class="knopf" data-aktion="angaben-angleichen">Angaben an Käufe angleichen</button></div>
+    </div>
     <div class="abschnitt">Angaben</div>
     <div id="pos-korrektur"></div>
     <div class="knoepfe"><button class="knopf zweit breit" data-aktion="position-speichern">Angaben speichern</button></div>
@@ -1036,7 +1042,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1628'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1637'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3614,8 +3620,10 @@ function positionAnzeigen(id) {
   if (!kaeufe.length) ul.innerHTML = '<li><span class="name unter">Noch keine Käufe erfasst.</span></li>';
   for (const b of kaeufe) {
     const li = document.createElement('li');
-    const info = [`${zahl(b.stueck, p.quelle === 'coingecko' ? 8 : 4)} Stück`];
-    if (b.gratis) info.push(`davon ${zahl(b.gratis, 4)} gratis`);
+    const st = p.quelle === 'coingecko' ? 8 : 4;
+    const info = [b.gratis
+      ? `${zahl(b.stueck, st)} Stück (${zahl(b.stueck - b.gratis, st)} bezahlt + ${zahl(b.gratis, st)} gratis)`
+      : `${zahl(b.stueck, st)} Stück`];
     if (b.gebuehren) info.push(`${geld(b.gebuehren)} Gebühren`);
     if (b.art === 'umschichtung') info.push('Umschichtung');
     li.className = 'tippbar';
@@ -3624,6 +3632,19 @@ function positionAnzeigen(id) {
     li.querySelector('.n').textContent = deDatum(b.datum);
     li.querySelector('small').textContent = info.join(' · ');
     ul.appendChild(li);
+  }
+
+  // Summe der Käufe (inkl. Gebühren als Anteilsverkauf) gegen die gespeicherten Angaben
+  const s = summeKaeufe(id);
+  const stellen = p.quelle === 'coingecko' ? 8 : 4;
+  document.getElementById('pos-summe').textContent = kaeufe.length
+    ? `Summe der Käufe: ${zahl(s.stueck, stellen)} Stück · ${geld(s.betrag)} investiert` : '';
+  const abw = kaeufe.length && (Math.abs(s.stueck - p.stueck) > 0.0005 || Math.abs(s.betrag - p.investiert) > 0.005);
+  document.getElementById('pos-abweichung').hidden = !abw;
+  if (abw) {
+    document.getElementById('pos-abweichung-text').textContent =
+      `Angaben: ${zahl(p.stueck, stellen)} Stück · ${geld(p.investiert)}. Käufe: ${zahl(s.stueck, stellen)} Stück · ${geld(s.betrag)}.` +
+      ' Nur angleichen, wenn die Liste alle Käufe vollständig enthält.';
   }
 
   // Angaben (bisher „Positionen korrigieren“)
@@ -3658,6 +3679,23 @@ function positionAnzeigen(id) {
 
 // Kaufformular: Datum heute, Stück = Investment ÷ Kurs + Gratis-Aktien (überschreibbar)
 let kaufBearbeitet = null; // id des Kaufs, der gerade bearbeitet wird (sonst neuer Kauf)
+
+// Stück und Investment laut Käufen (historisch + bestätigt; Gebühren als Anteilsverkauf mit negativen Stück)
+function summeKaeufe(id) {
+  const b = daten.buchungen.filter((x) => x.posId === id && (x.status === 'historie' || x.status === 'bestaetigt'));
+  return { stueck: b.reduce((s, x) => s + (x.stueck || 0), 0), betrag: b.reduce((s, x) => s + (x.betrag || 0), 0) };
+}
+
+function angabenAngleichen() {
+  const p = daten.positionen.find((x) => x.id === positionId);
+  const s = summeKaeufe(p.id);
+  if (!confirm(`Angaben auf ${zahl(s.stueck, 6)} Stück und ${geld(s.betrag)} investiert setzen?`)) return;
+  p.stueck = s.stueck;
+  p.investiert = s.betrag;
+  speichern();
+  positionAnzeigen(p.id);
+  kurseHolen();
+}
 
 function kaufNeu() {
   const p = daten.positionen.find((x) => x.id === positionId);
@@ -4004,6 +4042,16 @@ function historieUebernehmen(paket) {
       ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`
       : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`);
   }
+  // Korrekturen einzelner Käufe (gefunden über Position + Datum) und anschließendes Angleichen der Angaben
+  const korrekturen = (paket.kaufKorrekturen || []).map((kk) => {
+    const b = daten.buchungen.filter((x) => x.posId === kk.posId && x.datum === kk.datum && (x.status === 'historie' || x.status === 'bestaetigt') && x.betrag > 0);
+    return b.length === 1 ? [b[0], kk] : null;
+  }).filter(Boolean);
+  for (const [b, kk] of korrekturen) {
+    zeilen.push(`${bekannt(b.posId).name} ${deDatum(b.datum)}: ${zahl(b.stueck, 4)} → ${zahl(kk.stueck, 4)} Stück${kk.gratis != null ? ` (davon ${zahl(kk.gratis, 4)} gratis)` : ''}`);
+  }
+  const angleichen = (paket.angleichen || []).filter((id) => daten.positionen.some((p) => p.id === id));
+  for (const id of angleichen) zeilen.push(`${bekannt(id).name}: Stück und Investiert auf die Summe der Käufe setzen`);
   // Ergänzende Angaben zu Positionen (z. B. Dividende je Aktie)
   const angaben = Object.entries(paket.positionsAngaben || {}).map(([id, a]) => [bekannt(id), a]).filter(([p]) => p);
   for (const [p, a] of angaben) if (a.dividende != null) zeilen.push(`${p.name}: Dividende ${eur.format(a.dividende)} je Aktie (wird ausgezahlt)`);
@@ -4021,7 +4069,7 @@ function historieUebernehmen(paket) {
     zeilen.push(`Kursverlauf für ${kh.length} Werte ab ${deDatum(ab)} (Entwicklung-Chart)`);
   }
   for (const k of tgNeu) zeilen.push(`Tagesgeld ${k.bank}: ${eur.format(k.stand)}${k.termin ? `, Termin ${deDatum(k.termin)}` : ''}`);
-  if (!passend.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length && !angaben.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
+  if (!passend.length && !paket.rente && !neu.length && !tgNeu.length && !kh.length && !nachtraege.length && !konditionen.length && !angaben.length && !korrekturen.length && !angleichen.length) { alert('Nichts übernommen:\n\n' + zeilen.join('\n')); return; }
   if (!confirm('Folgendes übernehmen?\n\n' + zeilen.join('\n'))) return;
   for (const n of neu) {
     const { id, name, depot, quelle, symbol, waehrung, stueck, investiert, sparplan } = n;
@@ -4034,6 +4082,17 @@ function historieUebernehmen(paket) {
     p.historieVollstaendig = true;
   }
   if (paket.rente) daten.rente = { ...(daten.rente || {}), ...paket.rente };
+  for (const [b, kk] of korrekturen) {
+    b.stueck = kk.stueck;
+    if (kk.gratis != null) b.gratis = kk.gratis;
+    b.bearbeitet = isoDatum(heute());
+  }
+  for (const id of angleichen) {
+    const p = daten.positionen.find((x) => x.id === id);
+    const s = summeKaeufe(id);
+    p.stueck = s.stueck;
+    p.investiert = s.betrag;
+  }
   for (const [q, a] of angaben) {
     const p = daten.positionen.find((x) => x.id === q.id);
     if (a.dividende != null) p.dividende = a.dividende;
@@ -4185,6 +4244,7 @@ document.addEventListener('click', (e) => {
     'positionen-speichern': positionenSpeichern,
     'position-speichern': positionenSpeichern,
     'kauf-neu': kaufNeu,
+    'angaben-angleichen': angabenAngleichen,
     'kauf-speichern': kaufSpeichern,
     'kauf-abbrechen': () => positionAnzeigen(positionId),
     'kauf-loeschen': () => kaufLoeschen(kaufBearbeitet),
