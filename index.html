@@ -886,12 +886,43 @@
     </div>
   </section>
 
-  <!-- Positionen korrigieren (Menü → Pflegen) -->
+  <!-- Positionen (Menü → Pflegen): Liste, ein Tipp öffnet die Position -->
   <section id="ansicht-positionen" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Positionen</h1><div class="unterzeile">Stückzahl und investierter Betrag wie in deinem Depot. Offene, noch nicht bestätigte Buchungen sind hier nicht enthalten.</div></div>
-    <div id="positionen-liste"></div>
-    <div class="knoepfe"><button class="knopf breit" data-aktion="positionen-speichern">Änderungen speichern</button></div>
+    <div class="titel"><h1>Positionen</h1><div class="unterzeile">Käufe erfassen und Angaben je Position pflegen.</div></div>
+    <div class="karte liste-karte"><ul id="positionen-liste" class="liste"></ul></div>
+  </section>
+
+  <!-- Eine Position: Kauf erfassen, Käufe, Angaben -->
+  <section id="ansicht-position" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="positionen"><svg><use href="#i-zurueck"/></svg> Positionen</button></div>
+    <div class="titel"><h1 id="pos-name"></h1><div class="unterzeile" id="pos-unter"></div></div>
+    <div class="knoepfe" style="margin-top: 0"><button class="knopf breit" data-aktion="kauf-neu" id="kauf-neu-knopf">Kauf erfassen</button></div>
+    <div class="karte" id="kauf-formular" hidden>
+      <div class="posname"><span>Neuer Kauf</span></div>
+      <div class="raster">
+        <div><label class="feldname">Datum</label><input type="date" id="kauf-datum"></div>
+        <div><label class="feldname">Investment (€)</label><input type="text" inputmode="decimal" id="kauf-betrag" placeholder="selbst bezahlt"></div>
+      </div>
+      <div class="raster" style="margin-top: 12px">
+        <div><label class="feldname">Stückkurs (€)</label><input type="text" inputmode="decimal" id="kauf-kurs"></div>
+        <div><label class="feldname">Gebühren (€)</label><input type="text" inputmode="decimal" id="kauf-gebuehren" placeholder="0,00"></div>
+      </div>
+      <div class="raster" style="margin-top: 12px">
+        <div id="kauf-gratis-feld"><label class="feldname">Gratis-Aktien (Stück)</label><input type="text" inputmode="decimal" id="kauf-gratis" placeholder="0"></div>
+        <div><label class="feldname">Stück gesamt</label><input type="text" inputmode="decimal" id="kauf-stueck"></div>
+      </div>
+      <p class="unter" id="kauf-info" style="margin: 10px 2px 0; font-size: 13px"></p>
+      <div class="knoepfe">
+        <button class="knopf" data-aktion="kauf-speichern">Kauf speichern</button>
+        <button class="knopf zweit" data-aktion="kauf-abbrechen">Abbrechen</button>
+      </div>
+    </div>
+    <div class="abschnitt">Käufe</div>
+    <div class="karte liste-karte"><ul id="pos-kaeufe" class="liste"></ul></div>
+    <div class="abschnitt">Angaben</div>
+    <div id="pos-korrektur"></div>
+    <div class="knoepfe"><button class="knopf zweit breit" data-aktion="position-speichern">Angaben speichern</button></div>
     <p id="positionen-meldung" class="fuss"></p>
   </section>
 
@@ -979,7 +1010,7 @@
       <ul class="liste menue">
         <li class="tippbar" data-aktion="check"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Monats-Check<small id="mehr-check"></small></span></li>
         <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
-        <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen korrigieren<small>Stück, Investiert, Anlageart</small></span></li>
+        <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen<small>Käufe erfassen, Angaben pflegen</small></span></li>
         <li class="tippbar" data-aktion="export"><span class="kachel kg-heute"><svg><use href="#i-wolke"/></svg></span><span class="name">Backup sichern<small id="mehr-backup"></small></span></li>
       </ul>
     </div>
@@ -1001,7 +1032,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-13.1106'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1501'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3535,11 +3566,61 @@ function einstellungenAnzeigen() {
   zeige('ansicht-einstellungen');
 }
 
+// ---------- Positionen: Liste, Kauf erfassen, Käufe, Angaben ----------
+
+// Gratis-Aktien (Arbeitgeberzuschuss) sind beim Mitarbeiterprogramm üblich; je Position umschaltbar
+const hatGratis = (p) => (typeof p.gratisAktien === 'boolean' ? p.gratisAktien : p.depot === 'Mitarbeiterprogramm');
+let positionId = null;
+
 function positionenAnzeigen() {
   const liste = document.getElementById('positionen-liste');
   liste.innerHTML = '';
   for (const p of daten.positionen) {
-    const card = document.createElement('div');
+    const k = kurse && kurse.preise[p.id];
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.position = p.id;
+    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
+    li.querySelector('.n').textContent = p.name;
+    li.querySelector('small').textContent = `${p.depot} · ${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : p.stueck < 1000 ? 4 : 2)} Stück`;
+    li.querySelector('.wert').textContent = k ? geld(aktuellerBestand(p, k).stueck * k.eur) : '–';
+    liste.appendChild(li);
+  }
+  zeige('ansicht-positionen');
+}
+
+function positionAnzeigen(id) {
+  positionId = id;
+  const p = daten.positionen.find((x) => x.id === id);
+  if (!p) return positionenAnzeigen();
+  document.getElementById('pos-name').textContent = p.name;
+  document.getElementById('pos-unter').textContent = `${p.depot} · ${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 4)} Stück · ${geld(p.investiert)} investiert`;
+  document.getElementById('kauf-formular').hidden = true;
+  document.getElementById('kauf-neu-knopf').hidden = false;
+
+  // Käufe: neueste zuerst; selbst erfasste (bestätigte) lassen sich löschen
+  const ul = document.getElementById('pos-kaeufe');
+  ul.innerHTML = '';
+  const kaeufe = daten.buchungen
+    .filter((b) => b.posId === id && (b.status === 'historie' || b.status === 'bestaetigt') && (b.betrag > 0 || b.stueck > 0))
+    .sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+  if (!kaeufe.length) ul.innerHTML = '<li><span class="name unter">Noch keine Käufe erfasst.</span></li>';
+  for (const b of kaeufe) {
+    const li = document.createElement('li');
+    const info = [`${zahl(b.stueck, p.quelle === 'coingecko' ? 8 : 4)} Stück`];
+    if (b.gratis) info.push(`davon ${zahl(b.gratis, 4)} gratis`);
+    if (b.gebuehren) info.push(`${geld(b.gebuehren)} Gebühren`);
+    if (b.art === 'umschichtung') info.push('Umschichtung');
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert">${geld(b.betrag)}${b.status === 'bestaetigt' ? `<small><button class="textknopf" data-aktion="kauf-loeschen" data-id="${b.id}">löschen</button></small>` : ''}</span>`;
+    li.querySelector('.n').textContent = deDatum(b.datum);
+    li.querySelector('small').textContent = info.join(' · ');
+    ul.appendChild(li);
+  }
+
+  // Angaben (bisher „Positionen korrigieren“)
+  const box = document.getElementById('pos-korrektur');
+  box.innerHTML = '';
+  const card = document.createElement('div');
     card.className = 'karte';
     card.dataset.id = p.id;
     card.innerHTML = `
@@ -3557,17 +3638,79 @@ function positionenAnzeigen() {
       <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Dividende je Aktie (€/Jahr)</label>
           <input type="text" inputmode="decimal" class="e-dividende" placeholder="keine" value="${p.dividende ? zahl(p.dividende, 2) : ''}"></div>
+        <div><label class="feldname">Gratis-Aktien beim Kauf</label>
+          <select class="e-gratis"><option value="ja"${hatGratis(p) ? ' selected' : ''}>ja</option><option value="nein"${hatGratis(p) ? '' : ' selected'}>nein</option></select></div>
       </div>`;
-    card.querySelector('.posname span').textContent = p.name;
-    card.querySelector('.posname small').textContent = p.depot;
-    liste.appendChild(card);
-  }
+  card.querySelector('.posname').remove();
+  box.appendChild(card);
   document.getElementById('positionen-meldung').textContent = '';
-  zeige('ansicht-positionen');
+  zeige('ansicht-position');
+}
+
+// Kaufformular: Datum heute, Stück = Investment ÷ Kurs + Gratis-Aktien (überschreibbar)
+function kaufNeu() {
+  const p = daten.positionen.find((x) => x.id === positionId);
+  const k = kurse && kurse.preise[p.id];
+  document.getElementById('kauf-datum').value = isoDatum(heute());
+  for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-stueck']) document.getElementById(id).value = '';
+  document.getElementById('kauf-kurs').value = k ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
+  document.getElementById('kauf-gratis-feld').hidden = !hatGratis(p);
+  document.getElementById('kauf-stueck').dataset.selbst = '';
+  document.getElementById('kauf-info').textContent = '';
+  document.getElementById('kauf-formular').hidden = false;
+  document.getElementById('kauf-neu-knopf').hidden = true;
+  document.getElementById('kauf-betrag').focus();
+}
+
+function kaufRechnen() {
+  const wert = (id) => parseZahl(document.getElementById(id).value || '0');
+  const betrag = wert('kauf-betrag'), kurs = wert('kauf-kurs'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
+  const stueckEl = document.getElementById('kauf-stueck');
+  if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) stueckEl.value = zahl(betrag / kurs + (gratis || 0), 6);
+  const info = [];
+  if (betrag > 0) info.push(`Investiert steigt um ${geld(betrag + (gebuehren || 0))}${gebuehren ? ' (inkl. Gebühren)' : ''}`);
+  if (gratis > 0 && kurs > 0) info.push(`Gratis-Aktien im Wert von ${geld(gratis * kurs)} zählen als Gewinn`);
+  document.getElementById('kauf-info').textContent = info.join(' · ');
+}
+
+function kaufSpeichern() {
+  const p = daten.positionen.find((x) => x.id === positionId);
+  const feld = (id) => { const t = document.getElementById(id).value.trim(); return t ? parseZahl(t) : 0; };
+  const datum = document.getElementById('kauf-datum').value;
+  const betrag = feld('kauf-betrag'), kurs = feld('kauf-kurs'), gebuehren = feld('kauf-gebuehren');
+  const gratis = hatGratis(p) ? feld('kauf-gratis') : 0, stueck = feld('kauf-stueck');
+  if (!datum) { alert('Bitte ein Datum angeben.'); return; }
+  if (!(betrag >= 0) || !(gebuehren >= 0) || !(gratis >= 0)) { alert('Bitte die Beträge prüfen.'); return; }
+  if (!(stueck > 0)) { alert('Bitte Investment und Stückkurs angeben – oder die Stückzahl direkt eintragen.'); return; }
+  const b = {
+    id: `${p.id}-k-${Date.now()}`, posId: p.id, monat: datum.slice(0, 7), art: 'kauf', status: 'bestaetigt',
+    datum, betrag: betrag + gebuehren, stueck, kurs: kurs || null, gratis: gratis || 0, gebuehren: gebuehren || 0,
+  };
+  daten.buchungen.push(b);
+  p.stueck += b.stueck;
+  p.investiert += b.betrag;
+  speichern();
+  positionAnzeigen(p.id);
+  toast(`Kauf gespeichert: ${zahl(b.stueck, 4)} Stück für ${geld(b.betrag)}`, null, null, 3000);
+  kurseHolen(); // Werte und Bestandskopie aktualisieren
+}
+
+function kaufLoeschen(id) {
+  const b = daten.buchungen.find((x) => x.id === id && x.status === 'bestaetigt');
+  if (!b) return;
+  const p = daten.positionen.find((x) => x.id === b.posId);
+  if (!confirm(`Kauf vom ${deDatum(b.datum)} über ${geld(b.betrag)} (${zahl(b.stueck, 4)} Stück) löschen?`)) return;
+  // Wirkung zurücknehmen: Bestand und Investment wie vor dem Kauf
+  p.stueck -= b.stueck;
+  p.investiert -= b.betrag;
+  daten.buchungen = daten.buchungen.filter((x) => x !== b);
+  speichern();
+  positionAnzeigen(p.id);
+  kurseHolen();
 }
 
 function positionenSpeichern() {
-  const karten = [...document.querySelectorAll('#positionen-liste .karte')];
+  const karten = [...document.querySelectorAll('#pos-korrektur .karte')];
   const neu = [];
   for (const card of karten) {
     const stueck = parseZahl(card.querySelector('.e-stueck').value);
@@ -3577,15 +3720,17 @@ function positionenSpeichern() {
     const divText = card.querySelector('.e-dividende').value.trim();
     const dividende = divText ? parseZahl(divText) : null;
     if (divText && !(dividende >= 0)) { alert(`Ungültige Dividende bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value, card.querySelector('.e-wieder').value === 'ja', dividende]);
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, card.querySelector('.e-wieder').value === 'ja', dividende, card.querySelector('.e-gratis').value === 'ja']);
   }
-  for (const [p, stueck, inv, art, wieder, dividende] of neu) {
+  for (const [p, stueck, inv, art, wieder, dividende, gratis] of neu) {
     if (dividende) p.dividende = dividende; else delete p.dividende;
+    if (gratis === (p.depot === 'Mitarbeiterprogramm')) delete p.gratisAktien; else p.gratisAktien = gratis;
     p.stueck = stueck; p.investiert = inv; p.art = art;
     // nur speichern, wenn es vom Standard der Anlageart abweicht – sonst folgt es der Anlageart
     if (wieder === ['ETF', 'Fonds'].includes(art)) delete p.wiederanlage; else p.wiederanlage = wieder;
   }
   speichern();
+  if (positionId) positionAnzeigen(positionId);
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
 }
 
@@ -3900,6 +4045,8 @@ document.addEventListener('click', (e) => {
 
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
+  const posWahl = e.target.closest('li[data-position]')?.dataset.position;
+  if (posWahl) { positionAnzeigen(posWahl); return; }
   const dz = e.target.closest('[data-detail-zeit]')?.dataset.detailZeit;
   if (dz) { detailZeitraum = dz; detailAnzeigen(detailPosId); return; }
   const zzSz = e.target.closest('[data-zz-szenario]')?.dataset.zzSzenario;
@@ -3955,6 +4102,11 @@ document.addEventListener('click', (e) => {
     'push-test': pushTest,
     'push-aus': pushAusschalten,
     'positionen-speichern': positionenSpeichern,
+    'position-speichern': positionenSpeichern,
+    'kauf-neu': kaufNeu,
+    'kauf-speichern': kaufSpeichern,
+    'kauf-abbrechen': () => positionAnzeigen(positionId),
+    'kauf-loeschen': () => kaufLoeschen(e.target.closest('[data-id]').dataset.id),
     'vermittler-speichern': () => {
       daten.vermittler = document.getElementById('vermittler').value.trim();
       daten.vermittlerToken = document.getElementById('vermittler-token').value.trim() || null;
@@ -3963,6 +4115,12 @@ document.addEventListener('click', (e) => {
       alert('Gespeichert.');
     },
   })[aktion]?.();
+});
+
+// Kaufformular: Stückzahl mitrechnen; selbst eingetragene Stückzahl wird nicht mehr überschrieben
+document.getElementById('kauf-formular').addEventListener('input', (e) => {
+  if (e.target.id === 'kauf-stueck') e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
+  kaufRechnen();
 });
 
 document.getElementById('datei').addEventListener('change', (e) => {
