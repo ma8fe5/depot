@@ -914,6 +914,7 @@
       </div>
       <div class="raster" style="margin-top: 12px">
         <div><label class="feldname">Aktien gesamt</label><input type="text" inputmode="decimal" id="kauf-stueck"></div>
+        <div id="kauf-gratis-wert-feld"><label class="feldname">Betrag Gratis-Aktien (€)</label><input type="text" inputmode="decimal" id="kauf-gratis-wert"></div>
       </div>
       <p class="unter" id="kauf-info" style="margin: 10px 2px 0; font-size: 13px"></p>
       <div class="knoepfe">
@@ -1042,7 +1043,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1637'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1651'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3628,7 +3629,8 @@ function positionAnzeigen(id) {
     if (b.art === 'umschichtung') info.push('Umschichtung');
     li.className = 'tippbar';
     li.dataset.kauf = b.id;
-    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert">${geld(b.betrag)}</span>`;
+    const gw = gratisWert(b);
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert">${geld(b.betrag)}${gw ? `<small class="pos">+ ${geld(gw)} gratis</small>` : ''}</span>`;
     li.querySelector('.n').textContent = deDatum(b.datum);
     li.querySelector('small').textContent = info.join(' · ');
     ul.appendChild(li);
@@ -3637,8 +3639,11 @@ function positionAnzeigen(id) {
   // Summe der Käufe (inkl. Gebühren als Anteilsverkauf) gegen die gespeicherten Angaben
   const s = summeKaeufe(id);
   const stellen = p.quelle === 'coingecko' ? 8 : 4;
-  document.getElementById('pos-summe').textContent = kaeufe.length
-    ? `Summe der Käufe: ${zahl(s.stueck, stellen)} Stück · ${geld(s.betrag)} investiert` : '';
+  const gratisSumme = kaeufe.reduce((sum, b) => sum + gratisWert(b), 0);
+  document.getElementById('pos-summe').textContent = !kaeufe.length ? ''
+    : gratisSumme
+      ? `Summe der Käufe: ${zahl(s.stueck, stellen)} Stück · ${geld(s.betrag)} investiert + ${geld(gratisSumme)} Gratis-Aktien = ${geld(s.betrag + gratisSumme)} Kaufwert`
+      : `Summe der Käufe: ${zahl(s.stueck, stellen)} Stück · ${geld(s.betrag)} investiert`;
   const abw = kaeufe.length && (Math.abs(s.stueck - p.stueck) > 0.0005 || Math.abs(s.betrag - p.investiert) > 0.005);
   document.getElementById('pos-abweichung').hidden = !abw;
   if (abw) {
@@ -3680,6 +3685,15 @@ function positionAnzeigen(id) {
 // Kaufformular: Datum heute, Stück = Investment ÷ Kurs + Gratis-Aktien (überschreibbar)
 let kaufBearbeitet = null; // id des Kaufs, der gerade bearbeitet wird (sonst neuer Kauf)
 
+// Betrag der Gratis-Aktien eines Kaufs zum Kaufkurs (Kurs = selbst bezahltes Investment ÷ bezahlte Aktien)
+function gratisWert(b) {
+  if (!(b.gratis > 0)) return 0;
+  if (b.gratisBetrag != null) return b.gratisBetrag; // fest eingetragen (z. B. Arbeitgeberzuschuss laut Abrechnung)
+  const bezahlt = b.stueck - b.gratis, investment = b.betrag - (b.gebuehren || 0);
+  const kurs = bezahlt > 0 && investment > 0 ? investment / bezahlt : (b.kurs || 0);
+  return b.gratis * kurs;
+}
+
 // Stück und Investment laut Käufen (historisch + bestätigt; Gebühren als Anteilsverkauf mit negativen Stück)
 function summeKaeufe(id) {
   const b = daten.buchungen.filter((x) => x.posId === id && (x.status === 'historie' || x.status === 'bestaetigt'));
@@ -3710,6 +3724,8 @@ function kaufNeu() {
   kaufFelderMitGratis(hatGratis(p));
   document.getElementById('kauf-stueck').dataset.selbst = '';
   document.getElementById('kauf-bezahlt').dataset.selbst = '';
+  document.getElementById('kauf-gratis-wert').value = '';
+  document.getElementById('kauf-gratis-wert').dataset.selbst = '';
   document.getElementById('kauf-info').textContent = '';
   document.getElementById('kauf-formular').hidden = false;
   document.getElementById('kauf-neu-knopf').hidden = true;
@@ -3741,6 +3757,9 @@ function kaufBearbeiten(id) {
   const bezahltEl = document.getElementById('kauf-bezahlt');
   bezahltEl.value = zahl(b.stueck - gratis, stellen);
   bezahltEl.dataset.selbst = '1';
+  const wertEl = document.getElementById('kauf-gratis-wert');
+  wertEl.value = gratis ? zahl(gratisWert(b), 2) : '';
+  wertEl.dataset.selbst = b.gratisBetrag != null ? '1' : '';
   document.getElementById('kauf-info').textContent = b.status === 'historie' ? 'Historischer Kauf aus dem Import.' : '';
   document.getElementById('kauf-formular').hidden = false;
   document.getElementById('kauf-neu-knopf').hidden = true;
@@ -3750,6 +3769,7 @@ function kaufBearbeiten(id) {
 // Mit Gratis-Aktien: Bezahlte + Gratis = Gesamt (Gesamt wird berechnet). Ohne: nur „Aktien gesamt“.
 function kaufFelderMitGratis(an) {
   document.getElementById('kauf-gratis-feld').hidden = !an;
+  document.getElementById('kauf-gratis-wert-feld').hidden = !an;
   document.getElementById('kauf-stueck').readOnly = an;
 }
 
@@ -3763,12 +3783,16 @@ function kaufRechnen() {
     if (!bezahltEl.dataset.selbst && betrag > 0 && kurs > 0) bezahltEl.value = zahl(betrag / kurs, 6);
     const bezahlt = parseZahl(bezahltEl.value || '0');
     stueckEl.value = bezahlt + (gratis || 0) > 0 ? zahl(bezahlt + (gratis || 0), 6) : '';
+    // Wert der Gratis-Aktien zum Kaufkurs (Kurs = Investment ÷ bezahlte Aktien, sonst eingetragener Kurs)
+    const kaufkurs = bezahlt > 0 && betrag > 0 ? betrag / bezahlt : kurs;
+    const wertEl = document.getElementById('kauf-gratis-wert'); // Vorschlag, solange nicht selbst eingetragen
+    if (!wertEl.dataset.selbst) wertEl.value = gratis > 0 && kaufkurs > 0 ? zahl(gratis * kaufkurs, 2) : '';
   } else if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) {
     stueckEl.value = zahl(betrag / kurs, 6);
   }
   const info = [];
   if (betrag > 0) info.push(`Investiert steigt um ${geld(betrag + (gebuehren || 0))}${gebuehren ? ' (inkl. Gebühren)' : ''}`);
-  if (gratis > 0 && kurs > 0) info.push(`Gratis-Aktien im Wert von ${geld(gratis * kurs)} zählen als Gewinn`);
+  if (gratis > 0 && kurs > 0) info.push('Der Betrag der Gratis-Aktien zählt als Gewinn');
   document.getElementById('kauf-info').textContent = info.join(' · ');
 }
 
@@ -3784,6 +3808,10 @@ function kaufSpeichern() {
   if (!datum) { alert('Bitte ein Datum angeben.'); return; }
   if (!(betrag >= 0) || !(gebuehren >= 0) || !(gratis >= 0)) { alert('Bitte die Beträge prüfen.'); return; }
   if (!(stueck > 0)) { alert('Bitte Investment und Stückkurs angeben – oder die Stückzahl direkt eintragen.'); return; }
+  // Betrag der Gratis-Aktien: nur speichern, wenn selbst eingetragen (sonst aus dem Kaufkurs gerechnet)
+  const wertEl = document.getElementById('kauf-gratis-wert');
+  const gratisBetrag = mitGratis && gratis > 0 && wertEl.dataset.selbst && wertEl.value.trim() ? parseZahl(wertEl.value) : null;
+  if (gratisBetrag != null && !(gratisBetrag >= 0)) { alert('Bitte den Betrag der Gratis-Aktien prüfen.'); return; }
   if (kaufBearbeitet) {
     // Bearbeiten: Kauf ändern und Bestand/Investment um die Differenz nachziehen
     const b = daten.buchungen.find((x) => x.id === kaufBearbeitet);
@@ -3791,6 +3819,7 @@ function kaufSpeichern() {
     p.stueck += stueck - b.stueck;
     p.investiert += neuBetrag - b.betrag;
     Object.assign(b, { datum, monat: datum.slice(0, 7), betrag: neuBetrag, stueck, kurs: kurs || null, gratis: gratis || 0, gebuehren: gebuehren || 0, bearbeitet: isoDatum(heute()) });
+    if (gratisBetrag != null) b.gratisBetrag = gratisBetrag; else delete b.gratisBetrag;
     kaufBearbeitet = null;
     speichern();
     positionAnzeigen(p.id);
@@ -3801,6 +3830,7 @@ function kaufSpeichern() {
   const b = {
     id: `${p.id}-k-${Date.now()}`, posId: p.id, monat: datum.slice(0, 7), art: 'kauf', status: 'bestaetigt',
     datum, betrag: betrag + gebuehren, stueck, kurs: kurs || null, gratis: gratis || 0, gebuehren: gebuehren || 0,
+    ...(gratisBetrag != null ? { gratisBetrag } : {}),
   };
   daten.buchungen.push(b);
   p.stueck += b.stueck;
@@ -4048,7 +4078,7 @@ function historieUebernehmen(paket) {
     return b.length === 1 ? [b[0], kk] : null;
   }).filter(Boolean);
   for (const [b, kk] of korrekturen) {
-    zeilen.push(`${bekannt(b.posId).name} ${deDatum(b.datum)}: ${zahl(b.stueck, 4)} → ${zahl(kk.stueck, 4)} Stück${kk.gratis != null ? ` (davon ${zahl(kk.gratis, 4)} gratis)` : ''}`);
+    zeilen.push(`${bekannt(b.posId).name} ${deDatum(b.datum)}: ${zahl(b.stueck, 4)} → ${zahl(kk.stueck, 4)} Stück${kk.gratis != null ? ` (davon ${zahl(kk.gratis, 4)} gratis${kk.gratisBetrag != null ? ` = ${eur.format(kk.gratisBetrag)}` : ''})` : ''}`);
   }
   const angleichen = (paket.angleichen || []).filter((id) => daten.positionen.some((p) => p.id === id));
   for (const id of angleichen) zeilen.push(`${bekannt(id).name}: Stück und Investiert auf die Summe der Käufe setzen`);
@@ -4085,6 +4115,7 @@ function historieUebernehmen(paket) {
   for (const [b, kk] of korrekturen) {
     b.stueck = kk.stueck;
     if (kk.gratis != null) b.gratis = kk.gratis;
+    if (kk.gratisBetrag != null) b.gratisBetrag = kk.gratisBetrag;
     b.bearbeitet = isoDatum(heute());
   }
   for (const id of angleichen) {
@@ -4260,7 +4291,7 @@ document.addEventListener('click', (e) => {
 
 // Kaufformular: Stückzahl mitrechnen; selbst eingetragene Stückzahl wird nicht mehr überschrieben
 document.getElementById('kauf-formular').addEventListener('input', (e) => {
-  if (e.target.id === 'kauf-stueck' || e.target.id === 'kauf-bezahlt') e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
+  if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
   kaufRechnen();
 });
 
