@@ -908,9 +908,12 @@
         <div><label class="feldname">Stückkurs (€)</label><input type="text" inputmode="decimal" id="kauf-kurs"></div>
         <div><label class="feldname">Gebühren (€)</label><input type="text" inputmode="decimal" id="kauf-gebuehren" placeholder="0,00"></div>
       </div>
+      <div class="raster" style="margin-top: 12px" id="kauf-gratis-feld">
+        <div><label class="feldname">Bezahlte Aktien</label><input type="text" inputmode="decimal" id="kauf-bezahlt"></div>
+        <div><label class="feldname">Gratis-Aktien</label><input type="text" inputmode="decimal" id="kauf-gratis" placeholder="0"></div>
+      </div>
       <div class="raster" style="margin-top: 12px">
-        <div id="kauf-gratis-feld"><label class="feldname">Gratis-Aktien (Stück)</label><input type="text" inputmode="decimal" id="kauf-gratis" placeholder="0"></div>
-        <div><label class="feldname">Stück gesamt</label><input type="text" inputmode="decimal" id="kauf-stueck"></div>
+        <div><label class="feldname">Aktien gesamt</label><input type="text" inputmode="decimal" id="kauf-stueck"></div>
       </div>
       <p class="unter" id="kauf-info" style="margin: 10px 2px 0; font-size: 13px"></p>
       <div class="knoepfe">
@@ -1033,7 +1036,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1512'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1529'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3662,10 +3665,11 @@ function kaufNeu() {
   document.getElementById('kauf-speichern-knopf').textContent = 'Kauf speichern';
   document.getElementById('kauf-loeschen-knopf').hidden = true;
   document.getElementById('kauf-datum').value = isoDatum(heute());
-  for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-stueck']) document.getElementById(id).value = '';
+  for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-bezahlt', 'kauf-stueck']) document.getElementById(id).value = '';
   document.getElementById('kauf-kurs').value = k ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
-  document.getElementById('kauf-gratis-feld').hidden = !hatGratis(p);
+  kaufFelderMitGratis(hatGratis(p));
   document.getElementById('kauf-stueck').dataset.selbst = '';
+  document.getElementById('kauf-bezahlt').dataset.selbst = '';
   document.getElementById('kauf-info').textContent = '';
   document.getElementById('kauf-formular').hidden = false;
   document.getElementById('kauf-neu-knopf').hidden = true;
@@ -3689,21 +3693,39 @@ function kaufBearbeiten(id) {
   document.getElementById('kauf-kurs').value = kurs ? zahl(kurs, kurs < 1 ? 4 : 4) : '';
   document.getElementById('kauf-gebuehren').value = gebuehren ? zahl(gebuehren, 2) : '';
   document.getElementById('kauf-gratis').value = gratis ? zahl(gratis, 4) : '';
-  document.getElementById('kauf-gratis-feld').hidden = !hatGratis(p) && !gratis;
+  kaufFelderMitGratis(hatGratis(p) || gratis > 0);
+  const stellen = p.quelle === 'coingecko' ? 8 : 6;
   const stueckEl = document.getElementById('kauf-stueck');
-  stueckEl.value = zahl(b.stueck, p.quelle === 'coingecko' ? 8 : 6);
+  stueckEl.value = zahl(b.stueck, stellen);
   stueckEl.dataset.selbst = '1'; // gespeicherte Stückzahl nicht automatisch überschreiben
+  const bezahltEl = document.getElementById('kauf-bezahlt');
+  bezahltEl.value = zahl(b.stueck - gratis, stellen);
+  bezahltEl.dataset.selbst = '1';
   document.getElementById('kauf-info').textContent = b.status === 'historie' ? 'Historischer Kauf aus dem Import.' : '';
   document.getElementById('kauf-formular').hidden = false;
   document.getElementById('kauf-neu-knopf').hidden = true;
   document.getElementById('kauf-formular').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Mit Gratis-Aktien: Bezahlte + Gratis = Gesamt (Gesamt wird berechnet). Ohne: nur „Aktien gesamt“.
+function kaufFelderMitGratis(an) {
+  document.getElementById('kauf-gratis-feld').hidden = !an;
+  document.getElementById('kauf-stueck').readOnly = an;
+}
+
 function kaufRechnen() {
   const wert = (id) => parseZahl(document.getElementById(id).value || '0');
   const betrag = wert('kauf-betrag'), kurs = wert('kauf-kurs'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
   const stueckEl = document.getElementById('kauf-stueck');
-  if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) stueckEl.value = zahl(betrag / kurs + (gratis || 0), 6);
+  const mitGratis = !document.getElementById('kauf-gratis-feld').hidden;
+  if (mitGratis) {
+    const bezahltEl = document.getElementById('kauf-bezahlt');
+    if (!bezahltEl.dataset.selbst && betrag > 0 && kurs > 0) bezahltEl.value = zahl(betrag / kurs, 6);
+    const bezahlt = parseZahl(bezahltEl.value || '0');
+    stueckEl.value = bezahlt + (gratis || 0) > 0 ? zahl(bezahlt + (gratis || 0), 6) : '';
+  } else if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) {
+    stueckEl.value = zahl(betrag / kurs, 6);
+  }
   const info = [];
   if (betrag > 0) info.push(`Investiert steigt um ${geld(betrag + (gebuehren || 0))}${gebuehren ? ' (inkl. Gebühren)' : ''}`);
   if (gratis > 0 && kurs > 0) info.push(`Gratis-Aktien im Wert von ${geld(gratis * kurs)} zählen als Gewinn`);
@@ -3715,7 +3737,10 @@ function kaufSpeichern() {
   const feld = (id) => { const t = document.getElementById(id).value.trim(); return t ? parseZahl(t) : 0; };
   const datum = document.getElementById('kauf-datum').value;
   const betrag = feld('kauf-betrag'), kurs = feld('kauf-kurs'), gebuehren = feld('kauf-gebuehren');
-  const gratis = hatGratis(p) ? feld('kauf-gratis') : 0, stueck = feld('kauf-stueck');
+  const mitGratis = !document.getElementById('kauf-gratis-feld').hidden;
+  const gratis = mitGratis ? feld('kauf-gratis') : 0;
+  const stueck = mitGratis ? feld('kauf-bezahlt') + gratis : feld('kauf-stueck');
+  if (mitGratis && !(feld('kauf-bezahlt') >= 0)) { alert('Bitte die bezahlten Aktien prüfen.'); return; }
   if (!datum) { alert('Bitte ein Datum angeben.'); return; }
   if (!(betrag >= 0) || !(gebuehren >= 0) || !(gratis >= 0)) { alert('Bitte die Beträge prüfen.'); return; }
   if (!(stueck > 0)) { alert('Bitte Investment und Stückkurs angeben – oder die Stückzahl direkt eintragen.'); return; }
@@ -4173,7 +4198,7 @@ document.addEventListener('click', (e) => {
 
 // Kaufformular: Stückzahl mitrechnen; selbst eingetragene Stückzahl wird nicht mehr überschrieben
 document.getElementById('kauf-formular').addEventListener('input', (e) => {
-  if (e.target.id === 'kauf-stueck') e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
+  if (e.target.id === 'kauf-stueck' || e.target.id === 'kauf-bezahlt') e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
   kaufRechnen();
 });
 
