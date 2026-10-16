@@ -1043,7 +1043,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1651'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1714'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4351,10 +4351,29 @@ for (const id of ['rt-wunsch', 'rt-dauer', 'rt-entnahme-rendite', 'rt-inflation'
 }
 for (const id of ['rt-geburt', 'rt-alter']) document.getElementById(id).addEventListener('change', renteSpeichern);
 
-// Simulation je Position: Werte beim Verlassen des Feldes übernehmen (nicht bei jedem Tastendruck neu zeichnen)
+// Simulation je Position: kurz nach dem Tippen übernehmen (auf dem iPhone verlässt man das Feld nicht immer),
+// danach den Cursor wieder ins selbe Feld setzen und die Wirkung als Hinweis zeigen
+let simZeit = null;
+function simNachTippen(li, feld, fokusHalten = true) {
+  const id = li.dataset.sim, klasse = feld.classList.contains('sim-rate') ? 'sim-rate' : 'sim-rendite';
+  const vorher = projektion(renditeSzenario, 1, monateBis(rentenbeginn())).ende;
+  simUebernehmen(li);
+  const nachher = projektion(renditeSzenario, 1, monateBis(rentenbeginn())).ende;
+  const neu = document.querySelector(`#rt-sim li[data-sim="${id}"] .${klasse}`);
+  if (fokusHalten && neu && document.activeElement !== neu) { neu.focus(); neu.setSelectionRange(neu.value.length, neu.value.length); }
+  if (Math.abs(nachher - vorher) >= 1) toast(`Depot bei Rentenbeginn: ${geld(nachher)} (${mitVorzeichen(nachher - vorher)})`, null, null, 2500);
+}
+document.getElementById('rt-sim').addEventListener('input', (e) => {
+  const li = e.target.closest('li[data-sim]');
+  if (!li) return;
+  clearTimeout(simZeit);
+  simZeit = setTimeout(() => simNachTippen(li, e.target), 700);
+});
 document.getElementById('rt-sim').addEventListener('change', (e) => {
   const li = e.target.closest('li[data-sim]');
-  if (li) simUebernehmen(li);
+  if (!li) return;
+  clearTimeout(simZeit);
+  simNachTippen(li, e.target, false); // beim Verlassen nicht zurück ins Feld springen
 });
 document.getElementById('rt-ziel-pos').addEventListener('change', (e) => {
   daten.zielPosition = e.target.value;
