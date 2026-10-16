@@ -899,7 +899,7 @@
     <div class="titel"><h1 id="pos-name"></h1><div class="unterzeile" id="pos-unter"></div></div>
     <div class="knoepfe" style="margin-top: 0"><button class="knopf breit" data-aktion="kauf-neu" id="kauf-neu-knopf">Kauf erfassen</button></div>
     <div class="karte" id="kauf-formular" hidden>
-      <div class="posname"><span>Neuer Kauf</span></div>
+      <div class="posname"><span id="kauf-titel">Neuer Kauf</span></div>
       <div class="raster">
         <div><label class="feldname">Datum</label><input type="date" id="kauf-datum"></div>
         <div><label class="feldname">Investment (€)</label><input type="text" inputmode="decimal" id="kauf-betrag" placeholder="selbst bezahlt"></div>
@@ -914,9 +914,10 @@
       </div>
       <p class="unter" id="kauf-info" style="margin: 10px 2px 0; font-size: 13px"></p>
       <div class="knoepfe">
-        <button class="knopf" data-aktion="kauf-speichern">Kauf speichern</button>
+        <button class="knopf" data-aktion="kauf-speichern" id="kauf-speichern-knopf">Kauf speichern</button>
         <button class="knopf zweit" data-aktion="kauf-abbrechen">Abbrechen</button>
       </div>
+      <button class="textknopf" data-aktion="kauf-loeschen" id="kauf-loeschen-knopf" style="width: 100%; margin-top: 8px; color: var(--neg)" hidden>Kauf löschen</button>
     </div>
     <div class="abschnitt">Käufe</div>
     <div class="karte liste-karte"><ul id="pos-kaeufe" class="liste"></ul></div>
@@ -1032,7 +1033,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1501'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1512'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3591,6 +3592,7 @@ function positionenAnzeigen() {
 
 function positionAnzeigen(id) {
   positionId = id;
+  kaufBearbeitet = null;
   const p = daten.positionen.find((x) => x.id === id);
   if (!p) return positionenAnzeigen();
   document.getElementById('pos-name').textContent = p.name;
@@ -3598,7 +3600,7 @@ function positionAnzeigen(id) {
   document.getElementById('kauf-formular').hidden = true;
   document.getElementById('kauf-neu-knopf').hidden = false;
 
-  // Käufe: neueste zuerst; selbst erfasste (bestätigte) lassen sich löschen
+  // Käufe: neueste zuerst; jeder Kauf lässt sich antippen und bearbeiten
   const ul = document.getElementById('pos-kaeufe');
   ul.innerHTML = '';
   const kaeufe = daten.buchungen
@@ -3611,7 +3613,9 @@ function positionAnzeigen(id) {
     if (b.gratis) info.push(`davon ${zahl(b.gratis, 4)} gratis`);
     if (b.gebuehren) info.push(`${geld(b.gebuehren)} Gebühren`);
     if (b.art === 'umschichtung') info.push('Umschichtung');
-    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert">${geld(b.betrag)}${b.status === 'bestaetigt' ? `<small><button class="textknopf" data-aktion="kauf-loeschen" data-id="${b.id}">löschen</button></small>` : ''}</span>`;
+    li.className = 'tippbar';
+    li.dataset.kauf = b.id;
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert">${geld(b.betrag)}</span>`;
     li.querySelector('.n').textContent = deDatum(b.datum);
     li.querySelector('small').textContent = info.join(' · ');
     ul.appendChild(li);
@@ -3648,9 +3652,15 @@ function positionAnzeigen(id) {
 }
 
 // Kaufformular: Datum heute, Stück = Investment ÷ Kurs + Gratis-Aktien (überschreibbar)
+let kaufBearbeitet = null; // id des Kaufs, der gerade bearbeitet wird (sonst neuer Kauf)
+
 function kaufNeu() {
   const p = daten.positionen.find((x) => x.id === positionId);
   const k = kurse && kurse.preise[p.id];
+  kaufBearbeitet = null;
+  document.getElementById('kauf-titel').textContent = 'Neuer Kauf';
+  document.getElementById('kauf-speichern-knopf').textContent = 'Kauf speichern';
+  document.getElementById('kauf-loeschen-knopf').hidden = true;
   document.getElementById('kauf-datum').value = isoDatum(heute());
   for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-stueck']) document.getElementById(id).value = '';
   document.getElementById('kauf-kurs').value = k ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
@@ -3660,6 +3670,33 @@ function kaufNeu() {
   document.getElementById('kauf-formular').hidden = false;
   document.getElementById('kauf-neu-knopf').hidden = true;
   document.getElementById('kauf-betrag').focus();
+}
+
+// Vorhandenen Kauf (auch historischen) ins Formular laden
+function kaufBearbeiten(id) {
+  const b = daten.buchungen.find((x) => x.id === id);
+  if (!b) return;
+  const p = daten.positionen.find((x) => x.id === b.posId);
+  kaufBearbeitet = id;
+  const gebuehren = b.gebuehren || 0, gratis = b.gratis || 0;
+  const investment = b.betrag - gebuehren;
+  const kurs = b.kurs || (b.stueck - gratis > 0 ? investment / (b.stueck - gratis) : 0);
+  document.getElementById('kauf-titel').textContent = `Kauf vom ${deDatum(b.datum)} bearbeiten`;
+  document.getElementById('kauf-speichern-knopf').textContent = 'Änderungen speichern';
+  document.getElementById('kauf-loeschen-knopf').hidden = false;
+  document.getElementById('kauf-datum').value = b.datum;
+  document.getElementById('kauf-betrag').value = zahl(investment, 2);
+  document.getElementById('kauf-kurs').value = kurs ? zahl(kurs, kurs < 1 ? 4 : 4) : '';
+  document.getElementById('kauf-gebuehren').value = gebuehren ? zahl(gebuehren, 2) : '';
+  document.getElementById('kauf-gratis').value = gratis ? zahl(gratis, 4) : '';
+  document.getElementById('kauf-gratis-feld').hidden = !hatGratis(p) && !gratis;
+  const stueckEl = document.getElementById('kauf-stueck');
+  stueckEl.value = zahl(b.stueck, p.quelle === 'coingecko' ? 8 : 6);
+  stueckEl.dataset.selbst = '1'; // gespeicherte Stückzahl nicht automatisch überschreiben
+  document.getElementById('kauf-info').textContent = b.status === 'historie' ? 'Historischer Kauf aus dem Import.' : '';
+  document.getElementById('kauf-formular').hidden = false;
+  document.getElementById('kauf-neu-knopf').hidden = true;
+  document.getElementById('kauf-formular').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function kaufRechnen() {
@@ -3682,6 +3719,20 @@ function kaufSpeichern() {
   if (!datum) { alert('Bitte ein Datum angeben.'); return; }
   if (!(betrag >= 0) || !(gebuehren >= 0) || !(gratis >= 0)) { alert('Bitte die Beträge prüfen.'); return; }
   if (!(stueck > 0)) { alert('Bitte Investment und Stückkurs angeben – oder die Stückzahl direkt eintragen.'); return; }
+  if (kaufBearbeitet) {
+    // Bearbeiten: Kauf ändern und Bestand/Investment um die Differenz nachziehen
+    const b = daten.buchungen.find((x) => x.id === kaufBearbeitet);
+    const neuBetrag = betrag + gebuehren;
+    p.stueck += stueck - b.stueck;
+    p.investiert += neuBetrag - b.betrag;
+    Object.assign(b, { datum, monat: datum.slice(0, 7), betrag: neuBetrag, stueck, kurs: kurs || null, gratis: gratis || 0, gebuehren: gebuehren || 0, bearbeitet: isoDatum(heute()) });
+    kaufBearbeitet = null;
+    speichern();
+    positionAnzeigen(p.id);
+    toast('Kauf geändert', null, null, 2500);
+    kurseHolen();
+    return;
+  }
   const b = {
     id: `${p.id}-k-${Date.now()}`, posId: p.id, monat: datum.slice(0, 7), art: 'kauf', status: 'bestaetigt',
     datum, betrag: betrag + gebuehren, stueck, kurs: kurs || null, gratis: gratis || 0, gebuehren: gebuehren || 0,
@@ -3696,10 +3747,11 @@ function kaufSpeichern() {
 }
 
 function kaufLoeschen(id) {
-  const b = daten.buchungen.find((x) => x.id === id && x.status === 'bestaetigt');
+  const b = daten.buchungen.find((x) => x.id === id);
   if (!b) return;
   const p = daten.positionen.find((x) => x.id === b.posId);
-  if (!confirm(`Kauf vom ${deDatum(b.datum)} über ${geld(b.betrag)} (${zahl(b.stueck, 4)} Stück) löschen?`)) return;
+  if (!confirm(`Kauf vom ${deDatum(b.datum)} über ${geld(b.betrag)} (${zahl(b.stueck, 4)} Stück) löschen? Bestand und Investment werden entsprechend verringert.`)) return;
+  kaufBearbeitet = null;
   // Wirkung zurücknehmen: Bestand und Investment wie vor dem Kauf
   p.stueck -= b.stueck;
   p.investiert -= b.betrag;
@@ -4047,6 +4099,8 @@ document.addEventListener('click', (e) => {
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
   const posWahl = e.target.closest('li[data-position]')?.dataset.position;
   if (posWahl) { positionAnzeigen(posWahl); return; }
+  const kaufWahl = e.target.closest('li[data-kauf]')?.dataset.kauf;
+  if (kaufWahl) { kaufBearbeiten(kaufWahl); return; }
   const dz = e.target.closest('[data-detail-zeit]')?.dataset.detailZeit;
   if (dz) { detailZeitraum = dz; detailAnzeigen(detailPosId); return; }
   const zzSz = e.target.closest('[data-zz-szenario]')?.dataset.zzSzenario;
@@ -4106,7 +4160,7 @@ document.addEventListener('click', (e) => {
     'kauf-neu': kaufNeu,
     'kauf-speichern': kaufSpeichern,
     'kauf-abbrechen': () => positionAnzeigen(positionId),
-    'kauf-loeschen': () => kaufLoeschen(e.target.closest('[data-id]').dataset.id),
+    'kauf-loeschen': () => kaufLoeschen(kaufBearbeitet),
     'vermittler-speichern': () => {
       daten.vermittler = document.getElementById('vermittler').value.trim();
       daten.vermittlerToken = document.getElementById('vermittler-token').value.trim() || null;
