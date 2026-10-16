@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -67,6 +67,7 @@
   body {
     font: 17px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1;
+    touch-action: manipulation; /* kein Zoom per Doppeltipp */
   }
   main { max-width: 540px; margin: 0 auto;
     padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 32px); }
@@ -368,7 +369,7 @@
   .chart .s2 { stroke: var(--kat-3); } .chart .p2 { fill: var(--kat-3); }
   .sim li { gap: 8px; }
   .sim .eingaben { display: flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: 13px; color: var(--text-2); }
-  .sim input { width: 58px; min-height: 36px; padding: 6px 6px; text-align: right; font-size: 15px; }
+  .sim input { width: 58px; min-height: 36px; padding: 6px 6px; text-align: right; font-size: 16px; } /* unter 16 px zoomt iOS beim Antippen */
   .sim input.geaendert { outline: 2px solid var(--akzent); }
   .sim li.kopf { min-height: 0; padding-top: 10px; padding-bottom: 4px; font-size: 12px; color: var(--text-2); }
   .sim li.kopf .eingaben span { width: 58px; text-align: center; }
@@ -1043,7 +1044,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1714'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-16.1717'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4291,7 +4292,8 @@ document.addEventListener('click', (e) => {
 
 // Kaufformular: Stückzahl mitrechnen; selbst eingetragene Stückzahl wird nicht mehr überschrieben
 document.getElementById('kauf-formular').addEventListener('input', (e) => {
-  if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = e.target.value.trim() ? '1' : '';
+  // einmal angefasst = eigene Eingabe, auch wenn das Feld gerade leer ist (kein Vorschlag mitten beim Neueintippen)
+  if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = '1';
   kaufRechnen();
 });
 
@@ -4367,6 +4369,7 @@ document.getElementById('rt-sim').addEventListener('input', (e) => {
   const li = e.target.closest('li[data-sim]');
   if (!li) return;
   clearTimeout(simZeit);
+  if (!e.target.value.trim()) return; // leeres Feld beim Neueintippen nicht übernehmen (erst beim Verlassen)
   simZeit = setTimeout(() => simNachTippen(li, e.target), 700);
 });
 document.getElementById('rt-sim').addEventListener('change', (e) => {
