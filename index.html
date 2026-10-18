@@ -457,16 +457,24 @@
     body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 32px); }
     body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 18px); }
     .menue-panel { max-width: 420px; }
+    /* Startseite: Gesamtvermögen über die ganze Breite, darunter Depot | Tagesgeld, dann Kreis | Legende */
+    #ansicht-start .paar { gap: 16px; margin-bottom: 16px; }
+    #ansicht-start .paar .karte { padding: 20px; }
+    #ansicht-start .paar .wert { font-size: 30px; }
+    .arten-karte { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; align-items: center; }
+    .arten-karte > .etikett { grid-column: 1 / -1; }
+    .arten-karte .ring.klein { max-width: 260px; width: 100%; margin: 8px auto; }
+    .arten-karte #start-arten { margin: 0 -18px 0 0 !important; }
   }
   /* Querformat: die drei Hauptseiten zweispaltig */
   @media (min-width: 1100px) {
     main { max-width: 760px; }
     body.mit-tabs main { max-width: 1120px; }
-    #ansicht-start, #ansicht-haupt, #ansicht-tagesgeld { column-count: 2; column-gap: 20px; }
-    #ansicht-start > *, #ansicht-haupt > *, #ansicht-tagesgeld > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
-    #ansicht-start > .kopf, #ansicht-haupt > .kopf, #ansicht-tagesgeld > .kopf,
-    #ansicht-start > .hinweis, #ansicht-start > .fuss, #ansicht-haupt > .fuss, #ansicht-tagesgeld > .fuss { column-span: all; -webkit-column-span: all; }
-    .ring.klein { max-width: 240px; }
+    #ansicht-haupt, #ansicht-tagesgeld { column-count: 2; column-gap: 20px; }
+    #ansicht-haupt > *, #ansicht-tagesgeld > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
+    #ansicht-haupt > .kopf, #ansicht-tagesgeld > .kopf,
+    #ansicht-haupt > .fuss, #ansicht-tagesgeld > .fuss { column-span: all; -webkit-column-span: all; }
+    .arten-karte .ring.klein { max-width: 300px; }
   }
 </style>
 </head>
@@ -565,7 +573,7 @@
         <span class="unter anteil" id="start-tagesgeld-anteil"></span>
       </div>
     </div>
-    <div class="karte tippbar" data-aktion="arten" role="button" tabindex="0">
+    <div class="karte tippbar arten-karte" data-aktion="arten" role="button" tabindex="0">
       <div class="etikett">Anlagearten <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="start-ring" class="ring klein"></div>
       <ul id="start-arten" class="liste" style="margin: 6px -18px -8px"></ul>
@@ -1116,7 +1124,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1248'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1253'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
