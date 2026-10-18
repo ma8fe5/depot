@@ -503,7 +503,7 @@
     <div class="sperre-inhalt">
       <div class="sperre-icon"><svg><use href="#i-schloss"/></svg></div>
       <h1>Depot</h1>
-      <p class="unter">Deine Daten sind verschlüsselt.</p>
+      <p class="unter" id="sperre-text">Deine Daten sind verschlüsselt.</p>
       <button class="knopf breit" data-aktion="entsperren">Mit Face ID entsperren</button>
       <p id="sperre-meldung" class="fuss fehler"></p>
     </div>
@@ -1116,7 +1116,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1241'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1248'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1323,6 +1323,7 @@ function schutzEntfernen() {
 }
 
 async function entsperren() {
+  if (verbindung) return verbindenAbschliessen(); // iPad: erstes Verbinden mit dem iPhone
   const meldung = document.getElementById('sperre-meldung');
   meldung.textContent = '';
   try {
@@ -1541,8 +1542,23 @@ async function mitIphoneVerbinden() {
     schritt = 'Stand vom Vermittler holen';
     const eintrag = await abgleichAnfrage('/sync/daten', null, basis);
     if (eintrag.leer) throw new Error('Beim Vermittler liegt noch kein Stand. Schalte den Abgleich zuerst auf dem iPhone ein.');
-    schritt = 'Face ID / Passkey';
     if (!window.PublicKeyCredential) throw new Error('Dieses Gerät unterstützt keine Passkeys.');
+    // Face ID braucht in Safari ein frisches Antippen – deshalb eigener Knopf auf dem Sperrbildschirm
+    verbindung = { basis, eintrag };
+    document.getElementById('sperre-text').textContent = 'Dein Stand vom iPhone ist gefunden. Zum Entschlüsseln einmal mit Face ID bestätigen.';
+    document.getElementById('sperre-meldung').textContent = '';
+    zeige('ansicht-sperre');
+  } catch (e) {
+    alert(`Verbinden fehlgeschlagen (${schritt}): ${e.message}`);
+  }
+}
+
+let verbindung = null; // gefundener Stand, wartet auf Face ID
+
+async function verbindenAbschliessen() {
+  const { basis, eintrag } = verbindung;
+  let schritt = 'Face ID / Passkey';
+  try {
     schluessel = await schluesselHolen(eintrag.meta);
     schritt = 'Entschlüsseln';
     let klar;
@@ -1553,20 +1569,24 @@ async function mitIphoneVerbinden() {
     localStorage.removeItem(SPEICHER);
     abgleich = { an: true, rev: eintrag.rev, offen: false, zuletzt: eintrag.zeit, hash: await pruefsumme(klar) };
     abgleichMerken();
-    const h = await abgleichAnfrage('/sync/historie', null, basis);
-    if (!h.leer) {
-      kurshistorieUebernehmen(JSON.parse(await entschluesseln(h.paket)), true);
-      abgleich.historie = h.zeit;
-      abgleichMerken();
-    }
+    try { // Kursverlauf: schön zu haben, aber kein Grund, das Verbinden abzubrechen
+      const h = await abgleichAnfrage('/sync/historie', null, basis);
+      if (!h.leer) {
+        kurshistorieUebernehmen(JSON.parse(await entschluesseln(h.paket)), true);
+        abgleich.historie = h.zeit;
+        abgleichMerken();
+      }
+    } catch (e) { console.error(e); }
+    verbindung = null;
+    document.getElementById('sperre-text').textContent = 'Deine Daten sind verschlüsselt.';
     nachLaden();
     toast('Verbunden. Änderungen gleichen sich ab jetzt automatisch ab.');
   } catch (e) {
     schluessel = null;
     daten = null;
-    alert(e.name === 'NotAllowedError'
-      ? 'Face ID wurde abgebrochen – oder auf diesem Gerät gibt es den Passkey „Depot-App“ (noch) nicht. Prüfe in der App „Passwörter“ (Suche: ma8fe5), ob er hier angekommen ist.'
-      : `Verbinden fehlgeschlagen (${schritt}): ${e.message}`);
+    document.getElementById('sperre-meldung').textContent = e.name === 'NotAllowedError'
+      ? 'Face ID wurde abgebrochen oder vom System nicht angeboten. Bitte noch einmal tippen.'
+      : `Verbinden fehlgeschlagen (${schritt}): ${e.message}`;
   }
 }
 
