@@ -480,7 +480,7 @@
       <button class="knopf breit" data-aktion="entsperren">Mit Face ID entsperren</button>
       <p id="sperre-meldung" class="fuss fehler"></p>
     </div>
-    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und Backup wiederherstellen</button>
+    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und aus Backup wiederherstellen</button>
   </section>
 
   <!-- Startansicht: noch keine Daten -->
@@ -980,12 +980,13 @@
       </div>
     </div>
 
-    <div class="abschnitt">Backup wiederherstellen</div>
+    <div class="abschnitt">Backup</div>
     <div class="karte">
       <p class="unter" id="backup-info" style="margin: 0"></p>
-      <p class="unter" style="margin: 8px 0 0">Holt deine Daten aus einer Backup-Datei zurück, z. B. auf einem neuen iPhone. Ein neues Backup erstellst du im Menü unter Pflegen → Backup sichern.</p>
-      <div class="knoepfe">
-        <button class="knopf zweit" data-aktion="import">Backup wiederherstellen</button>
+      <p class="unter" style="margin: 8px 0 0"><b>Backup sichern</b> speichert deine Daten als Datei in OneDrive. <b>Aus Backup wiederherstellen</b> holt sie aus so einer Datei zurück, z. B. auf einem neuen iPhone.</p>
+      <div class="knoepfe" style="flex-direction: column">
+        <button class="knopf" data-aktion="export">Backup sichern</button>
+        <button class="knopf zweit" data-aktion="import">Aus Backup wiederherstellen</button>
       </div>
     </div>
 
@@ -1064,7 +1065,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1148'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1151'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4220,6 +4221,7 @@ async function exportieren() {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
   if (hauptseiteSichtbar()) hauptRendern();
+  document.getElementById('backup-info').textContent = `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`;
 }
 
 // Übernimmt echte Depot-Umsätze (depot-historie.json) als Historie-Buchungen.
