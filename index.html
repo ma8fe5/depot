@@ -1044,7 +1044,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1113'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1125'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2058,12 +2058,15 @@ function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
 const tgKonten = () => ((daten.tagesgeld && daten.tagesgeld.konten) || []);
 const tgAktiv = () => tgKonten().filter((k) => !k.geschlossen);
 // Aktueller Kontostand: bei täglicher Zinsgutschrift ab dem letzten Eintrag tageweise fortgeschrieben (geschätzt)
+// (täglich aufgezinst wie bei Revolut: Stand × (1 + Nettozins/365)^Tage)
 const tgStand = (k) => (k.auszahlung !== 'termin' && k.zins && k.standDatum && !k.geschlossen
-  ? k.stand + tgTagesZins(k) * Math.max(0, tageZwischen(k.standDatum, isoDatum(heute())))
+  ? k.stand * Math.pow(1 + (k.zins * tgNetto(k)) / 100 / 365, Math.max(0, tageZwischen(k.standDatum, isoDatum(heute()))))
   : k.stand);
 const tgSumme = () => tgAktiv().reduce((s, k) => s + tgStand(k), 0);
 const tgZinsen = (k) => (k.zinsen || []).reduce((s, z) => s + z.betrag, 0);
-const tgTagesZins = (k) => (k.stand * (k.zins || 0)) / 100 / 365;
+// Tageszins netto: Banken mit deutscher Niederlassung (z. B. Revolut) ziehen Abgeltungsteuer + Soli direkt ab (k.steuer in %)
+const tgNetto = (k) => 1 - (k.steuer || 0) / 100;
+const tgTagesZins = (k) => (k.stand * (k.zins || 0) * tgNetto(k)) / 100 / 365;
 const tageZwischen = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5);
 
 // Bis jetzt angesammelte, noch nicht ausgezahlte Zinsen – wie bei der Bank tageweise:
@@ -2108,14 +2111,14 @@ function tagesgeldAnzeigen() {
   sortiert.forEach((k, i) => {
     const li = document.createElement('li');
     li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span>
-      <span class="name"><span class="n"></span><small>${k.zins ? `${zahl(k.zins, 2)} % p. a.` : 'Zinssatz fehlt'}${k.termin ? ` · bis ${deDatum(k.termin)}` : ''}</small></span>
+      <span class="name"><span class="n"></span><small>${k.zins ? `${zahl(k.zins, 2)} % p. a.${k.steuer ? ` (netto ${zahl(k.zins * tgNetto(k), 2)} %)` : ''}` : 'Zinssatz fehlt'}${k.termin ? ` · bis ${deDatum(k.termin)}` : ''}</small></span>
       <span class="wert">${geld(tgStand(k))}<small>${summeTg ? zahl((tgStand(k) / summeTg) * 100, 1) : '0'} %</small></span>`;
     li.querySelector('.n').textContent = k.bank;
     verteilung.appendChild(li);
   });
 
   // Zins-Uhr
-  const proJahr = aktiv.reduce((s, k) => s + (k.stand * (k.zins || 0)) / 100, 0);
+  const proJahr = aktiv.reduce((s, k) => s + (k.stand * (k.zins || 0) * tgNetto(k)) / 100, 0);
   const ohneZins = aktiv.filter((k) => !k.zins).map((k) => k.bank);
   document.getElementById('tg-uhr-unter').textContent = proJahr
     ? `≈ ${geld(proJahr / 12)} pro Monat · ${geld(proJahr)} pro Jahr bei heutigen Zinsen${ohneZins.length ? ` (ohne ${ohneZins.join(', ')}: Zinssatz fehlt)` : ''}`
@@ -2263,6 +2266,10 @@ function tgKarte(k) {
         <select class="tg-auszahlung"><option value="taeglich"${k.auszahlung !== 'termin' ? ' selected' : ''}>täglich / monatlich</option><option value="termin"${k.auszahlung === 'termin' ? ' selected' : ''}>am Aktionsende</option></select></div>
       <div><label class="feldname">Aufgelaufen heute (€)</label><input type="text" inputmode="decimal" class="tg-aufgelaufen" placeholder="0,00" value="${k.auszahlung === 'termin' && k.aufgelaufen ? zahl(tgAufgelaufen(k), 2) : ''}"></div>
     </div>
+    <div class="raster" style="margin-top: 12px">
+      <div><label class="feldname">Steuerabzug durch die Bank (%)</label><input type="text" inputmode="decimal" class="tg-steuer" placeholder="keiner" value="${k.steuer ? zahl(k.steuer, 3) : ''}"></div>
+    </div>
+    <p class="unter" style="margin: 6px 2px 0; font-size: 12px">Ziehen Banken mit deutscher Niederlassung Abgeltungsteuer + Soli direkt ab, hier 26,375 eintragen (mit Kirchensteuer mehr).</p>
     ${k.id ? '<div class="knoepfe"><button class="knopf zweit" data-aktion="tg-wechsel">Bankwechsel</button><button class="textknopf" data-aktion="tg-loeschen">Entfernen</button></div>' : ''}`;
   card.querySelector('.posname span').textContent = k.bank || 'Neues Konto';
   card.querySelector('.posname small').textContent = k.standDatum ? `Stand vom ${deDatum(k.standDatum)}` : '';
@@ -2278,12 +2285,13 @@ function tgSpeichern() {
     const stand = parseZahl(card.querySelector('.tg-stand').value);
     const termin = card.querySelector('.tg-termin').value || null;
     const feld = (cls) => { const t = card.querySelector(cls).value.trim(); return t ? parseZahl(t) : null; };
-    const zins = feld('.tg-zins'), zinsDanach = feld('.tg-danach'), aufgelaufen = feld('.tg-aufgelaufen');
+    const zins = feld('.tg-zins'), zinsDanach = feld('.tg-danach'), aufgelaufen = feld('.tg-aufgelaufen'), steuer = feld('.tg-steuer');
+    if (steuer != null && !(steuer >= 0 && steuer < 100)) { alert(`Bitte den Steuerabzug für „${bank}“ prüfen.`); return; }
     const auszahlung = card.querySelector('.tg-auszahlung').value;
     if (!bank) { alert('Bitte bei jedem Konto die Bank angeben.'); return; }
     if (!(stand >= 0)) { alert(`Bitte einen gültigen Stand für „${bank}“ eintragen.`); return; }
     if ([zins, zinsDanach, aufgelaufen].some((v) => v != null && !(v >= 0))) { alert(`Bitte Zinssätze und aufgelaufene Zinsen für „${bank}“ prüfen.`); return; }
-    eingaben.push({ id: card.dataset.id, bank, stand, termin, zins, zinsDanach, auszahlung, aufgelaufen });
+    eingaben.push({ id: card.dataset.id, bank, stand, termin, zins, zinsDanach, auszahlung, aufgelaufen, steuer });
   }
   daten.tagesgeld = daten.tagesgeld || { konten: [] };
   const h = isoDatum(heute());
@@ -2300,7 +2308,7 @@ function tgSpeichern() {
     const aufgelaufen = e.auszahlung === 'termin' && e.aufgelaufen != null
       ? (k.aufgelaufen && Math.abs(tgAufgelaufen({ ...k, auszahlung: 'termin' }) - e.aufgelaufen) < 0.005 ? k.aufgelaufen : { betrag: e.aufgelaufen, datum: h })
       : null;
-    Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen });
+    Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen, steuer: e.steuer || null });
   }
   speichern();
   tgKontenAnzeigen();
@@ -4101,7 +4109,7 @@ function historieUebernehmen(paket) {
     const konto = tgAktiv().find((k) => k.id === id) || tgAktiv().find((k) => kd.bank && k.bank.toLowerCase() === kd.bank.toLowerCase());
     if (!konto) continue;
     konditionen.push([konto, kd]);
-    zeilen.push(`Tagesgeld ${konto.bank}: ${zahl(kd.zins, 2)} %${kd.auszahlung === 'termin' ? `, Zinsen am Aktionsende, aufgelaufen ${eur.format(kd.aufgelaufen.betrag)}` : ', Zinsen laufend'}`);
+    zeilen.push(`Tagesgeld ${konto.bank}: ${zahl(kd.zins, 2)} %${kd.auszahlung === 'termin' ? `, Zinsen am Aktionsende, aufgelaufen ${eur.format(kd.aufgelaufen.betrag)}` : ', Zinsen laufend'}${kd.steuer ? `, Steuerabzug ${zahl(kd.steuer, 3)} %` : ''}${kd.stand != null ? `, Stand ${eur.format(kd.stand)} am ${deDatum(kd.standDatum)}` : ''}`);
   }
   const kh = Object.entries(paket.kurshistorie || {});
   if (kh.length) {
@@ -4141,6 +4149,8 @@ function historieUebernehmen(paket) {
   for (const [konto, kd] of konditionen) {
     Object.assign(konto, {
       zins: kd.zins, zinsDanach: kd.zinsDanach != null ? kd.zinsDanach : null, auszahlung: kd.auszahlung || 'taeglich',
+      steuer: kd.steuer != null ? kd.steuer : (konto.steuer || null),
+      ...(kd.stand != null ? { stand: kd.stand, standDatum: kd.standDatum } : {}),
       aufgelaufen: kd.auszahlung === 'termin' ? kd.aufgelaufen : null,
     });
     if (kd.termin) konto.termin = kd.termin;
