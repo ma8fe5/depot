@@ -480,7 +480,7 @@
       <button class="knopf breit" data-aktion="entsperren">Mit Face ID entsperren</button>
       <p id="sperre-meldung" class="fuss fehler"></p>
     </div>
-    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und Backup laden</button>
+    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und Backup wiederherstellen</button>
   </section>
 
   <!-- Startansicht: noch keine Daten -->
@@ -980,11 +980,12 @@
       </div>
     </div>
 
-    <div class="abschnitt">Backup in OneDrive</div>
+    <div class="abschnitt">Backup wiederherstellen</div>
     <div class="karte">
       <p class="unter" id="backup-info" style="margin: 0"></p>
+      <p class="unter" style="margin: 8px 0 0">Holt deine Daten aus einer Backup-Datei zurück, z. B. auf einem neuen iPhone. Ein neues Backup erstellst du im Menü unter Pflegen → Backup sichern.</p>
       <div class="knoepfe">
-        <button class="knopf zweit" data-aktion="import">Backup laden</button>
+        <button class="knopf zweit" data-aktion="import">Backup wiederherstellen</button>
       </div>
     </div>
 
@@ -1063,7 +1064,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1144'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1148'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
