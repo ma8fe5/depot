@@ -563,13 +563,11 @@
       <img class="start-logo" src="icon-mf.svg" alt="">
       <h1>Depot</h1>
       <p class="start-claim">Vermögen, Depot und Tagesgeld – auf allen deinen Geräten.</p>
-      <label class="start-label" for="start-code">Zugangscode</label>
-      <input class="start-feld" id="start-code" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Code einfügen">
-      <button class="start-knopf" data-aktion="verbinden">Verbinden</button>
+      <button class="start-knopf" data-aktion="verbinden">Mit Face ID anmelden</button>
       <p class="start-meldung" id="start-meldung"></p>
-      <button class="start-link" data-aktion="import">Stattdessen Backup-Datei laden</button>
+      <button class="start-link" data-aktion="import">Backup-Datei laden</button>
     </div>
-    <p class="start-fuss">Den Code findest du auf einem verbundenen Gerät unter Einstellungen → Abgleich.</p>
+    <p class="start-fuss">Deine Daten sind verschlüsselt. Öffnen kann sie nur dein Face-ID-Passkey.</p>
   </section>
 
   <!-- Startseite: Gesamtvermögen (mittlerer Reiter) -->
@@ -1083,7 +1081,6 @@
       <p class="unter" id="abgleich-info" style="margin: 0"></p>
       <div class="knoepfe" style="flex-direction: column">
         <button class="knopf" id="abgleich-an" data-aktion="abgleich-an">Abgleich einschalten</button>
-        <button class="knopf" id="abgleich-code" data-aktion="abgleich-code">Verbindungscode kopieren</button>
         <button class="knopf zweit" id="abgleich-aus" data-aktion="abgleich-aus">Abgleich ausschalten</button>
       </div>
     </div>
@@ -1173,7 +1170,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1708'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1715'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1536,20 +1533,8 @@ async function historieHochladen() {
   } catch (e) { console.error(e); }
 }
 
-// Code fürs andere Gerät: beim üblichen Vermittler nur der Zugangsschlüssel (43 Zeichen), sonst Adresse + Schlüssel
+// Vermittler, bei dem ein neues Gerät seinen verschlüsselten Stand abholt (Anmeldung nur mit Face ID)
 const STANDARD_VERMITTLER = 'https://depot.marcelo-ferreira-edf.workers.dev';
-const verbindungsCode = () => (daten.vermittler.replace(/\/$/, '') === STANDARD_VERMITTLER
-  ? daten.vermittlerToken
-  : btoa(JSON.stringify({ u: daten.vermittler, t: daten.vermittlerToken })));
-function codeLesen(eingabe) {
-  const code = eingabe.replace(/[^A-Za-z0-9_\-+/=]/g, '');
-  if (/^[A-Za-z0-9_-]{30,64}$/.test(code)) return { u: STANDARD_VERMITTLER, t: code };
-  try {
-    const z = JSON.parse(atob(code));
-    if (z.u && z.t) return z;
-  } catch { /* unten melden */ }
-  throw new Error(`Der Code ist unvollständig (angekommen: ${code.length} Zeichen, Anfang „${code.slice(0, 6)}“). Erwartet: 43 Zeichen.`);
-}
 
 async function abgleichEinschalten() {
   if (!schutzAktiv() || !schluessel) { alert('Der Abgleich braucht Face ID. Richte zuerst oben „Face ID einrichten“ ein.'); return; }
@@ -1563,7 +1548,7 @@ async function abgleichEinschalten() {
     await historieHochladen();
     if (abgleich.offen) throw new Error('Hochladen fehlgeschlagen');
     einstellungenAnzeigen();
-    alert('Abgleich ist an. Tippe jetzt auf „Verbindungscode kopieren“ und füge ihn auf dem iPad ein.');
+    alert('Abgleich ist an. Auf dem iPad oder PC meldest du dich jetzt einfach mit Face ID an.');
   } catch (e) {
     abgleich = {};
     abgleichMerken();
@@ -1578,37 +1563,31 @@ function abgleichAusschalten() {
   einstellungenAnzeigen();
 }
 
-async function codeKopieren() {
+// Neues Gerät: verschlüsselten Stand schon beim Anzeigen des Startbilds holen – Safari erlaubt Face ID
+// nur direkt nach einem Antippen, ohne Ladepause dazwischen. Der Zugangsschlüssel steckt in den entschlüsselten Daten.
+async function anmeldungVorbereiten() {
+  const meldung = document.getElementById('start-meldung');
   try {
-    await navigator.clipboard.writeText(verbindungsCode());
-    toast('Code kopiert – auf dem iPad einfügen.');
-  } catch {
-    prompt('Code kopieren:', verbindungsCode());
+    const basis = { vermittler: STANDARD_VERMITTLER, vermittlerToken: '' };
+    const eintrag = await abgleichAnfrage('/sync/daten', null, basis);
+    if (eintrag.leer) { verbindung = null; meldung.textContent = 'Noch kein gespeicherter Stand – lade eine Backup-Datei.'; return; }
+    verbindung = { basis, eintrag };
+    meldung.textContent = '';
+  } catch (e) {
+    verbindung = null;
+    meldung.textContent = navigator.onLine === false ? 'Keine Internetverbindung.' : 'Dienst gerade nicht erreichbar. Bitte gleich noch einmal versuchen.';
   }
 }
 
-// Auf dem iPad (noch ohne Daten): Code vom iPhone einfügen, Face ID, fertig
 async function mitIphoneVerbinden() {
-  const meldung = document.getElementById('start-meldung');
-  const code = document.getElementById('start-code').value.trim();
-  meldung.textContent = '';
-  if (!code) { meldung.textContent = 'Bitte zuerst den Zugangscode einfügen.'; return; }
-  let schritt = 'Code lesen';
-  try {
-    const zugang = codeLesen(code);
-    const basis = { vermittler: zugang.u, vermittlerToken: zugang.t };
-    schritt = 'Stand vom Vermittler holen';
-    const eintrag = await abgleichAnfrage('/sync/daten', null, basis);
-    if (eintrag.leer) throw new Error('Beim Vermittler liegt noch kein Stand. Schalte den Abgleich zuerst auf dem iPhone ein.');
-    if (!window.PublicKeyCredential) throw new Error('Dieses Gerät unterstützt keine Passkeys.');
-    // Face ID braucht in Safari ein frisches Antippen – deshalb eigener Knopf auf dem Sperrbildschirm
-    verbindung = { basis, eintrag };
-    document.getElementById('sperre-text').textContent = 'Dein Stand vom iPhone ist gefunden. Zum Entschlüsseln einmal mit Face ID bestätigen.';
-    document.getElementById('sperre-meldung').textContent = '';
-    zeige('ansicht-sperre');
-  } catch (e) {
-    meldung.textContent = e.message;
+  if (!window.PublicKeyCredential) { document.getElementById('start-meldung').textContent = 'Dieses Gerät unterstützt keine Passkeys.'; return; }
+  if (!verbindung) { // noch nicht geladen: holen, dann ein zweites Antippen (Face ID braucht ein frisches Antippen)
+    document.getElementById('start-meldung').textContent = 'Einen Moment …';
+    await anmeldungVorbereiten();
+    if (verbindung) document.getElementById('start-meldung').textContent = 'Bereit – bitte noch einmal tippen.';
+    return;
   }
+  return verbindenAbschliessen();
 }
 
 let verbindung = null; // gefundener Stand, wartet auf Face ID
@@ -1620,7 +1599,7 @@ async function verbindenAbschliessen() {
     schluessel = await schluesselHolen(eintrag.meta);
     schritt = 'Entschlüsseln';
     let klar;
-    try { klar = await entschluesseln(eintrag.paket); } catch { throw new Error('Der Passkey auf diesem Gerät passt nicht. Ist der iCloud-Schlüsselbund auf beiden Geräten an?'); }
+    try { klar = await entschluesseln(eintrag.paket); } catch { throw new Error('Dieser Passkey passt nicht zu deinen Daten. Ist der iCloud-Schlüsselbund an?'); }
     daten = JSON.parse(klar);
     localStorage.setItem(SCHUTZ_META, JSON.stringify(eintrag.meta));
     localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(eintrag.paket));
@@ -1636,13 +1615,13 @@ async function verbindenAbschliessen() {
       }
     } catch (e) { console.error(e); }
     verbindung = null;
-    document.getElementById('sperre-text').textContent = 'Deine Daten sind verschlüsselt.';
     nachLaden();
-    toast('Verbunden. Änderungen gleichen sich ab jetzt automatisch ab.');
+    toast('Angemeldet. Änderungen gleichen sich ab jetzt automatisch ab.');
   } catch (e) {
     schluessel = null;
     daten = null;
-    document.getElementById('sperre-meldung').textContent = e.name === 'NotAllowedError'
+    const meldung = document.getElementById('ansicht-leer').hidden ? document.getElementById('sperre-meldung') : document.getElementById('start-meldung');
+    meldung.textContent = e.name === 'NotAllowedError'
       ? 'Face ID wurde abgebrochen oder vom System nicht angeboten. Bitte noch einmal tippen.'
       : `Verbinden fehlgeschlagen (${schritt}): ${e.message}`;
   }
@@ -1661,6 +1640,7 @@ function zeige(id) {
   if (REITER.includes(id)) letzterReiter = id;
   // Startbild (Willkommen, Sperre): Statusleiste und Hintergrund schwarz wie das App-Icon
   const start = id === 'ansicht-leer' || id === 'ansicht-sperre';
+  if (id === 'ansicht-leer' && !verbindung) anmeldungVorbereiten();
   document.body.classList.toggle('start', start);
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
     if (!m.dataset.normal) m.dataset.normal = m.content;
@@ -4282,10 +4262,9 @@ function einstellungenAnzeigen() {
   document.getElementById('schutz-aus').hidden = !geschuetzt;
   const an = !!abgleich.an;
   document.getElementById('abgleich-info').textContent = an
-    ? `An. Änderungen gleichen sich automatisch mit dem anderen Gerät ab – verschlüsselt, der Vermittler kann sie nicht lesen.${abgleich.zuletzt ? ` Zuletzt: ${new Date(abgleich.zuletzt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}${abgleich.offen ? ', Änderungen warten auf Verbindung' : ''}.` : ''} Für ein weiteres Gerät: Code kopieren und dort bei „Mit iPhone verbinden“ einfügen.`
+    ? `An. Änderungen gleichen sich automatisch mit dem anderen Gerät ab – verschlüsselt, der Vermittler kann sie nicht lesen.${abgleich.zuletzt ? ` Zuletzt: ${new Date(abgleich.zuletzt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}${abgleich.offen ? ', Änderungen warten auf Verbindung' : ''}.` : ''} Ein weiteres Gerät meldest du einfach mit Face ID an.`
     : 'Aus. Mit dem Abgleich siehst und pflegst du deine Daten auch auf dem iPad. Sie liegen dafür verschlüsselt bei deinem Vermittler, der Schlüssel kommt aus deinem Face-ID-Passkey.';
   document.getElementById('abgleich-an').hidden = an;
-  document.getElementById('abgleich-code').hidden = !an;
   document.getElementById('abgleich-aus').hidden = !an;
   pushStatusAnzeigen();
   zeige('ansicht-einstellungen');
@@ -4990,7 +4969,6 @@ document.addEventListener('click', (e) => {
     verbinden: mitIphoneVerbinden,
     'abgleich-an': abgleichEinschalten,
     'abgleich-aus': abgleichAusschalten,
-    'abgleich-code': codeKopieren,
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
@@ -5045,8 +5023,6 @@ document.getElementById('kauf-formular').addEventListener('input', (e) => {
   if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = '1';
   kaufRechnen();
 });
-
-document.getElementById('start-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') mitIphoneVerbinden(); });
 
 document.getElementById('datei').addEventListener('change', (e) => {
   if (e.target.files[0]) importieren(e.target.files[0]);
