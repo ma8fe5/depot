@@ -452,6 +452,16 @@
   .sperre-reset { margin-top: 28px; font-size: 13px; color: var(--text-3); }
   body.verdeckt main { filter: blur(24px); }
 
+  /* ---------- Maus & Tastatur (PC) ---------- */
+  @media (hover: hover) and (pointer: fine) {
+    .karte.tippbar:hover { box-shadow: 0 0 0 1.5px var(--akzent-weich), var(--schatten); }
+    .liste li.tippbar:hover { background: var(--flaeche-2); }
+    .knopf:hover, .chip:hover, .segmente button:hover, .rund:hover { filter: brightness(0.96); }
+    .tabbar button:hover { color: var(--akzent); }
+    .menue-panel li.tippbar:hover { background: var(--flaeche-2); }
+  }
+  :focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+
   /* ---------- iPad & große Bildschirme ----------
      Nicht nach Gerät, sondern nach Breite: so passt es auch beim Drehen und in der geteilten Ansicht. */
   @media (min-width: 768px) {
@@ -467,6 +477,15 @@
     body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 32px); }
     body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 18px); }
     .menue-panel { max-width: 420px; }
+    /* Depot: Wert | Gewinn, Chart über die volle Breite, darunter Gewinn/Verlust | Tops & Lows */
+    #ansicht-haupt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+    #ansicht-haupt > * { grid-column: 1 / -1; }
+    #ansicht-haupt > .gv-karte { grid-column: 1; }
+    #ansicht-haupt > .tops-karte { grid-column: 2; }
+    #ansicht-haupt .karte { padding: 18px 20px; margin-bottom: 16px; }
+    #ansicht-haupt .paar { gap: 16px; margin-bottom: 16px; }
+    #ansicht-haupt .paar .karte { padding: 20px; }
+    #ansicht-haupt .paar .wert-gross { font-size: 30px; }
     /* Startseite: Gesamtvermögen über die ganze Breite, darunter Depot | Tagesgeld, dann Kreis | Legende */
     #ansicht-start .paar { gap: 16px; margin-bottom: 16px; }
     #ansicht-start .paar .karte { padding: 20px; }
@@ -481,10 +500,11 @@
   @media (min-width: 1100px) {
     main { max-width: 760px; }
     body.mit-tabs main { max-width: 1120px; }
-    #ansicht-haupt, #ansicht-tagesgeld { column-count: 2; column-gap: 20px; }
-    #ansicht-haupt > *, #ansicht-tagesgeld > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
-    #ansicht-haupt > .kopf, #ansicht-tagesgeld > .kopf,
-    #ansicht-haupt > .fuss, #ansicht-tagesgeld > .fuss { column-span: all; -webkit-column-span: all; }
+    /* Tagesgeld: Verteilung | Zins-Uhr nebeneinander, Rest darunter */
+    #ansicht-tagesgeld { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+    #ansicht-tagesgeld > * { grid-column: 1 / -1; }
+    #ansicht-tagesgeld > .verteilung { grid-column: 1; }
+    #ansicht-tagesgeld > .uhr-karte { grid-column: 2; }
   }
 </style>
 </head>
@@ -617,14 +637,14 @@
       </div>
     </div>
 
-    <div class="karte">
+    <div class="karte entw-karte">
       <div class="etikett">Entwicklung</div>
       <div class="chips" id="entw-chips"></div>
       <div id="start-chart" class="chart"></div>
       <p class="unter" id="entw-hinweis" style="margin: 6px 0 0; font-size: 12px"></p>
     </div>
 
-    <div class="karte">
+    <div class="karte gv-karte">
       <div class="zeile-wert">
         <div>
           <div class="etikett" id="gv-titel">Gewinn/Verlust zum Vortag</div>
@@ -640,7 +660,7 @@
       </div>
     </div>
 
-    <div class="karte liste-karte tippbar" data-aktion="tops" role="button" tabindex="0" style="padding-top: 12px">
+    <div class="karte liste-karte tippbar tops-karte" data-aktion="tops" role="button" tabindex="0" style="padding-top: 12px">
       <div class="etikett" style="padding: 0 16px; margin-bottom: 0">Tops & Lows <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <ul id="tops-kurz" class="liste"></ul>
     </div>
@@ -697,7 +717,7 @@
     </div>
 
     <!-- Zins-Uhr: läuft sekündlich mit -->
-    <div class="karte held">
+    <div class="karte held uhr-karte">
       <div class="etikett">Zins-Uhr · heute verdient</div>
       <div class="betrag zinsuhr" id="tg-uhr">0,0000 €</div>
       <div class="unter" id="tg-uhr-unter"></div>
@@ -1134,7 +1154,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1303'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1335'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2207,12 +2227,20 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 let chartNr = 0;
 
+// Zeichenfläche in echter Breite: Schrift und Linien bleiben auf iPad und PC so groß wie auf dem iPhone.
+// Bis 360 px (iPhone) bleibt alles wie bisher (340 breit).
+function chartMasse(el, hoehe) {
+  const breite = el.clientWidth;
+  const W = breite > 360 ? Math.round(breite) : 340;
+  return { W, H: Math.min(320, Math.round(hoehe * Math.min(2.2, W / 340))) };
+}
+
 // Linienchart (SVG) mit Verlaufsfläche, pulsierendem Endpunkt, Fadenkreuz und Tooltip.
 // serien: [{ name, punkte: [[iso, wert], ...] }], alle mit denselben Tagen; opt.marker: [[iso, wert], ...]
 function linienChart(el, serien, opt) {
   serien = serien.filter((s) => s.punkte && s.punkte.length);
   if (!serien.length) return;
-  const W = 340, H = opt.hoehe || 180, L = 4, R = 46, T = 10, B = 22;
+  const { W, H } = chartMasse(el, opt.hoehe || 180), L = 4, R = 46, T = 10, B = 22;
   const tage = serien[0].punkte.map((p) => p[0]);
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
@@ -3281,7 +3309,7 @@ function zinseszinsPrognose(szenario, sparFaktor = 1) {
 
 // Gestapelte Flächen (Einzahlungen, Rendite, Zinseszins) mit Fadenkreuz
 function flaechenChart(el, tage, schichten, opt) {
-  const W = 340, H = 180, L = 4, R = 46, T = 10, B = 22;
+  const { W, H } = chartMasse(el, 180), L = 4, R = 46, T = 10, B = 22;
   const n = tage.length;
   const oben = schichten.map((_, si) => tage.map((__, i) => schichten.slice(0, si + 1).reduce((s, sch) => s + Math.max(0, sch.werte[i]), 0)));
   const max = Math.max(...oben[oben.length - 1]) * 1.08 || 1;
@@ -4873,6 +4901,15 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('online', () => { if (daten) kurseHolen(); });
+
+// iPad gedreht oder PC-Fenster verändert: Hauptseite neu zeichnen (Charts in neuer Breite)
+let groesseZeit = null, letzteBreite = innerWidth;
+window.addEventListener('resize', () => {
+  if (innerWidth === letzteBreite) return; // nur Breite zählt (Adressleiste o. Ä. ändert die Höhe)
+  letzteBreite = innerWidth;
+  clearTimeout(groesseZeit);
+  groesseZeit = setTimeout(() => { if (daten && kurse && hauptseiteSichtbar()) hauptRendern(); }, 250);
+});
 
 // Neue App-Version? version.json kommt immer frisch aus dem Netz, die App selbst aus dem Speicher.
 // Der Hintergrund-Dienst hat die neue Fassung dann schon geholt, ein Neuladen genügt.
