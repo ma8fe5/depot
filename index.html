@@ -1044,7 +1044,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1104'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1113'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1801,8 +1801,9 @@ function vermoegenAnzeigen() {
     li.dataset.aktion = 'tagesgeld';
     li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
     li.querySelector('.n').textContent = k.bank;
-    li.querySelector('small').textContent = k.standDatum ? `Stand vom ${deDatum(k.standDatum)}` : '';
-    li.querySelector('.wert').textContent = geld(k.stand);
+    li.querySelector('small').textContent = k.standDatum
+      ? (tgStand(k) !== k.stand ? `${deDatum(k.standDatum)} + Zinsen seitdem (geschätzt)` : `Stand vom ${deDatum(k.standDatum)}`) : '';
+    li.querySelector('.wert').textContent = geld(tgStand(k));
     tgUl.appendChild(li);
   }
   for (const e of b.werte.sort((a, b) => b.wert - a.wert)) {
@@ -2056,17 +2057,22 @@ function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
 
 const tgKonten = () => ((daten.tagesgeld && daten.tagesgeld.konten) || []);
 const tgAktiv = () => tgKonten().filter((k) => !k.geschlossen);
-const tgSumme = () => tgAktiv().reduce((s, k) => s + k.stand, 0);
+// Aktueller Kontostand: bei täglicher Zinsgutschrift ab dem letzten Eintrag tageweise fortgeschrieben (geschätzt)
+const tgStand = (k) => (k.auszahlung !== 'termin' && k.zins && k.standDatum && !k.geschlossen
+  ? k.stand + tgTagesZins(k) * Math.max(0, tageZwischen(k.standDatum, isoDatum(heute())))
+  : k.stand);
+const tgSumme = () => tgAktiv().reduce((s, k) => s + tgStand(k), 0);
 const tgZinsen = (k) => (k.zinsen || []).reduce((s, z) => s + z.betrag, 0);
 const tgTagesZins = (k) => (k.stand * (k.zins || 0)) / 100 / 365;
 const tageZwischen = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5);
 
-// Bis jetzt angesammelte, noch nicht ausgezahlte Zinsen (Stand aus der Bank + seitdem hinzugekommen, sekundengenau)
+// Bis jetzt angesammelte, noch nicht ausgezahlte Zinsen – wie bei der Bank tageweise:
+// Stand am eingetragenen Tag + volle Kalendertage seitdem × Tageszins (Bigbank: 362,28 € am 11.10. → 389,47 € am 18.10.)
 function tgAufgelaufen(k, jetzt = new Date()) {
   if (k.auszahlung !== 'termin' || !k.aufgelaufen) return 0;
-  const ab = k.aufgelaufen.zeit ? new Date(k.aufgelaufen.zeit) : new Date(k.aufgelaufen.datum + 'T00:00:00');
-  const seit = (jetzt - ab) / 864e5;
-  return k.aufgelaufen.betrag + tgTagesZins(k) * Math.max(0, seit);
+  const tage = tageZwischen(k.aufgelaufen.datum, isoDatum(jetzt));
+  // auf Cent gerundet wie die Bank (kleiner Zuschlag gegen Gleitkomma-Fehler bei x,xx5)
+  return Math.round((k.aufgelaufen.betrag + tgTagesZins(k) * Math.max(0, tage)) * 100 + 1e-6) / 100;
 }
 
 // Beginn der Station: aus den aufgelaufenen Zinsen zurückgerechnet (≈), sonst Tag der Erfassung
@@ -2093,17 +2099,17 @@ function tagesgeldAnzeigen() {
 
   // Verteilung auf die Konten: Stapelbalken + Liste (Bank, Zinssatz, Betrag, Anteil)
   const summeTg = tgSumme();
-  const sortiert = aktiv.slice().sort((a, b) => b.stand - a.stand);
+  const sortiert = aktiv.slice().sort((a, b) => tgStand(b) - tgStand(a));
   document.getElementById('tg-gesamt').innerHTML = betragHTML(summeTg);
-  document.getElementById('tg-stapel').innerHTML = sortiert.filter((k) => k.stand > 0)
-    .map((k, i) => `<i style="flex: ${k.stand}; background: var(--kat-${(i % 5) + 1})"></i>`).join('');
+  document.getElementById('tg-stapel').innerHTML = sortiert.filter((k) => tgStand(k) > 0)
+    .map((k, i) => `<i style="flex: ${tgStand(k)}; background: var(--kat-${(i % 5) + 1})"></i>`).join('');
   const verteilung = document.getElementById('tg-verteilung');
   verteilung.innerHTML = '';
   sortiert.forEach((k, i) => {
     const li = document.createElement('li');
     li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span>
       <span class="name"><span class="n"></span><small>${k.zins ? `${zahl(k.zins, 2)} % p. a.` : 'Zinssatz fehlt'}${k.termin ? ` · bis ${deDatum(k.termin)}` : ''}</small></span>
-      <span class="wert">${geld(k.stand)}<small>${summeTg ? zahl((k.stand / summeTg) * 100, 1) : '0'} %</small></span>`;
+      <span class="wert">${geld(tgStand(k))}<small>${summeTg ? zahl((tgStand(k) / summeTg) * 100, 1) : '0'} %</small></span>`;
     li.querySelector('.n').textContent = k.bank;
     verteilung.appendChild(li);
   });
@@ -2245,7 +2251,7 @@ function tgKarte(k) {
     <div class="posname"><span></span><small></small></div>
     <div class="feld"><label class="feldname">Bank</label><input type="text" class="tg-bank" autocomplete="off"></div>
     <div class="raster">
-      <div><label class="feldname">Stand (€)</label><input type="text" inputmode="decimal" class="tg-stand" value="${k.stand != null ? zahl(k.stand, 2) : ''}"></div>
+      <div><label class="feldname">Stand heute (€)</label><input type="text" inputmode="decimal" class="tg-stand" value="${k.stand != null ? zahl(tgStand(k), 2) : ''}"></div>
       <div><label class="feldname">Zinssatz (% p. a.)</label><input type="text" inputmode="decimal" class="tg-zins" value="${k.zins != null ? zahl(k.zins, 2) : ''}"></div>
     </div>
     <div class="raster" style="margin-top: 12px">
@@ -2287,10 +2293,12 @@ function tgSpeichern() {
       k = { id: `tg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, zinsen: [], angelegt: h, geschlossen: null };
       daten.tagesgeld.konten.push(k);
     }
+    // Unverändert gelassene Schätzung (fortgeschriebener Stand) nicht als neuen Stand übernehmen
+    if (k.stand != null && Math.abs(e.stand - Math.round(tgStand(k) * 100) / 100) < 0.005) e.stand = k.stand;
     if (k.stand !== e.stand) k.standDatum = h;
     // Aufgelaufene Zinsen nur neu stempeln, wenn sich der Wert geändert hat (sonst läuft die Uhr weiter)
     const aufgelaufen = e.auszahlung === 'termin' && e.aufgelaufen != null
-      ? (k.aufgelaufen && Math.abs(tgAufgelaufen({ ...k, auszahlung: 'termin' }) - e.aufgelaufen) < 0.005 ? k.aufgelaufen : { betrag: e.aufgelaufen, datum: h, zeit: new Date().toISOString() })
+      ? (k.aufgelaufen && Math.abs(tgAufgelaufen({ ...k, auszahlung: 'termin' }) - e.aufgelaufen) < 0.005 ? k.aufgelaufen : { betrag: e.aufgelaufen, datum: h })
       : null;
     Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen });
   }
@@ -3421,8 +3429,8 @@ function checkAnzeigen() {
     card.innerHTML = `
       <div class="posname"><span></span><small>${k.standDatum ? `bisher ${geld(k.stand)} · ${deDatum(k.standDatum)}` : ''}</small></div>
       <div class="raster">
-        <div><label class="feldname">Stand heute (€)</label><input type="text" inputmode="decimal" class="c-tg-stand" value="${zahl(k.stand, 2)}"></div>
-        <div class="c-tg-zins-feld" hidden><label class="feldname">davon Zinsen (€)</label><input type="text" inputmode="decimal" class="c-tg-zins" value="0,00"></div>
+        <div><label class="feldname">Stand heute (€)</label><input type="text" inputmode="decimal" class="c-tg-stand" value="${zahl(tgStand(k), 2)}"></div>
+        <div class="c-tg-zins-feld"${Math.abs(tgStand(k) - k.stand) < 0.005 ? ' hidden' : ''}><label class="feldname">davon Zinsen (€)</label><input type="text" inputmode="decimal" class="c-tg-zins" value="${zahl(Math.max(0, tgStand(k) - k.stand), 2)}"></div>
       </div>`;
     card.querySelector('.posname span').textContent = `Tagesgeld ${k.bank}`;
     const standEl = card.querySelector('.c-tg-stand');
