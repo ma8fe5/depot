@@ -737,6 +737,19 @@
     <p class="fuss" id="tg-fuss"></p>
   </section>
 
+  <!-- Zinsbuch eines Tagesgeld-Kontos (aus der Hopping-Bilanz) -->
+  <section id="ansicht-zinsbuch" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zinsbuch-zurueck"><svg><use href="#i-zurueck"/></svg> Tagesgeld</button></div>
+    <div class="titel"><h1 id="zb-name"></h1><div class="unterzeile" id="zb-unter"></div></div>
+    <div class="karte held">
+      <div class="etikett">Zinsen insgesamt</div>
+      <div id="zb-gesamt" class="betrag"></div>
+      <div class="unter" id="zb-gesamt-unter" style="margin-top: 6px"></div>
+    </div>
+    <div id="zb-monate"></div>
+    <p class="fuss" id="zb-fuss"></p>
+  </section>
+
   <!-- Tagesgeld-Konten pflegen (aus dem Menü) -->
   <section id="ansicht-tg-konten" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
@@ -1155,7 +1168,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1343'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1439'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2482,6 +2495,121 @@ function tgAufgelaufen(k, jetzt = new Date()) {
   return Math.round((k.aufgelaufen.betrag + tgTagesZins(k) * Math.max(0, tage)) * 100 + 1e-6) / 100;
 }
 
+// ---------- Zinsbuch: täglich gutgeschriebene Zinsen (z. B. Revolut) monatlich dokumentieren ----------
+// Zu jedem Monatsende bucht die App den Zins des Monats (berechnet aus Stand × Nettozins, täglich aufgezinst)
+// und schreibt den Stand fort. Ein echter Kontostand korrigiert später auf den tatsächlichen Wert („bestätigt“).
+const tgTaeglich = (k) => k.auszahlung !== 'termin' && k.zins && k.standDatum && !k.geschlossen;
+const tgStandAm = (k, iso) => k.stand * Math.pow(1 + (k.zins * tgNetto(k)) / 100 / 365, Math.max(0, tageZwischen(k.standDatum, iso)));
+const cent = (v) => Math.round(v * 100 + (v >= 0 ? 1e-6 : -1e-6)) / 100;
+
+function tgZinsenFortschreiben() {
+  let geaendert = false;
+  const heuteIso = isoDatum(heute());
+  for (const k of tgAktiv()) {
+    if (!tgTaeglich(k)) continue;
+    // jedes seither abgeschlossene Monatsende einzeln buchen
+    for (;;) {
+      const d = new Date(k.standDatum + 'T00:00:00');
+      const monatsende = isoDatum(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+      // steht der Stand schon auf einem Monatsende, ist das nächste Monatsende dran
+      const ziel = monatsende > k.standDatum ? monatsende : isoDatum(new Date(d.getFullYear(), d.getMonth() + 2, 0));
+      if (ziel >= heuteIso) break; // laufender Monat: wird nur hochgerechnet
+      const neu = cent(tgStandAm(k, ziel));
+      const zins = cent(neu - k.stand);
+      if (zins > 0) k.zinsen = [...(k.zinsen || []), { datum: ziel, betrag: zins, art: 'berechnet' }];
+      k.stand = neu;
+      k.standDatum = ziel;
+      geaendert = true;
+    }
+  }
+  return geaendert;
+}
+
+// Echter Kontostand bei täglicher Gutschrift: Zinsen bis heute buchen, Abweichung als Zinskorrektur oder Ein-/Auszahlung
+function tgStandEintragen(k, neuerStand, datum) {
+  if (!tgTaeglich(k)) { k.stand = neuerStand; k.standDatum = datum; return; }
+  const hochgerechnet = cent(tgStandAm(k, datum));
+  let zins = cent(hochgerechnet - k.stand);
+  const abweichung = cent(neuerStand - hochgerechnet);
+  let art = 'berechnet';
+  if (Math.abs(abweichung) >= 0.01) {
+    const alsZins = confirm(`${k.bank}: Der Stand weicht um ${geld(abweichung)} von der Hochrechnung (${geld(hochgerechnet)}) ab.\n\n` +
+      'OK = das sind Zinsen (die Hochrechnung war ungenau)\nAbbrechen = das war eine Ein- oder Auszahlung');
+    if (alsZins) { zins = cent(zins + abweichung); art = 'bestaetigt'; }
+  } else {
+    art = 'bestaetigt'; // Hochrechnung stimmt mit dem echten Stand überein
+  }
+  if (Math.abs(zins) >= 0.01) k.zinsen = [...(k.zinsen || []), { datum, betrag: zins, art }];
+  // frühere berechnete Monate gelten mit einem passenden echten Stand als bestätigt
+  if (art === 'bestaetigt') k.zinsen.forEach((z) => { if (z.art === 'berechnet') z.art = 'bestaetigt'; });
+  k.stand = neuerStand;
+  k.standDatum = datum;
+}
+
+// Zinsbuch eines Kontos: Monate absteigend, je Jahr eine Summe
+let zinsbuchId = null;
+function zinsbuchAnzeigen(id) {
+  const k = tgKonten().find((x) => x.id === id);
+  if (!k) return;
+  zinsbuchId = id;
+  zeige('ansicht-zinsbuch');
+  document.getElementById('zb-name').textContent = `Zinsbuch ${k.bank}`;
+  document.getElementById('zb-unter').textContent = [
+    k.zins ? `${zahl(k.zins, 2)} % p. a.` : null,
+    k.steuer ? `Steuerabzug ${zahl(k.steuer, 3)} %` : (k.auszahlung !== 'termin' ? 'ohne Steuerabzug' : null),
+    k.auszahlung === 'termin' ? `Zinsen am Aktionsende${k.termin ? ` (${deDatum(k.termin)})` : ''}` : 'Zinsen täglich',
+  ].filter(Boolean).join(' · ');
+  const monate = new Map();
+  for (const z of k.zinsen || []) {
+    const m = z.datum.slice(0, 7);
+    const e = monate.get(m) || { betrag: 0, arten: new Set() };
+    e.betrag += z.betrag;
+    e.arten.add(z.art || 'bestaetigt');
+    monate.set(m, e);
+  }
+  const laufend = k.geschlossen ? 0 : (tgTaeglich(k) ? tgStand(k) - k.stand : tgAufgelaufen(k));
+  const gesamt = tgZinsen(k) + laufend;
+  document.getElementById('zb-gesamt').textContent = geld(gesamt);
+  document.getElementById('zb-gesamt-unter').textContent = `${geld(tgZinsen(k))} gebucht${laufend ? ` · ${geld(laufend)} ${tgTaeglich(k) ? 'laufender Monat' : 'aufgelaufen, noch nicht ausgezahlt'}` : ''}`;
+  const box = document.getElementById('zb-monate');
+  box.innerHTML = '';
+  const MONATSNAME = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const zeilen = [...monate.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  if (laufend > 0.004) {
+    // laufender Monat: zu schon Gebuchtem (z. B. bestätigter Stand mitten im Monat) dazurechnen, sonst eigene Zeile
+    const aktuell = zeilen.find(([m]) => m === isoDatum(heute()).slice(0, 7));
+    if (aktuell) { aktuell[1].betrag += laufend; aktuell[1].arten.add('laufend'); }
+    else zeilen.unshift([isoDatum(heute()).slice(0, 7), { betrag: laufend, arten: new Set(['laufend']) }]);
+  }
+  const jahre = [...new Set(zeilen.map(([m]) => m.slice(0, 4)))];
+  for (const j of jahre) {
+    const imJahr = zeilen.filter(([m]) => m.startsWith(j));
+    const kopf = document.createElement('div');
+    kopf.className = 'abschnitt';
+    kopf.textContent = `${j} · ${geld(imJahr.reduce((s, [, e]) => s + e.betrag, 0))}`;
+    box.appendChild(kopf);
+    const karte = document.createElement('div');
+    karte.className = 'karte liste-karte';
+    const ul = document.createElement('ul');
+    ul.className = 'liste';
+    for (const [m, e] of imJahr) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert pos"></span>';
+      li.querySelector('.n').textContent = MONATSNAME[Number(m.slice(5, 7)) - 1];
+      li.querySelector('small').textContent = e.arten.has('laufend') ? 'laufend, bis heute hochgerechnet'
+        : e.arten.has('berechnet') ? 'berechnet' : 'bestätigt';
+      li.querySelector('.wert').textContent = mitVorzeichen(e.betrag);
+      ul.appendChild(li);
+    }
+    karte.appendChild(ul);
+    box.appendChild(karte);
+  }
+  if (!zeilen.length) box.innerHTML = '<p class="fuss">Noch keine Zinsen gebucht.</p>';
+  document.getElementById('zb-fuss').textContent = tgTaeglich(k) || k.auszahlung !== 'termin'
+    ? '„Berechnet“ = von der App aus Stand und Zinssatz gebucht. „Bestätigt“ = durch einen echten Kontostand belegt. Trag ab und zu den Stand aus der Banking-App ein (Tagesgeld-Konten oder Monats-Check), dann gleicht die App ab.'
+    : 'Zinsen werden gebucht, wenn die Bank sie auszahlt (Monats-Check oder Wechsel zur neuen Bank).';
+}
+
 // Beginn der Station: aus den aufgelaufenen Zinsen zurückgerechnet (≈), sonst Tag der Erfassung
 function tgBeginn(k) {
   const tag = tgTagesZins(k);
@@ -2498,6 +2626,7 @@ function tgBeginn(k) {
 let zinsUhr = null;
 
 function tagesgeldAnzeigen() {
+  if (tgZinsenFortschreiben()) speichern();
   zeige('ansicht-tagesgeld');
   const aktiv = tgAktiv();
   const h = isoDatum(heute());
@@ -2578,12 +2707,14 @@ function tagesgeldAnzeigen() {
   let erhaltenSumme = 0, aufgelaufenSumme = 0;
   for (const k of alle) {
     const erhalten = tgZinsen(k);
-    const offen = k.geschlossen ? 0 : tgAufgelaufen(k);
+    const offen = k.geschlossen ? 0 : (tgTaeglich(k) ? Math.max(0, tgStand(k) - k.stand) : tgAufgelaufen(k));
     erhaltenSumme += erhalten;
     aufgelaufenSumme += offen;
     const li = document.createElement('li');
     li.innerHTML = `<span class="punkt${k.geschlossen ? ' alt' : ''}"></span><span class="name"><span class="n"></span><small></small></span>
-      <span class="wert pos">${mitVorzeichen(erhalten + offen)}<small>${offen ? 'inkl. aufgelaufen' : 'Zinsen'}</small></span>`;
+      <span class="wert pos">${mitVorzeichen(erhalten + offen)}<small>${offen ? (tgTaeglich(k) ? 'inkl. laufend' : 'inkl. aufgelaufen') : 'Zinsen'}</small></span>`;
+    li.className = 'tippbar';
+    li.dataset.zinsbuch = k.id;
     li.querySelector('.n').textContent = `${k.bank}${k.zins ? ` · ${zahl(k.zins, 2)} %` : ''}`;
     const b = tgBeginn(k);
     const ab = b.datum ? `${b.geschaetzt ? 'ca. ' : ''}${deDatum(b.datum)}` : '?';
@@ -2597,7 +2728,7 @@ function tagesgeldAnzeigen() {
   stationen.prepend(summe);
   const beginnErfassung = alle.map((k) => k.angelegt).filter(Boolean).sort()[0];
   document.getElementById('tg-fuss').textContent = beginnErfassung
-    ? `Erfasst seit ${deDatum(beginnErfassung)}: Zinsen davor sind nicht enthalten. Täglich gutgeschriebene Zinsen kommen über den Monats-Check dazu.`
+    ? `Erfasst seit ${deDatum(beginnErfassung)}: Zinsen davor sind nicht enthalten. Tippe auf ein Konto für sein Zinsbuch.`
     : '';
 
   // Uhr starten (läuft nur, solange der Reiter sichtbar ist)
@@ -2707,12 +2838,15 @@ function tgSpeichern() {
     }
     // Unverändert gelassene Schätzung (fortgeschriebener Stand) nicht als neuen Stand übernehmen
     if (k.stand != null && Math.abs(e.stand - Math.round(tgStand(k) * 100) / 100) < 0.005) e.stand = k.stand;
-    if (k.stand !== e.stand) k.standDatum = h;
+    if (k.stand !== e.stand) {
+      if (k.stand != null && tgTaeglich(k)) tgStandEintragen(k, e.stand, h); // bucht Zinsen bis heute, fragt bei Abweichung
+      else k.standDatum = h;
+    }
     // Aufgelaufene Zinsen nur neu stempeln, wenn sich der Wert geändert hat (sonst läuft die Uhr weiter)
     const aufgelaufen = e.auszahlung === 'termin' && e.aufgelaufen != null
       ? (k.aufgelaufen && Math.abs(tgAufgelaufen({ ...k, auszahlung: 'termin' }) - e.aufgelaufen) < 0.005 ? k.aufgelaufen : { betrag: e.aufgelaufen, datum: h })
       : null;
-    Object.assign(k, { bank: e.bank, stand: e.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen, steuer: e.steuer || null });
+    Object.assign(k, { bank: e.bank, stand: k.stand !== e.stand && !tgTaeglich(k) ? e.stand : k.stand, termin: e.termin, zins: e.zins, zinsDanach: e.zinsDanach, auszahlung: e.auszahlung, aufgelaufen, steuer: e.steuer || null });
   }
   speichern();
   tgKontenAnzeigen();
@@ -3983,24 +4117,17 @@ function checkAnzeigen() {
       <div class="posname"><span></span><small>${k.standDatum ? `bisher ${geld(k.stand)} · ${deDatum(k.standDatum)}` : ''}</small></div>
       <div class="raster">
         <div><label class="feldname">Stand heute (€)</label><input type="text" inputmode="decimal" class="c-tg-stand" value="${zahl(tgStand(k), 2)}"></div>
-        <div class="c-tg-zins-feld"${Math.abs(tgStand(k) - k.stand) < 0.005 ? ' hidden' : ''}><label class="feldname">davon Zinsen (€)</label><input type="text" inputmode="decimal" class="c-tg-zins" value="${zahl(Math.max(0, tgStand(k) - k.stand), 2)}"></div>
+        <div class="c-tg-zins-feld"${tgTaeglich(k) || Math.abs(tgStand(k) - k.stand) < 0.005 ? ' hidden' : ''}><label class="feldname">davon Zinsen (€)</label><input type="text" inputmode="decimal" class="c-tg-zins" value="${zahl(Math.max(0, tgStand(k) - k.stand), 2)}"></div>
       </div>`;
     card.querySelector('.posname span').textContent = `Tagesgeld ${k.bank}`;
     const standEl = card.querySelector('.c-tg-stand');
+    if (tgTaeglich(k)) card.querySelector('.posname small').textContent += ' · Zinsen bucht die App';
     standEl.addEventListener('input', () => {
-      card.querySelector('.c-tg-zins-feld').hidden = Math.abs(parseZahl(standEl.value) - k.stand) < 0.005;
+      card.querySelector('.c-tg-zins-feld').hidden = tgTaeglich(k) || Math.abs(parseZahl(standEl.value) - k.stand) < 0.005;
     });
     tgListe.appendChild(card);
   }
   if (!offen.length && tgAktiv().length) liste.innerHTML = '';
-
-  // Quartalsweise (Jan, Apr, Jul, Okt): alte Backups im OneDrive-Ordner aufräumen
-  if (heute().getMonth() % 3 === 0) {
-    const karte = document.createElement('div');
-    karte.className = 'hinweis';
-    karte.innerHTML = '<svg><use href="#i-wolke"/></svg><div><b>Alte Backups aufräumen</b> · Im OneDrive-Ordner „Depot App“ genügen die letzten zwei, drei Dateien „depot-daten …“. Ältere kannst du in der Dateien-App löschen.</div>';
-    liste.prepend(karte);
-  }
 
   const auswahl = document.getElementById('gebuehr-pos');
   auswahl.innerHTML = '';
@@ -4087,6 +4214,11 @@ function checkBestaetigen() {
   }
   const h = isoDatum(heute());
   for (const { k, stand, zins } of tgEingaben) {
+    if (tgTaeglich(k)) {
+      // tägliche Gutschrift: unveränderte Hochrechnung bleibt Hochrechnung, ein echter Stand gleicht ab
+      if (Math.abs(stand - cent(tgStand(k))) >= 0.005) tgStandEintragen(k, stand, h);
+      continue;
+    }
     if (zins > 0) k.zinsen = [...(k.zinsen || []), { datum: h, betrag: zins }];
     if (Math.abs(stand - k.stand) >= 0.005) k.stand = stand;
     k.standDatum = h; // bestätigt, auch wenn unverändert
@@ -4817,6 +4949,8 @@ document.addEventListener('click', (e) => {
   if (zzEin) { zzEinzahlen = zzEin; zinseszinsAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
   if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
+  const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
+  if (zb) { zinsbuchAnzeigen(zb); return; }
   const posZeile = e.target.closest('[data-pos]');
   if (posZeile) {
     const id = posZeile.dataset.pos;
@@ -4847,6 +4981,7 @@ document.addEventListener('click', (e) => {
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
+    'zinsbuch-zurueck': () => tagesgeldAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
     entsperren,
@@ -5094,6 +5229,7 @@ function start() {
 function nachLaden() {
   if (!daten) { zeige('ansicht-leer'); return; }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+  tgZinsenFortschreiben(); // abgeschlossene Monate ins Zinsbuch (gespeichert wird gleich mit)
   offeneBuchungenErzeugen();
   hauptAnzeigen();
   kurseHolen();
