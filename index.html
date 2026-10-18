@@ -528,17 +528,15 @@
         <div class="etikett">Depot <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-aktien"></div>
         <span class="unter anteil" id="start-aktien-anteil"></span>
-        <span class="pill" id="start-aktien-pill">–</span>
       </div>
       <div class="karte tippbar" data-tab="ansicht-tagesgeld" role="button" tabindex="0">
         <div class="etikett">Tagesgeld <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-tagesgeld"></div>
         <span class="unter anteil" id="start-tagesgeld-anteil"></span>
-        <span class="pill" id="start-tagesgeld-pill">–</span>
       </div>
     </div>
-    <div class="karte">
-      <div class="etikett">Anlagearten</div>
+    <div class="karte tippbar" data-aktion="arten" role="button" tabindex="0">
+      <div class="etikett">Anlagearten <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div id="start-ring" class="ring klein"></div>
       <ul id="start-arten" class="liste" style="margin: 6px -18px -8px"></ul>
     </div>
@@ -857,6 +855,17 @@
     <p id="gewinn-meldung" class="fuss"></p>
   </section>
 
+  <!-- Anlagearten im Detail (von der Startseite) -->
+  <section id="ansicht-arten" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Anlagearten</h1></div>
+    <div class="karte">
+      <div id="arten-ring" class="ring"></div>
+      <ul id="arten-liste" class="liste" style="margin: 6px -18px -8px"></ul>
+    </div>
+    <div id="arten-gruppen"></div>
+  </section>
+
   <!-- Kosten je Fonds: abgezogene Gebühren + laufende Fondskosten (geschätzt) -->
   <section id="ansicht-kosten" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
@@ -1065,7 +1074,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1151'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1209'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2048,7 +2057,7 @@ function anlagearten() {
 }
 
 // Ring mit kleiner Lücke zwischen den Segmenten, darunter die Liste mit Betrag und Anteil
-function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
+function ringZeichnen(ringEl, listeEl, teile, unterzeile, mitBetrag = true) {
   const summe = teile.reduce((s, t) => s + t[1], 0);
   const R = 80, U = 2 * Math.PI * R, LUECKE = teile.length > 1 ? 3 : 0;
   let versatz = 0;
@@ -2059,14 +2068,49 @@ function ringZeichnen(ringEl, listeEl, teile, unterzeile) {
     versatz += laenge;
     return k;
   }).join('');
-  ringEl.innerHTML = `<svg viewBox="0 0 200 200">${kreise}</svg><div class="mitte"><b>${geld(summe)}</b><span>${unterzeile}</span></div>`;
+  ringEl.innerHTML = `<svg viewBox="0 0 200 200">${kreise}</svg>` + (unterzeile ? `<div class="mitte"><b>${geld(summe)}</b><span>${unterzeile}</span></div>` : '');
   listeEl.innerHTML = '';
   teile.forEach(([name, wert], i) => {
     const li = document.createElement('li');
     li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span><span class="name"></span>
-      <span class="wert">${geld(wert)}<small>${summe ? zahl((wert / summe) * 100, 1) : '0'} %</small></span>`;
+      <span class="wert">${mitBetrag ? `${geld(wert)}<small>${summe ? zahl((wert / summe) * 100, 1) : '0'} %</small>` : `${summe ? zahl((wert / summe) * 100, 1) : '0'} %`}</span>`;
     li.querySelector('.name').textContent = name;
     listeEl.appendChild(li);
+  });
+}
+
+// Detailseite Anlagearten: Ring mit Beträgen, je Art die enthaltenen Positionen bzw. Konten
+function artenAnzeigen() {
+  zeige('ansicht-arten');
+  if (!kurse) return;
+  const teile = anlagearten();
+  const gesamt = teile.reduce((s, t) => s + t[1], 0);
+  ringZeichnen(document.getElementById('arten-ring'), document.getElementById('arten-liste'), teile, 'Gesamtvermögen');
+  const box = document.getElementById('arten-gruppen');
+  box.innerHTML = '';
+  const werte = bewertung().werte;
+  teile.forEach(([name, summe], i) => {
+    const eintraege = name === 'Tagesgeld'
+      ? tgAktiv().map((k) => [k.bank, tgStand(k)])
+      : werte.filter((w) => artName(daten.positionen.find((x) => x.id === w.id)) === name).map((w) => [w.name, w.wert]);
+    const kopf = document.createElement('div');
+    kopf.className = 'abschnitt';
+    kopf.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1}); display: inline-block; margin-right: 6px"></span><span></span>`;
+    kopf.lastChild.textContent = `${name} · ${geld(summe)}`;
+    box.appendChild(kopf);
+    const karte = document.createElement('div');
+    karte.className = 'karte liste-karte';
+    const ul = document.createElement('ul');
+    ul.className = 'liste';
+    for (const [n, w] of eintraege.sort((a, c) => c[1] - a[1])) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="name"></span><span class="wert"></span>';
+      li.querySelector('.name').textContent = n;
+      li.querySelector('.wert').innerHTML = `${geld(w)}<small>${gesamt ? zahl((w / gesamt) * 100, 1) : '0'} %</small>`;
+      ul.appendChild(li);
+    }
+    karte.appendChild(ul);
+    box.appendChild(karte);
   });
 }
 
@@ -3480,17 +3524,12 @@ function hauptRendern() {
   gesamtEl.classList.remove('skelett');
   zaehle(gesamtEl, b.wert + tg, false);
   const anteil = (v) => (b.wert + tg ? zahl((v / (b.wert + tg)) * 100, 0) : '0');
-  document.getElementById('start-aktien-anteil').textContent = `${anteil(b.wert)} % vom Vermögen`;
-  document.getElementById('start-tagesgeld-anteil').textContent = `${anteil(tg)} % vom Vermögen`;
+  document.getElementById('start-aktien-anteil').textContent = `${anteil(b.wert)} % vom Gesamtvermögen`;
+  document.getElementById('start-tagesgeld-anteil').textContent = `${anteil(tg)} % vom Gesamtvermögen`;
   document.getElementById('start-aktien').innerHTML = betragHTML(b.wert);
-  setzePill(document.getElementById('start-aktien-pill'), b.tagAend, `${pct(b.vorherWert ? (b.tagAend / b.vorherWert) * 100 : 0)} Vortag`);
   document.getElementById('start-tagesgeld').innerHTML = betragHTML(tg);
-  const konten = tgAktiv().length;
-  const tgPill = document.getElementById('start-tagesgeld-pill');
-  tgPill.className = 'pill';
-  tgPill.textContent = konten ? `${konten} ${konten === 1 ? 'Konto' : 'Konten'}` : 'kein Konto';
   const artTeile = anlagearten();
-  ringZeichnen(document.getElementById('start-ring'), document.getElementById('start-arten'), artTeile, `${artTeile.length} Anlagearten`);
+  ringZeichnen(document.getElementById('start-ring'), document.getElementById('start-arten'), artTeile, null, false);
 
   const vEl = document.getElementById('vermoegen');
   vEl.classList.remove('skelett');
@@ -4438,6 +4477,7 @@ document.addEventListener('click', (e) => {
     'check-bestaetigen': checkBestaetigen,
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
+    arten: artenAnzeigen,
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
