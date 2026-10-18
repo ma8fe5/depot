@@ -398,6 +398,16 @@
   .ring .mitte span { font-size: 13px; color: var(--text-2); }
   .farbpunkt { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
   .ring.klein { max-width: 190px; }
+  /* Startseite: Kreis links, Legende rechts – so passt alles ohne Scrollen auf den Bildschirm */
+  .arten-karte { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: center; padding-bottom: 12px; }
+  .arten-karte > .etikett { grid-column: 1 / -1; }
+  .arten-karte .ring.klein { width: min(128px, 33vw); margin: 2px 0 0; }
+  .arten-karte #start-arten { margin: 0 -18px 0 0 !important; }
+  .arten-karte #start-arten li { min-height: 0; padding: 5px 18px 5px 0; gap: 8px; }
+  #ansicht-start .paar .karte { padding-left: 14px; padding-right: 14px; }
+  #ansicht-start .paar .anteil { white-space: nowrap; font-size: min(13px, 2.9vw); }
+  .arten-karte #start-arten .name { font-size: 15px; }
+  .arten-karte #start-arten .farbpunkt { width: 10px; height: 10px; border-radius: 3px; }
   .paar .anteil { font-size: 13px; margin: -6px 0 10px; }
 
   /* ---------- Termine ---------- */
@@ -463,7 +473,8 @@
     #ansicht-start .paar .wert { font-size: 30px; }
     .arten-karte { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; align-items: center; }
     .arten-karte > .etikett { grid-column: 1 / -1; }
-    .arten-karte .ring.klein { max-width: 260px; width: 100%; margin: 8px auto; }
+    /* Kreisgröße richtet sich nach der Bildschirmhöhe, damit die Startseite ohne Scrollen passt */
+    .arten-karte .ring.klein { max-width: none; width: clamp(160px, calc(100vh - 600px), 300px); margin: 8px auto; }
     .arten-karte #start-arten { margin: 0 -18px 0 0 !important; }
   }
   /* Querformat: die drei Hauptseiten zweispaltig */
@@ -474,7 +485,6 @@
     #ansicht-haupt > *, #ansicht-tagesgeld > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
     #ansicht-haupt > .kopf, #ansicht-tagesgeld > .kopf,
     #ansicht-haupt > .fuss, #ansicht-tagesgeld > .fuss { column-span: all; -webkit-column-span: all; }
-    .arten-karte .ring.klein { max-width: 300px; }
   }
 </style>
 </head>
@@ -1124,7 +1134,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1253'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1300'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
