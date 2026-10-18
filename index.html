@@ -1134,7 +1134,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1300'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1303'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1382,7 +1382,8 @@ const ABGLEICH = 'depot-abgleich';
 let abgleich = {};
 try { abgleich = JSON.parse(localStorage.getItem(ABGLEICH)) || {}; } catch { abgleich = {}; }
 const abgleichMerken = () => localStorage.setItem(ABGLEICH, JSON.stringify(abgleich));
-const geraetName = () => (/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'Browser');
+const geraetName = () => (/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad'
+  : /iPhone/.test(navigator.userAgent) ? 'iPhone' : /Windows/.test(navigator.userAgent) ? 'PC' : 'Browser');
 let abgleichZeit = null, abgleichLaeuft = false;
 
 async function abgleichAnfrage(pfad, koerper, basis = daten) {
