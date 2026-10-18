@@ -1044,7 +1044,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-16.1717'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1104'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3622,10 +3622,11 @@ function positionAnzeigen(id) {
   if (!kaeufe.length) ul.innerHTML = '<li><span class="name unter">Noch keine Käufe erfasst.</span></li>';
   for (const b of kaeufe) {
     const li = document.createElement('li');
-    const st = p.quelle === 'coingecko' ? 8 : 4;
-    const info = [b.gratis
-      ? `${zahl(b.stueck, st)} Stück (${zahl(b.stueck - b.gratis, st)} bezahlt + ${zahl(b.gratis, st)} gratis)`
-      : `${zahl(b.stueck, st)} Stück`];
+    // „4,3 St. zu 11,23 €“: Stück mit einer Nachkommastelle (nur bei Kleinstmengen wie Bitcoin genauer, sonst „0,0“), Kurs mit zwei
+    const st = b.stueck < 0.1 ? 6 : 1;
+    const bezahlt = b.stueck - (b.gratis || 0), investment = b.betrag - (b.gebuehren || 0);
+    const kurs = b.kurs || (bezahlt > 0 ? investment / bezahlt : 0);
+    const info = [`${zahl(b.stueck, st)} St.${kurs ? ` zu ${eur.format(kurs)}` : ''}${b.gratis ? ` (davon ${zahl(b.gratis, st)} gratis)` : ''}`];
     if (b.gebuehren) info.push(`${geld(b.gebuehren)} Gebühren`);
     if (b.art === 'umschichtung') info.push('Umschichtung');
     li.className = 'tippbar';
