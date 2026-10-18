@@ -344,10 +344,9 @@
   /* Aktien-Reiter kompakt: alles auf einen Bildschirm */
   #ansicht-haupt .kopf { margin: 4px 2px 10px; }
   #ansicht-haupt .karte { padding: 14px 16px; margin-bottom: 10px; }
-  #ansicht-haupt .paar { gap: 10px; margin-bottom: 10px; }
-  #ansicht-haupt .paar .karte { padding: 14px; margin-bottom: 0; }
-  #ansicht-haupt .paar .wert-gross { font-size: min(22px, 5.4vw); margin: 2px 0 8px; }
-  #ansicht-haupt .unter.klein { font-size: 12px; margin-top: auto; }
+  #ansicht-haupt .wert-karte .zeile-wert { align-items: baseline; }
+  #ansicht-haupt .wert-karte .wert-gross { font-size: 30px; }
+  #ansicht-haupt .unter.klein { font-size: 12px; text-align: right; }
   #ansicht-haupt .wert-gross { font-size: 26px; }
   #ansicht-haupt .etikett { margin-bottom: 4px; }
   #ansicht-haupt .chips { margin-bottom: 4px; }
@@ -478,14 +477,10 @@
     body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 18px); }
     .menue-panel { max-width: 420px; }
     /* Depot: Wert | Gewinn, Chart über die volle Breite, darunter Gewinn/Verlust | Tops & Lows */
-    #ansicht-haupt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
-    #ansicht-haupt > * { grid-column: 1 / -1; }
-    #ansicht-haupt > .gv-karte { grid-column: 1; }
-    #ansicht-haupt > .tops-karte { grid-column: 2; }
     #ansicht-haupt .karte { padding: 18px 20px; margin-bottom: 16px; }
-    #ansicht-haupt .paar { gap: 16px; margin-bottom: 16px; }
-    #ansicht-haupt .paar .karte { padding: 20px; }
-    #ansicht-haupt .paar .wert-gross { font-size: 30px; }
+    #ansicht-haupt .wert-karte .wert-gross { font-size: 44px; }
+    #ansicht-haupt .gv-karte .wert-gross { font-size: 32px; }
+    #ansicht-haupt .unter.klein { font-size: 14px; }
     /* Startseite: Gesamtvermögen über die ganze Breite, darunter Depot | Tagesgeld, dann Kreis | Legende */
     #ansicht-start .paar { gap: 16px; margin-bottom: 16px; }
     #ansicht-start .paar .karte { padding: 20px; }
@@ -624,16 +619,27 @@
     </div>
 
     <!-- kompakt: alles auf einen iPhone-Bildschirm (nur die Fußzeile darf darunter liegen) -->
-    <div class="paar">
-      <div class="karte tippbar" data-aktion="vermoegen-liste" role="button" tabindex="0">
-        <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
+    <div class="karte tippbar wert-karte" data-aktion="vermoegen-liste" role="button" tabindex="0">
+      <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div class="zeile-wert">
         <div id="vermoegen" class="wert-gross skelett">00.000 €</div>
         <span id="investiert" class="unter klein">&nbsp;</span>
       </div>
-      <div class="karte tippbar" data-aktion="gewinn-liste" role="button" tabindex="0">
-        <div class="etikett">Gewinn gesamt <svg class="chevron"><use href="#i-weiter"/></svg></div>
-        <div id="gewinn-eur" class="wert-gross skelett">+0.000 €</div>
-        <span id="gewinn-pct" class="pill">–</span>
+    </div>
+
+    <div class="karte gv-karte">
+      <div class="zeile-wert tippbar" data-aktion="gv-details" role="button" tabindex="0">
+        <div>
+          <div class="etikett"><span id="gv-titel">Gewinn/Verlust seit Eröffnung</span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
+          <div id="tag-eur" class="wert-gross skelett">+000 €</div>
+        </div>
+        <span id="tag-pct" class="pill">–</span>
+      </div>
+      <div class="segmente vier klein" id="gv-segmente" style="margin: 10px 0 0">
+        <button data-gv="gesamt">Eröffnung</button>
+        <button data-gv="jahr">YTD</button>
+        <button data-gv="monat">MTD</button>
+        <button data-gv="vortag">Vortag</button>
       </div>
     </div>
 
@@ -642,22 +648,6 @@
       <div class="chips" id="entw-chips"></div>
       <div id="start-chart" class="chart"></div>
       <p class="unter" id="entw-hinweis" style="margin: 6px 0 0; font-size: 12px"></p>
-    </div>
-
-    <div class="karte gv-karte">
-      <div class="zeile-wert">
-        <div>
-          <div class="etikett" id="gv-titel">Gewinn/Verlust zum Vortag</div>
-          <div id="tag-eur" class="wert-gross skelett">+000 €</div>
-        </div>
-        <span id="tag-pct" class="pill">–</span>
-      </div>
-      <div class="segmente vier klein" id="gv-segmente" style="margin: 10px 0 0">
-        <button data-gv="vortag">Vortag</button>
-        <button data-gv="monat">MTD</button>
-        <button data-gv="jahr">YTD</button>
-        <button data-gv="gesamt">Gesamt</button>
-      </div>
     </div>
 
     <div class="karte liste-karte tippbar tops-karte" data-aktion="tops" role="button" tabindex="0" style="padding-top: 12px">
@@ -1168,7 +1158,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1439'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1647'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2243,10 +2233,13 @@ let chartNr = 0;
 
 // Zeichenfläche in echter Breite: Schrift und Linien bleiben auf iPad und PC so groß wie auf dem iPhone.
 // Bis 360 px (iPhone) bleibt alles wie bisher (340 breit).
-function chartMasse(el, hoehe) {
+function chartMasse(el, hoehe, platzUnten) {
   const breite = el.clientWidth;
   const W = breite > 360 ? Math.round(breite) : 340;
-  return { W, H: Math.min(320, Math.round(hoehe * Math.min(2.2, W / 340))) };
+  let H = Math.min(320, Math.round(hoehe * Math.min(2.2, W / 340)));
+  // optional: nicht höher, als das Fenster hergibt (nie flacher als auf dem iPhone)
+  if (platzUnten && W > 340) H = Math.max(hoehe, Math.min(H, innerHeight - platzUnten));
+  return { W, H };
 }
 
 // Linienchart (SVG) mit Verlaufsfläche, pulsierendem Endpunkt, Fadenkreuz und Tooltip.
@@ -2254,7 +2247,7 @@ function chartMasse(el, hoehe) {
 function linienChart(el, serien, opt) {
   serien = serien.filter((s) => s.punkte && s.punkte.length);
   if (!serien.length) return;
-  const { W, H } = chartMasse(el, opt.hoehe || 180), L = 4, R = 46, T = 10, B = 22;
+  const { W, H } = chartMasse(el, opt.hoehe || 180, opt.platzUnten), L = 4, R = 46, T = 10, B = 22;
   const tage = serien[0].punkte.map((p) => p[0]);
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
@@ -3957,6 +3950,7 @@ function entwicklungAnzeigen() {
     linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
       gruen: true,
       hoehe: 110, // flacher, damit die Aktien-Seite auf einen Bildschirm passt
+      platzUnten: 680, // auf iPad/Laptop: Chart nur so hoch, dass die Depot-Seite ins Fenster passt
       format: (v) => geld(v),
       formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
       achseX,
@@ -3969,12 +3963,14 @@ function entwicklungAnzeigen() {
 }
 
 const GV_TITEL = {
-  vortag: 'Gewinn/Verlust zum Vortag',
-  monat: 'Gewinn/Verlust seit Monatsanfang (MTD)',
-  jahr: 'Gewinn/Verlust seit Jahresanfang (YTD)',
   gesamt: 'Gewinn/Verlust seit Eröffnung',
+  jahr: 'Gewinn/Verlust seit Jahresanfang (YTD)',
+  monat: 'Gewinn/Verlust seit Monatsanfang (MTD)',
+  vortag: 'Gewinn/Verlust zum Vortag',
 };
-let gvZeitraum = 'vortag';
+// passender Zeitraum auf der Gewinn-Seite
+const GV_ZU_GEWINN = { gesamt: 'eroeffnung', jahr: 'jahr', monat: 'monat', vortag: 'gestern' };
+let gvZeitraum = 'gesamt';
 try { if (GV_TITEL[localStorage.getItem('depot-gv')]) gvZeitraum = localStorage.getItem('depot-gv'); } catch { /* nur Komfort */ }
 
 function hauptAnzeigen() {
@@ -4037,11 +4033,6 @@ function hauptRendern() {
   document.getElementById('mehr-kosten').textContent = kostenJahr > 0 ? `ca. ${geld(kostenJahr)} pro Jahr` : '';
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
-
-  const gEl = document.getElementById('gewinn-eur');
-  gEl.className = 'wert-gross ' + klasse(gewinn);
-  gEl.innerHTML = betragHTML(gewinn, true);
-  setzePill(document.getElementById('gewinn-pct'), gewinn, pct(b.investiert ? (gewinn / b.investiert) * 100 : 0));
 
   // Gewinn/Verlust mit wählbarem Zeitraum
   let gv, basis;
@@ -4981,6 +4972,7 @@ document.addEventListener('click', (e) => {
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
+    'gv-details': () => { gewinnZeitraum = GV_ZU_GEWINN[gvZeitraum] || 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'zinsbuch-zurueck': () => tagesgeldAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
@@ -5058,10 +5050,12 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => { if (daten) kurseHolen(); });
 
 // iPad gedreht oder PC-Fenster verändert: Hauptseite neu zeichnen (Charts in neuer Breite)
-let groesseZeit = null, letzteBreite = innerWidth;
+let groesseZeit = null, letzteBreite = innerWidth < 768 ? String(innerWidth) : `${innerWidth}x${innerHeight}`;
 window.addEventListener('resize', () => {
-  if (innerWidth === letzteBreite) return; // nur Breite zählt (Adressleiste o. Ä. ändert die Höhe)
-  letzteBreite = innerWidth;
+  // iPhone: nur die Breite zählt (Adressleiste o. Ä. ändert die Höhe); ab iPad auch die Höhe (Chart passt sich an)
+  const schluessel = innerWidth < 768 ? String(innerWidth) : `${innerWidth}x${innerHeight}`;
+  if (schluessel === letzteBreite) return;
+  letzteBreite = schluessel;
   clearTimeout(groesseZeit);
   groesseZeit = setTimeout(() => { if (daten && kurse && hauptseiteSichtbar()) hauptRendern(); }, 250);
 });
