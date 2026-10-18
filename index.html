@@ -895,6 +895,7 @@
     </div>
     <div class="abschnitt">Kennzahlen</div>
     <div class="karte liste-karte"><dl class="zeilen" id="detail-werte"></dl></div>
+    <div class="knoepfe"><button class="knopf zweit breit" data-aktion="detail-pflegen">Käufe & Angaben</button></div>
     <p id="detail-hinweis" class="fuss"></p>
   </section>
 
@@ -993,7 +994,7 @@
 
   <!-- Eine Position: Kauf erfassen, Käufe, Angaben -->
   <section id="ansicht-position" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="positionen"><svg><use href="#i-zurueck"/></svg> Positionen</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="position-zurueck"><svg><use href="#i-zurueck"/></svg> Details</button></div>
     <div class="titel"><h1 id="pos-name"></h1><div class="unterzeile" id="pos-unter"></div></div>
     <div class="knoepfe" style="margin-top: 0"><button class="knopf breit" data-aktion="kauf-neu" id="kauf-neu-knopf">Kauf erfassen</button></div>
     <div class="karte" id="kauf-formular" hidden>
@@ -1154,7 +1155,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1335'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1343'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2129,7 +2130,7 @@ function bewertung() {
     if (k.vorherEur) {
       tagAend += stueck * (k.eur - k.vorherEur);
       vorherWert += stueck * k.vorherEur;
-      zeilen.push({ name: p.name, aend: (k.eur / k.vorherEur - 1) * 100, euro: stueck * (k.eur - k.vorherEur) });
+      zeilen.push({ id: p.id, name: p.name, aend: (k.eur / k.vorherEur - 1) * 100, euro: stueck * (k.eur - k.vorherEur) });
     }
   }
   return { wert, investiert, tagAend, vorherWert, zeilen, werte };
@@ -2429,7 +2430,7 @@ function artenAnzeigen() {
   teile.forEach(([name, summe], i) => {
     const eintraege = name === 'Tagesgeld'
       ? tgAktiv().map((k) => [k.bank, tgStand(k)])
-      : werte.filter((w) => artName(daten.positionen.find((x) => x.id === w.id)) === name).map((w) => [w.name, w.wert]);
+      : werte.filter((w) => artName(daten.positionen.find((x) => x.id === w.id)) === name).map((w) => [w.name, w.wert, w.id]);
     const kopf = document.createElement('div');
     kopf.className = 'abschnitt';
     kopf.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1}); display: inline-block; margin-right: 6px"></span><span></span>`;
@@ -2439,8 +2440,9 @@ function artenAnzeigen() {
     karte.className = 'karte liste-karte';
     const ul = document.createElement('ul');
     ul.className = 'liste';
-    for (const [n, w] of eintraege.sort((a, c) => c[1] - a[1])) {
+    for (const [n, w, id] of eintraege.sort((a, c) => c[1] - a[1])) {
       const li = document.createElement('li');
+      if (id) { li.className = 'tippbar'; li.dataset.pos = id; }
       li.innerHTML = '<span class="name"></span><span class="wert"></span>';
       li.querySelector('.name').textContent = n;
       li.querySelector('.wert').innerHTML = `${geld(w)}<small>${gesamt ? zahl((w / gesamt) * 100, 1) : '0'} %</small>`;
@@ -3580,8 +3582,9 @@ function kostenAnzeigen() {
   box.innerHTML = '';
   for (const f of fonds) {
     const kopf = document.createElement('div');
-    kopf.className = 'abschnitt';
-    kopf.textContent = f.p.name;
+    kopf.className = 'abschnitt tippbar';
+    kopf.dataset.pos = f.p.id;
+    kopf.textContent = `${f.p.name} ›`;
     box.appendChild(kopf);
     const karte = document.createElement('div');
     karte.className = 'karte liste-karte';
@@ -3631,7 +3634,17 @@ function kostenAnzeigen() {
 
 // ---------- Detail einer Position ----------
 
-let detailHerkunft = 'vermoegen';
+let detailHerkunft = 'ansicht-vermoegen';
+// Von wo aus die Detailseite geöffnet wurde: Beschriftung und Ziel von „Zurück“
+const DETAIL_HERKUNFT = {
+  'ansicht-vermoegen': { name: 'Vermögen', zurueck: () => vermoegenAnzeigen() },
+  'ansicht-gewinn': { name: 'Gewinn', zurueck: () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); } },
+  'ansicht-haupt': { name: 'Depot', zurueck: () => reiterZeigen('ansicht-haupt') },
+  'ansicht-tops': { name: 'Tops & Lows', zurueck: () => { zeige('ansicht-tops'); hauptRendern(); } },
+  'ansicht-arten': { name: 'Anlagearten', zurueck: () => artenAnzeigen() },
+  'ansicht-kosten': { name: 'Kosten', zurueck: () => kostenAnzeigen() },
+  'ansicht-positionen': { name: 'Positionen', zurueck: () => positionenAnzeigen() },
+};
 
 function detailAnzeigen(posId) {
   const p = daten.positionen.find((x) => x.id === posId);
@@ -3642,7 +3655,7 @@ function detailAnzeigen(posId) {
   const gewinn = wert - inv;
   document.getElementById('detail-name').textContent = p.name;
   document.getElementById('detail-depot').textContent = p.depot;
-  document.getElementById('detail-zurueck-text').textContent = detailHerkunft === 'gewinn' ? 'Gewinn' : 'Vermögen';
+  document.getElementById('detail-zurueck-text').textContent = (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).name;
   document.getElementById('detail-wert').innerHTML = betragHTML(wert);
   setzePill(document.getElementById('detail-gewinn'), gewinn,
     `${mitVorzeichen(gewinn)} · ${pct(inv ? (gewinn / inv) * 100 : 0)} seit Eröffnung`);
@@ -3738,7 +3751,8 @@ function rangliste(el, eintraege) {
   el.innerHTML = '';
   eintraege.forEach((e, i) => {
     const li = document.createElement('li');
-    li.className = 'mit-rang';
+    li.className = 'mit-rang tippbar';
+    if (e.id) li.dataset.pos = e.id;
     li.innerHTML = `<span class="rang ${klasse(e.aend)}">${i + 1}</span><span class="name"></span>
       <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
     li.querySelector('.name').textContent = e.name;
@@ -3920,6 +3934,8 @@ function hauptRendern() {
   kurz.innerHTML = '';
   for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
     const li = document.createElement('li');
+    li.className = 'tippbar';
+    if (e.id) li.dataset.pos = e.id;
     li.innerHTML = `<span class="name"></span>
       <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
     li.querySelector('.name').textContent = e.name;
@@ -4145,7 +4161,7 @@ function positionenAnzeigen() {
     const k = kurse && kurse.preise[p.id];
     const li = document.createElement('li');
     li.className = 'tippbar';
-    li.dataset.position = p.id;
+    li.dataset.pos = p.id;
     li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
     li.querySelector('.n').textContent = p.name;
     li.querySelector('small').textContent = `${p.depot} · ${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : p.stueck < 1000 ? 4 : 2)} Stück`;
@@ -4801,10 +4817,12 @@ document.addEventListener('click', (e) => {
   if (zzEin) { zzEinzahlen = zzEin; zinseszinsAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
   if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
-  const posZeile = e.target.closest('li[data-pos]');
+  const posZeile = e.target.closest('[data-pos]');
   if (posZeile) {
-    detailHerkunft = posZeile.closest('#ansicht-gewinn') ? 'gewinn' : 'vermoegen';
-    detailAnzeigen(posZeile.dataset.pos);
+    const id = posZeile.dataset.pos;
+    if (!(kurse && kurse.preise[id])) { positionAnzeigen(id); return; } // ohne Kurs keine Detailseite
+    detailHerkunft = posZeile.closest('.ansicht').id;
+    detailAnzeigen(id);
     return;
   }
   const aktion = e.target.closest('[data-aktion]')?.dataset.aktion;
@@ -4827,7 +4845,9 @@ document.addEventListener('click', (e) => {
     'abgleich-aus': abgleichAusschalten,
     'abgleich-code': codeKopieren,
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
-    'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
+    'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
+    'detail-pflegen': () => positionAnzeigen(detailPosId),
+    'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
     entsperren,
     'schutz-einrichten': schutzEinrichten,
