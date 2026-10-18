@@ -3,8 +3,8 @@
 //    Hintergrund aktualisiert. Ob eine neue Version bereitliegt, prüft die App selbst über version.json.
 // 2. Morgen-Mitteilung: empfängt den Push, rechnet die Tagesbilanz auf dem iPhone und öffnet beim Antippen die App.
 
-const SPEICHER = 'depot-app-v4'; // v4: App-Icon schwarz/Magenta
-const DATEIEN = ['index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon.svg'];
+const SPEICHER = 'depot-app-v5'; // v5: Icons unter neuem Namen, Startbild
+const DATEIEN = ['index.html', 'manifest.webmanifest', 'icon-mf-180.png', 'icon-mf-192.png', 'icon-mf-512.png', 'icon-mf.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(SPEICHER).then((c) => c.addAll(DATEIEN)).then(() => self.skipWaiting()));
@@ -134,7 +134,7 @@ self.addEventListener('push', (event) => {
     }
     await self.registration.showNotification(nachricht.titel, {
       body: text,
-      icon: 'icon-180.png',
+      icon: 'icon-mf-180.png',
       tag: nachricht.titel === 'Depot' ? 'depot-morgen' : `depot-${nachricht.titel}`,
     });
   })());

@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="Depot">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-mf-180.png">
+<link rel="icon" href="icon-mf.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Depot</title>
 <style>
@@ -440,17 +440,30 @@
   .toast .textknopf { color: var(--akzent); background: var(--bg); border-radius: 999px; padding: 6px 12px; }
   @keyframes toast-rein { from { opacity: 0; transform: translate(-50%, 16px); } }
 
-  /* ---------- Sperre ---------- */
-  .sperre { min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
-    display: flex; flex-direction: column; justify-content: center; text-align: center; }
-  .sperre-inhalt { padding: 0 12px; }
-  .sperre-icon { width: 88px; height: 88px; margin: 0 auto 22px; border-radius: 26px; display: grid; place-items: center; color: #fff;
-    background: linear-gradient(145deg, #7c6cff, #2a2370); box-shadow: 0 14px 40px rgba(91, 87, 224, 0.35); }
-  .sperre-icon svg { width: 40px; height: 40px; }
-  .sperre h1 { margin-bottom: 6px; }
-  .sperre .unter { margin: 0 0 28px; }
-  .sperre-reset { margin-top: 28px; font-size: 13px; color: var(--text-3); }
+  /* ---------- Startbild: Willkommen und Sperre (Markenfarben wie das App-Icon: Schwarz + Magenta) ---------- */
+  .startbild { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px); text-align: center; color: #fff;
+    background: radial-gradient(90% 55% at 50% 30%, rgba(226, 0, 116, 0.16), transparent 70%), #000; overflow-y: auto; }
+  .start-mitte { width: min(340px, 100%); display: flex; flex-direction: column; align-items: center; }
+  .start-logo { width: 104px; height: 104px; border-radius: 24px; box-shadow: 0 18px 50px rgba(226, 0, 116, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .startbild h1 { color: #fff; font-size: 34px; letter-spacing: -0.02em; margin: 22px 0 6px; }
+  .start-claim { color: rgba(255, 255, 255, 0.55); font-size: 15px; line-height: 1.4; margin: 0 0 36px; max-width: 290px; }
+  .start-label { align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.45); margin: 0 0 8px 4px; }
+  .startbild .start-feld { width: 100%; height: 52px; border-radius: 14px; border: 1px solid #2b2b2e; background: #141416; color: #fff; padding: 0 16px;
+    font: 500 16px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; text-align: center; letter-spacing: 0.02em; margin-bottom: 12px; }
+  .startbild .start-feld:focus { outline: none; border-color: #E20074; box-shadow: 0 0 0 3px rgba(226, 0, 116, 0.25); }
+  .start-feld::placeholder { color: rgba(255, 255, 255, 0.3); }
+  .start-knopf { width: 100%; height: 52px; border: 0; border-radius: 14px; background: #E20074; color: #fff; cursor: pointer;
+    font: 600 17px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; box-shadow: 0 10px 30px rgba(226, 0, 116, 0.3);
+    transition: transform 0.15s ease, filter 0.15s ease; }
+  .start-knopf:active { transform: scale(0.98); filter: brightness(0.92); }
+  .start-meldung { min-height: 20px; margin: 12px 0 0; font-size: 14px; line-height: 1.4; color: #ff7aa8; }
+  .start-link { margin-top: 10px; border: 0; background: none; cursor: pointer; color: rgba(255, 255, 255, 0.5); font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 8px; }
+  .start-unten { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 18px); }
+  .start-fuss { position: absolute; left: 24px; right: 24px; bottom: calc(env(safe-area-inset-bottom) + 18px); margin: 0; font-size: 12px; color: rgba(255, 255, 255, 0.35); }
+  @media (max-height: 640px) { .start-unten, .start-fuss { position: static; margin-top: 24px; } }
   body.verdeckt main { filter: blur(24px); }
+  body.start, html:has(body.start) { background: #000; }
 
   /* ---------- Maus & Tastatur (PC) ---------- */
   @media (hover: hover) and (pointer: fine) {
@@ -533,29 +546,30 @@
 <main>
 
   <!-- Sperrbildschirm -->
-  <section id="ansicht-sperre" class="ansicht sperre" hidden>
-    <div class="sperre-inhalt">
-      <div class="sperre-icon"><svg><use href="#i-schloss"/></svg></div>
+  <section id="ansicht-sperre" class="ansicht startbild" hidden>
+    <div class="start-mitte">
+      <img class="start-logo" src="icon-mf.svg" alt="">
       <h1>Depot</h1>
-      <p class="unter" id="sperre-text">Deine Daten sind verschlüsselt.</p>
-      <button class="knopf breit" data-aktion="entsperren">Mit Face ID entsperren</button>
-      <p id="sperre-meldung" class="fuss fehler"></p>
+      <p class="start-claim" id="sperre-text">Deine Daten sind verschlüsselt.</p>
+      <button class="start-knopf" data-aktion="entsperren">Mit Face ID entsperren</button>
+      <p id="sperre-meldung" class="start-meldung"></p>
     </div>
-    <button class="textknopf sperre-reset" data-aktion="schutz-zuruecksetzen">Passkey verloren? Zurücksetzen und aus Backup wiederherstellen</button>
+    <button class="start-link start-unten" data-aktion="schutz-zuruecksetzen">Passkey verloren?</button>
   </section>
 
-  <!-- Startansicht: noch keine Daten -->
-  <section id="ansicht-leer" class="ansicht" hidden>
-    <div class="kopf"><div><h1>Depot</h1></div></div>
-    <div class="karte leer-zustand">
-      <div class="symbol"><svg><use href="#i-chart"/></svg></div>
-      <h2>Willkommen</h2>
-      <p class="unter">Noch keine Depotdaten auf diesem Gerät. Verbinde es mit deinem iPhone oder wähle eine Backup-Datei <b>depot-daten….json</b>, zum Beispiel aus OneDrive.</p>
-      <div class="knoepfe" style="flex-direction: column">
-        <button class="knopf breit" data-aktion="verbinden">Mit iPhone verbinden</button>
-        <button class="knopf zweit breit" data-aktion="import">Aus Backup wiederherstellen</button>
-      </div>
+  <!-- Startansicht: noch keine Daten auf diesem Gerät -->
+  <section id="ansicht-leer" class="ansicht startbild" hidden>
+    <div class="start-mitte">
+      <img class="start-logo" src="icon-mf.svg" alt="">
+      <h1>Depot</h1>
+      <p class="start-claim">Vermögen, Depot und Tagesgeld – auf allen deinen Geräten.</p>
+      <label class="start-label" for="start-code">Zugangscode</label>
+      <input class="start-feld" id="start-code" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Code einfügen">
+      <button class="start-knopf" data-aktion="verbinden">Verbinden</button>
+      <p class="start-meldung" id="start-meldung"></p>
+      <button class="start-link" data-aktion="import">Stattdessen Backup-Datei laden</button>
     </div>
+    <p class="start-fuss">Den Code findest du auf einem verbundenen Gerät unter Einstellungen → Abgleich.</p>
   </section>
 
   <!-- Startseite: Gesamtvermögen (mittlerer Reiter) -->
@@ -1159,7 +1173,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1655'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1708'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1575,10 +1589,10 @@ async function codeKopieren() {
 
 // Auf dem iPad (noch ohne Daten): Code vom iPhone einfügen, Face ID, fertig
 async function mitIphoneVerbinden() {
-  const eingabe = prompt('Verbindungscode vom iPhone einfügen (iPhone: Einstellungen → Abgleich mit iPad → Code kopieren):');
-  if (eingabe == null) return; // abgebrochen
-  const code = eingabe.trim();
-  if (!code) { alert('Es wurde kein Code eingefügt. Tippe auf dem iPhone noch einmal „Verbindungscode kopieren“ und setze ihn hier gleich danach ein.'); return; }
+  const meldung = document.getElementById('start-meldung');
+  const code = document.getElementById('start-code').value.trim();
+  meldung.textContent = '';
+  if (!code) { meldung.textContent = 'Bitte zuerst den Zugangscode einfügen.'; return; }
   let schritt = 'Code lesen';
   try {
     const zugang = codeLesen(code);
@@ -1593,7 +1607,7 @@ async function mitIphoneVerbinden() {
     document.getElementById('sperre-meldung').textContent = '';
     zeige('ansicht-sperre');
   } catch (e) {
-    alert(`Verbinden fehlgeschlagen (${schritt}): ${e.message}`);
+    meldung.textContent = e.message;
   }
 }
 
@@ -1645,6 +1659,13 @@ function reiterZeigen(id) {
 
 function zeige(id) {
   if (REITER.includes(id)) letzterReiter = id;
+  // Startbild (Willkommen, Sperre): Statusleiste und Hintergrund schwarz wie das App-Icon
+  const start = id === 'ansicht-leer' || id === 'ansicht-sperre';
+  document.body.classList.toggle('start', start);
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    if (!m.dataset.normal) m.dataset.normal = m.content;
+    m.content = start ? '#000000' : m.dataset.normal;
+  });
   document.querySelectorAll('.ansicht').forEach((el) => { el.hidden = el.id !== id; });
   // Tableiste nur auf den beiden Hauptseiten
   const mitTabs = REITER.includes(id);
@@ -5024,6 +5045,8 @@ document.getElementById('kauf-formular').addEventListener('input', (e) => {
   if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = '1';
   kaufRechnen();
 });
+
+document.getElementById('start-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') mitIphoneVerbinden(); });
 
 document.getElementById('datei').addEventListener('change', (e) => {
   if (e.target.files[0]) importieren(e.target.files[0]);
