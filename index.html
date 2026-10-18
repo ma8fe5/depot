@@ -441,6 +441,33 @@
   .sperre .unter { margin: 0 0 28px; }
   .sperre-reset { margin-top: 28px; font-size: 13px; color: var(--text-3); }
   body.verdeckt main { filter: blur(24px); }
+
+  /* ---------- iPad & große Bildschirme ----------
+     Nicht nach Gerät, sondern nach Breite: so passt es auch beim Drehen und in der geteilten Ansicht. */
+  @media (min-width: 768px) {
+    main { max-width: 720px; }
+    .held .betrag { font-size: 56px; }
+    /* Tableiste wird zur Leiste am linken Rand */
+    .tabbar { top: 0; right: auto; width: 96px; flex-direction: column; justify-content: center; gap: 18px;
+      padding: calc(env(safe-area-inset-top) + 16px) 6px calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 6px);
+      border-top: 0; border-right: 1px solid var(--linie); }
+    .tabbar button { flex: 0 0 auto; max-width: none; padding: 8px 2px; font-size: 11px; text-align: center; }
+    .tabbar button svg { width: 28px; height: 28px; }
+    body.mit-tabs { padding-left: calc(env(safe-area-inset-left) + 96px); }
+    body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 32px); }
+    body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 18px); }
+    .menue-panel { max-width: 420px; }
+  }
+  /* Querformat: die drei Hauptseiten zweispaltig */
+  @media (min-width: 1100px) {
+    main { max-width: 760px; }
+    body.mit-tabs main { max-width: 1120px; }
+    #ansicht-start, #ansicht-haupt, #ansicht-tagesgeld { column-count: 2; column-gap: 20px; }
+    #ansicht-start > *, #ansicht-haupt > *, #ansicht-tagesgeld > * { break-inside: avoid; -webkit-column-break-inside: avoid; }
+    #ansicht-start > .kopf, #ansicht-haupt > .kopf, #ansicht-tagesgeld > .kopf,
+    #ansicht-start > .hinweis, #ansicht-start > .fuss, #ansicht-haupt > .fuss, #ansicht-tagesgeld > .fuss { column-span: all; -webkit-column-span: all; }
+    .ring.klein { max-width: 240px; }
+  }
 </style>
 </head>
 <body>
@@ -489,8 +516,11 @@
     <div class="karte leer-zustand">
       <div class="symbol"><svg><use href="#i-chart"/></svg></div>
       <h2>Willkommen</h2>
-      <p class="unter">Noch keine Depotdaten auf diesem iPhone. Wähle deine Datei <b>depot-daten.json</b>, zum Beispiel aus OneDrive.</p>
-      <div class="knoepfe"><button class="knopf breit" data-aktion="import">Daten importieren</button></div>
+      <p class="unter">Noch keine Depotdaten auf diesem Gerät. Verbinde es mit deinem iPhone oder wähle eine Backup-Datei <b>depot-daten….json</b>, zum Beispiel aus OneDrive.</p>
+      <div class="knoepfe" style="flex-direction: column">
+        <button class="knopf breit" data-aktion="verbinden">Mit iPhone verbinden</button>
+        <button class="knopf zweit breit" data-aktion="import">Aus Backup wiederherstellen</button>
+      </div>
     </div>
   </section>
 
@@ -662,8 +692,10 @@
       <div class="zinsbild" id="tg-sparplan"></div>
     </div>
 
-    <div class="abschnitt">Hopping-Bilanz</div>
-    <div class="karte liste-karte"><ul id="tg-stationen" class="liste stationen"></ul></div>
+    <div class="gruppe">
+      <div class="abschnitt">Hopping-Bilanz</div>
+      <div class="karte liste-karte"><ul id="tg-stationen" class="liste stationen"></ul></div>
+    </div>
     <p class="fuss" id="tg-fuss"></p>
   </section>
 
@@ -989,6 +1021,16 @@
       </div>
     </div>
 
+    <div class="abschnitt">Abgleich mit iPad</div>
+    <div class="karte">
+      <p class="unter" id="abgleich-info" style="margin: 0"></p>
+      <div class="knoepfe" style="flex-direction: column">
+        <button class="knopf" id="abgleich-an" data-aktion="abgleich-an">Abgleich einschalten</button>
+        <button class="knopf" id="abgleich-code" data-aktion="abgleich-code">Verbindungscode kopieren</button>
+        <button class="knopf zweit" id="abgleich-aus" data-aktion="abgleich-aus">Abgleich ausschalten</button>
+      </div>
+    </div>
+
     <div class="abschnitt">Backup</div>
     <div class="karte">
       <p class="unter" id="backup-info" style="margin: 0"></p>
@@ -1074,7 +1116,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1209'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1221'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1174,7 +1216,13 @@ let schluessel = null;
 let speicherKette = Promise.resolve();
 let verlassenUm = null;
 
-const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+// in Stücken umwandeln – große Pakete (Kursverlauf) sprengen sonst den Aufrufstapel
+const b64 = (buf) => {
+  const bytes = new Uint8Array(buf);
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const zufall = (n) => crypto.getRandomValues(new Uint8Array(n));
 const schutzAktiv = () => !!localStorage.getItem(SCHUTZ_META);
@@ -1219,6 +1267,7 @@ function speichern() {
     .then(() => verschluesseln(text))
     .then((paket) => localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(paket)))
     .catch((e) => alert('Speichern fehlgeschlagen: ' + e.message));
+  abgleichVormerken(text);
 }
 
 function laden() {
@@ -1263,7 +1312,9 @@ async function schutzEinrichten() {
 }
 
 function schutzEntfernen() {
-  if (!confirm('Verschlüsselung entfernen? Deine Daten liegen dann wieder unverschlüsselt auf dem iPhone.')) return;
+  if (!confirm(`Verschlüsselung entfernen? Deine Daten liegen dann wieder unverschlüsselt auf dem iPhone.${abgleich.an ? ' Der Abgleich mit dem anderen Gerät wird dabei ausgeschaltet.' : ''}`)) return;
+  abgleich = {};
+  abgleichMerken();
   localStorage.setItem(SPEICHER, JSON.stringify(daten));
   localStorage.removeItem(SPEICHER_VERSCHL);
   localStorage.removeItem(SCHUTZ_META);
@@ -1279,6 +1330,7 @@ async function entsperren() {
     const paket = JSON.parse(localStorage.getItem(SPEICHER_VERSCHL));
     daten = paket ? JSON.parse(await entschluesseln(paket)) : null;
     nachLaden();
+    abgleichHolen();
   } catch (e) {
     schluessel = null;
     meldung.textContent = e.name === 'NotAllowedError' ? 'Entsperren abgebrochen.' : 'Entsperren fehlgeschlagen: ' + e.message;
@@ -1296,9 +1348,205 @@ function schutzZuruecksetzen() {
   if (!confirm('Verschlüsselte Daten auf diesem iPhone löschen und danach dein Backup aus OneDrive laden?')) return;
   localStorage.removeItem(SPEICHER_VERSCHL);
   localStorage.removeItem(SCHUTZ_META);
+  abgleich = {};
+  abgleichMerken();
   schluessel = null;
   daten = null;
   zeige('ansicht-leer');
+}
+
+// ---------- Abgleich iPhone <-> iPad ----------
+// Beide Geräte nutzen denselben Passkey (iCloud-Schlüsselbund) und damit denselben Schlüssel. Beim Vermittler liegt
+// nur das verschlüsselte Paket (plus credId/Salt, die nicht geheim sind). Revisionen verhindern stilles Überschreiben.
+
+const ABGLEICH = 'depot-abgleich';
+let abgleich = {};
+try { abgleich = JSON.parse(localStorage.getItem(ABGLEICH)) || {}; } catch { abgleich = {}; }
+const abgleichMerken = () => localStorage.setItem(ABGLEICH, JSON.stringify(abgleich));
+const geraetName = () => (/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'Browser');
+let abgleichZeit = null, abgleichLaeuft = false;
+
+async function abgleichAnfrage(pfad, koerper, basis = daten) {
+  const r = await fetch(`${basis.vermittler.replace(/\/$/, '')}${pfad}`, {
+    method: koerper ? 'POST' : 'GET',
+    headers: { 'X-Depot-Token': basis.vermittlerToken || '', ...(koerper ? { 'Content-Type': 'application/json' } : {}) },
+    body: koerper ? JSON.stringify(koerper) : undefined, cache: 'no-store',
+  });
+  const j = await r.json();
+  if (r.status === 409) return { konflikt: j.aktuell };
+  if (!r.ok) throw new Error(r.status === 401 ? 'Zugangsschlüssel falsch' : j.fehler || `HTTP ${r.status}`);
+  return j;
+}
+
+const pruefsumme = async (text) => b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+
+// nach jeder Änderung: gebündelt hochladen (nur wenn sich der Inhalt wirklich geändert hat)
+async function abgleichVormerken(text) {
+  if (!abgleich.an) return;
+  if (await pruefsumme(text) === abgleich.hash) return;
+  abgleich.offen = true;
+  abgleichMerken();
+  clearTimeout(abgleichZeit);
+  abgleichZeit = setTimeout(abgleichHochladen, 2500);
+}
+
+async function abgleichHochladen() {
+  if (!abgleich.an || !schluessel || !daten || abgleichLaeuft) return;
+  abgleichLaeuft = true;
+  try {
+    const meta = JSON.parse(localStorage.getItem(SCHUTZ_META));
+    const text = JSON.stringify(daten);
+    const r = await abgleichAnfrage('/sync/daten', { basis: abgleich.rev || 0, meta, paket: await verschluesseln(text), geraet: geraetName() });
+    if (r.konflikt) { abgleichLaeuft = false; await abgleichKonflikt(r.konflikt); return; }
+    Object.assign(abgleich, { rev: r.rev, offen: false, zuletzt: r.zeit, hash: await pruefsumme(text) });
+    abgleichMerken();
+  } catch (e) {
+    console.error(e); // offline o. Ä.: bleibt „offen“ und geht beim nächsten Mal mit
+  }
+  abgleichLaeuft = false;
+}
+
+// Beide Geräte haben geändert: der Nutzer entscheidet, welche Fassung gilt
+async function abgleichKonflikt(aktuell) {
+  // oft haben beide Geräte nur dasselbe erzeugt (z. B. die offene Sparrate des neuen Monats)
+  try {
+    const klar = await entschluesseln(aktuell.paket);
+    if (klar === JSON.stringify(daten)) {
+      Object.assign(abgleich, { rev: aktuell.rev, offen: false, zuletzt: aktuell.zeit, hash: await pruefsumme(klar) });
+      abgleichMerken();
+      return;
+    }
+  } catch { /* anderer Schlüssel: unten entscheiden */ }
+  const wann = new Date(aktuell.zeit).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  const behalten = confirm(`Auf dem ${aktuell.geraet || 'anderen Gerät'} wurde am ${wann} ebenfalls etwas geändert.\n\n` +
+    `OK = die Fassung von diesem ${geraetName()} behalten (die andere Änderung geht verloren)\n` +
+    `Abbrechen = die Fassung vom ${aktuell.geraet || 'anderen Gerät'} übernehmen`);
+  if (behalten) {
+    abgleich.rev = aktuell.rev;
+    abgleichMerken();
+    await abgleichHochladen();
+  } else {
+    await abgleichUebernehmen(aktuell);
+  }
+}
+
+async function abgleichUebernehmen(eintrag) {
+  const meta = JSON.parse(localStorage.getItem(SCHUTZ_META));
+  if (!meta || eintrag.meta.credId !== meta.credId) {
+    toast('Der Face-ID-Schlüssel des anderen Geräts hat sich geändert. Bitte hier neu verbinden.');
+    return;
+  }
+  const klar = await entschluesseln(eintrag.paket);
+  daten = JSON.parse(klar);
+  localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(eintrag.paket));
+  Object.assign(abgleich, { rev: eintrag.rev, offen: false, zuletzt: eintrag.zeit, hash: await pruefsumme(klar) });
+  abgleichMerken();
+  if (hauptseiteSichtbar()) { hauptAnzeigen(); kurseHolen(); }
+  toast(`Neuer Stand vom ${eintrag.geraet || 'anderen Gerät'} übernommen.`);
+}
+
+// beim Öffnen/Zurückkehren: neueren Stand holen, eigene offene Änderungen hochladen
+async function abgleichHolen() {
+  if (!abgleich.an || !schluessel || !daten || abgleichLaeuft) return;
+  try {
+    const eintrag = await abgleichAnfrage('/sync/daten');
+    if (eintrag.leer || eintrag.rev === abgleich.rev) { if (abgleich.offen || eintrag.leer) await abgleichHochladen(); }
+    else if (eintrag.rev > (abgleich.rev || 0)) {
+      if (abgleich.offen) await abgleichKonflikt(eintrag);
+      else await abgleichUebernehmen(eintrag);
+    }
+    // Kursverlauf (nach einem Import auf dem anderen Gerät)
+    const h = await abgleichAnfrage('/sync/historie');
+    if (!h.leer && h.zeit !== abgleich.historie) {
+      kurshistorieUebernehmen(JSON.parse(await entschluesseln(h.paket)), true);
+      abgleich.historie = h.zeit;
+      abgleichMerken();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function historieHochladen() {
+  if (!abgleich.an || !schluessel) return;
+  try {
+    const meta = JSON.parse(localStorage.getItem(SCHUTZ_META));
+    const r = await abgleichAnfrage('/sync/historie', { meta, paket: await verschluesseln(JSON.stringify(historieKurse)), geraet: geraetName() });
+    abgleich.historie = r.zeit;
+    abgleichMerken();
+  } catch (e) { console.error(e); }
+}
+
+const verbindungsCode = () => btoa(JSON.stringify({ u: daten.vermittler, t: daten.vermittlerToken }));
+
+async function abgleichEinschalten() {
+  if (!schutzAktiv() || !schluessel) { alert('Der Abgleich braucht Face ID. Richte zuerst oben „Face ID einrichten“ ein.'); return; }
+  if (!daten.vermittlerToken) { alert('Der Abgleich braucht den Zugangsschlüssel des Vermittlers (unten bei Kurs-Vermittler).'); return; }
+  try {
+    const vorhanden = await abgleichAnfrage('/sync/daten');
+    if (!vorhanden.leer && !confirm(`Beim Vermittler liegt schon ein Stand vom ${vorhanden.geraet || 'anderen Gerät'} (${new Date(vorhanden.zeit).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}). Mit dem Stand von diesem Gerät ersetzen?`)) return;
+    Object.assign(abgleich, { an: true, rev: vorhanden.leer ? 0 : vorhanden.rev, offen: true });
+    abgleichMerken();
+    await abgleichHochladen();
+    await historieHochladen();
+    if (abgleich.offen) throw new Error('Hochladen fehlgeschlagen');
+    einstellungenAnzeigen();
+    alert('Abgleich ist an. Tippe jetzt auf „Verbindungscode kopieren“ und füge ihn auf dem iPad ein.');
+  } catch (e) {
+    abgleich = {};
+    abgleichMerken();
+    alert('Abgleich konnte nicht eingeschaltet werden: ' + e.message);
+  }
+}
+
+function abgleichAusschalten() {
+  if (!confirm('Abgleich auf diesem Gerät ausschalten? Die Daten hier bleiben, werden aber nicht mehr abgeglichen.')) return;
+  abgleich = {};
+  abgleichMerken();
+  einstellungenAnzeigen();
+}
+
+async function codeKopieren() {
+  try {
+    await navigator.clipboard.writeText(verbindungsCode());
+    toast('Code kopiert – auf dem iPad einfügen.');
+  } catch {
+    prompt('Code kopieren:', verbindungsCode());
+  }
+}
+
+// Auf dem iPad (noch ohne Daten): Code vom iPhone einfügen, Face ID, fertig
+async function mitIphoneVerbinden() {
+  const code = (prompt('Verbindungscode vom iPhone einfügen (iPhone: Einstellungen → Abgleich mit iPad → Code kopieren):') || '').trim();
+  if (!code) return;
+  try {
+    let zugang;
+    try { zugang = JSON.parse(atob(code)); } catch { throw new Error('Der Code ist unvollständig.'); }
+    const basis = { vermittler: zugang.u, vermittlerToken: zugang.t };
+    const eintrag = await abgleichAnfrage('/sync/daten', null, basis);
+    if (eintrag.leer) throw new Error('Beim Vermittler liegt noch kein Stand. Schalte den Abgleich zuerst auf dem iPhone ein.');
+    schluessel = await schluesselHolen(eintrag.meta);
+    let klar;
+    try { klar = await entschluesseln(eintrag.paket); } catch { throw new Error('Der Passkey auf diesem Gerät passt nicht. Ist der iCloud-Schlüsselbund auf beiden Geräten an?'); }
+    daten = JSON.parse(klar);
+    localStorage.setItem(SCHUTZ_META, JSON.stringify(eintrag.meta));
+    localStorage.setItem(SPEICHER_VERSCHL, JSON.stringify(eintrag.paket));
+    localStorage.removeItem(SPEICHER);
+    abgleich = { an: true, rev: eintrag.rev, offen: false, zuletzt: eintrag.zeit, hash: await pruefsumme(klar) };
+    abgleichMerken();
+    const h = await abgleichAnfrage('/sync/historie', null, basis);
+    if (!h.leer) {
+      kurshistorieUebernehmen(JSON.parse(await entschluesseln(h.paket)), true);
+      abgleich.historie = h.zeit;
+      abgleichMerken();
+    }
+    nachLaden();
+    toast('Verbunden. Änderungen gleichen sich ab jetzt automatisch ab.');
+  } catch (e) {
+    schluessel = null;
+    daten = null;
+    if (e.name !== 'NotAllowedError') alert('Verbinden fehlgeschlagen: ' + e.message);
+  }
 }
 
 const REITER = ['ansicht-haupt', 'ansicht-start', 'ansicht-tagesgeld'];
@@ -1526,7 +1774,7 @@ try { historieKurse = JSON.parse(localStorage.getItem(HISTORIE_SPEICHER)) || {};
 
 // Lange Kurshistorie kommt per Import aus depot-historie.json („kurshistorie“, aus den ariva-CSV-Dateien).
 // Kein Abruf beim Vermittler: EODHD liefert im Gratis-Paket nur ein Jahr und jeder Abruf zählt gegen das Tageslimit.
-function kurshistorieUebernehmen(kh) {
+function kurshistorieUebernehmen(kh, ausAbgleich = false) {
   for (const [symbol, h] of Object.entries(kh)) {
     if (!Array.isArray(h.reihe) || !h.reihe.length) continue;
     // Was die App nach dem Ende der Datei schon selbst fortgeschrieben hat, bleibt erhalten
@@ -1537,6 +1785,7 @@ function kurshistorieUebernehmen(kh) {
   }
   try { localStorage.setItem(HISTORIE_SPEICHER, JSON.stringify(historieKurse)); } catch (e) { console.error(e); }
   langeReihenCache.clear();
+  if (!ausAbgleich) historieHochladen(); // neuer Kursverlauf (Import) auch fürs andere Gerät
 }
 
 // Hängt neue Schlusskurse (in Euro) dauerhaft an die lange Historie an. Die Tagesreihe vom Vermittler
@@ -3782,6 +4031,13 @@ function einstellungenAnzeigen() {
     : 'Nicht aktiv. Mit Face ID werden deine Daten auf dem iPhone verschlüsselt und die App beim Öffnen gesperrt.';
   document.getElementById('schutz-an').hidden = geschuetzt;
   document.getElementById('schutz-aus').hidden = !geschuetzt;
+  const an = !!abgleich.an;
+  document.getElementById('abgleich-info').textContent = an
+    ? `An. Änderungen gleichen sich automatisch mit dem anderen Gerät ab – verschlüsselt, der Vermittler kann sie nicht lesen.${abgleich.zuletzt ? ` Zuletzt: ${new Date(abgleich.zuletzt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}${abgleich.offen ? ', Änderungen warten auf Verbindung' : ''}.` : ''} Für ein weiteres Gerät: Code kopieren und dort bei „Mit iPhone verbinden“ einfügen.`
+    : 'Aus. Mit dem Abgleich siehst und pflegst du deine Daten auch auf dem iPad. Sie liegen dafür verschlüsselt bei deinem Vermittler, der Schlüssel kommt aus deinem Face-ID-Passkey.';
+  document.getElementById('abgleich-an').hidden = an;
+  document.getElementById('abgleich-code').hidden = !an;
+  document.getElementById('abgleich-aus').hidden = !an;
   pushStatusAnzeigen();
   zeige('ansicht-einstellungen');
 }
@@ -4478,6 +4734,10 @@ document.addEventListener('click', (e) => {
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
     arten: artenAnzeigen,
+    verbinden: mitIphoneVerbinden,
+    'abgleich-an': abgleichEinschalten,
+    'abgleich-aus': abgleichAusschalten,
+    'abgleich-code': codeKopieren,
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (detailHerkunft === 'gewinn' ? (zeige('ansicht-gewinn'), gewinnAnzeigen()) : vermoegenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
@@ -4549,6 +4809,7 @@ document.addEventListener('visibilitychange', () => {
     offeneBuchungenErzeugen();
     kurseHolen();
   }
+  if (daten) abgleichHolen();
 });
 
 window.addEventListener('online', () => { if (daten) kurseHolen(); });
