@@ -1116,7 +1116,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1234'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-18.1241'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1477,7 +1477,20 @@ async function historieHochladen() {
   } catch (e) { console.error(e); }
 }
 
-const verbindungsCode = () => btoa(JSON.stringify({ u: daten.vermittler, t: daten.vermittlerToken }));
+// Code fürs andere Gerät: beim üblichen Vermittler nur der Zugangsschlüssel (43 Zeichen), sonst Adresse + Schlüssel
+const STANDARD_VERMITTLER = 'https://depot.marcelo-ferreira-edf.workers.dev';
+const verbindungsCode = () => (daten.vermittler.replace(/\/$/, '') === STANDARD_VERMITTLER
+  ? daten.vermittlerToken
+  : btoa(JSON.stringify({ u: daten.vermittler, t: daten.vermittlerToken })));
+function codeLesen(eingabe) {
+  const code = eingabe.replace(/[^A-Za-z0-9_\-+/=]/g, '');
+  if (/^[A-Za-z0-9_-]{30,64}$/.test(code)) return { u: STANDARD_VERMITTLER, t: code };
+  try {
+    const z = JSON.parse(atob(code));
+    if (z.u && z.t) return z;
+  } catch { /* unten melden */ }
+  throw new Error(`Der Code ist unvollständig (angekommen: ${code.length} Zeichen, Anfang „${code.slice(0, 6)}“). Erwartet: 43 Zeichen.`);
+}
 
 async function abgleichEinschalten() {
   if (!schutzAktiv() || !schluessel) { alert('Der Abgleich braucht Face ID. Richte zuerst oben „Face ID einrichten“ ein.'); return; }
@@ -1519,12 +1532,11 @@ async function codeKopieren() {
 async function mitIphoneVerbinden() {
   const eingabe = prompt('Verbindungscode vom iPhone einfügen (iPhone: Einstellungen → Abgleich mit iPad → Code kopieren):');
   if (eingabe == null) return; // abgebrochen
-  const code = eingabe.replace(/s/g, '');
+  const code = eingabe.trim();
   if (!code) { alert('Es wurde kein Code eingefügt. Tippe auf dem iPhone noch einmal „Verbindungscode kopieren“ und setze ihn hier gleich danach ein.'); return; }
   let schritt = 'Code lesen';
   try {
-    let zugang;
-    try { zugang = JSON.parse(atob(code)); } catch { throw new Error('Der Code ist unvollständig.'); }
+    const zugang = codeLesen(code);
     const basis = { vermittler: zugang.u, vermittlerToken: zugang.t };
     schritt = 'Stand vom Vermittler holen';
     const eintrag = await abgleichAnfrage('/sync/daten', null, basis);
