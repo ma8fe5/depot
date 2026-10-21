@@ -660,25 +660,17 @@
       </div>
     </div>
 
-    <div class="karte gv-karte">
+    <div class="karte entw-karte">
+      <!-- Gewinn für die gewählte Auswahl; Tipp öffnet die Gewinn-Seite -->
       <div class="zeile-wert tippbar" data-aktion="gv-details" role="button" tabindex="0">
         <div>
-          <div class="etikett"><span id="gv-titel">Gewinn/Verlust seit Eröffnung</span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
+          <div class="etikett"><span id="gv-titel">Gewinn seit Eröffnung</span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
           <div id="tag-eur" class="wert-gross skelett">+000 €</div>
         </div>
         <span id="tag-pct" class="pill">–</span>
       </div>
-      <div class="segmente vier klein" id="gv-segmente" style="margin: 10px 0 0">
-        <button data-gv="gesamt">Eröffnung</button>
-        <button data-gv="jahr">YTD</button>
-        <button data-gv="monat">MTD</button>
-        <button data-gv="vortag">Vortag</button>
-      </div>
-    </div>
-
-    <div class="karte entw-karte">
-      <div class="etikett">Entwicklung</div>
-      <div class="chips" id="entw-chips"></div>
+      <div class="chips" id="entw-chips" style="margin-top: 10px"></div>
+      <div class="chips" id="entw-jahre"></div>
       <div id="start-chart" class="chart"></div>
       <p class="unter" id="entw-hinweis" style="margin: 6px 0 0; font-size: 12px"></p>
     </div>
@@ -1187,7 +1179,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2042'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2046'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3964,6 +3956,29 @@ try { entwicklungZeitraum = localStorage.getItem('depot-entw') || 'gesamt'; } ca
 // gewählte Jahre (Mehrfachauswahl), z. B. „2021,2022“ – sonst ein einzelner Zeitraum (gesamt, wtd, mtd)
 const entwJahre = () => (/^\d{4}(,\d{4})*$/.test(entwicklungZeitraum) ? entwicklungZeitraum.split(',').map(Number).sort((a, b) => a - b) : []);
 
+// Gewinn für die Auswahl der Entwicklung: Wert am Ende − Wert am Anfang − Einzahlungen dazwischen
+function entwicklungGewinn(start, bis, gewaehlt) {
+  const b = bewertung();
+  const heuteIso = isoDatum(heute());
+  let gv, basis, titel;
+  if (entwicklungZeitraum === 'gesamt') {
+    gv = b.wert - b.investiert; basis = b.investiert; titel = 'Gewinn seit Eröffnung';
+  } else if (entwicklungZeitraum === 'vortag') {
+    gv = b.tagAend; basis = b.vorherWert; titel = 'Gewinn zum Vortag';
+  } else {
+    const a = auswertung(start, bis && bis < heuteIso ? bis : heuteIso);
+    gv = a.gewinn; basis = a.zeilen.reduce((s, z) => s + z.basis, 0);
+    if (entwicklungZeitraum === 'mtd') titel = 'Gewinn seit Monatsbeginn';
+    else if (entwicklungZeitraum === 'wtd') titel = 'Gewinn seit Wochenbeginn';
+    else titel = gewaehlt.length > 1 ? `Gewinn ${gewaehlt[0]}–${gewaehlt[gewaehlt.length - 1]}` : `Gewinn ${gewaehlt[0]}`;
+  }
+  document.getElementById('gv-titel').textContent = titel;
+  const el = document.getElementById('tag-eur');
+  el.className = 'wert-gross ' + klasse(gv);
+  el.innerHTML = betragHTML(gv, true);
+  setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
+}
+
 function entwicklungAnzeigen() {
   const chartEl = document.getElementById('start-chart');
   const chips = document.getElementById('entw-chips');
@@ -3991,15 +4006,15 @@ function entwicklungAnzeigen() {
   // Auswahl: Seit Eröffnung, WTD, MTD, dann jedes Jahr; Jahre ohne Kursdaten sind ausgegraut
   const jahre = [];
   for (let j = h.getFullYear(); j >= startJahr; j--) jahre.push(j); // neuestes Jahr direkt neben „Seit Eröffnung“
-  const kurz = { wtd: 'WTD', mtd: 'MTD' };
-  if (!['gesamt', 'wtd', 'mtd'].includes(entwicklungZeitraum) && !(entwJahre().length && entwJahre().every((j) => jahre.includes(j)))) entwicklungZeitraum = 'gesamt';
+  const ZEITRAEUME_ENTW = { gesamt: 'Seit Eröffnung', mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
+  if (!ZEITRAEUME_ENTW[entwicklungZeitraum] && !(entwJahre().length && entwJahre().every((j) => jahre.includes(j)))) entwicklungZeitraum = 'gesamt';
   const gewaehlt = entwJahre();
-  chips.innerHTML = [`<button class="chip${entwicklungZeitraum === 'gesamt' ? ' aktiv' : ''}" data-entw="gesamt">Seit Eröffnung</button>`]
-    .concat(Object.entries(kurz).map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`))
-    .concat(jahre.map((j) => {
-      const ohneDaten = `${j}-12-31` < ersterVollerTag;
-      return `<button class="chip${gewaehlt.includes(j) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
-    })).join('');
+  chips.innerHTML = Object.entries(ZEITRAEUME_ENTW)
+    .map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`).join('');
+  document.getElementById('entw-jahre').innerHTML = jahre.map((j) => {
+    const ohneDaten = `${j}-12-31` < ersterVollerTag;
+    return `<button class="chip${gewaehlt.includes(j) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
+  }).join('');
 
   let start, bis = null, achseX;
   const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
@@ -4012,6 +4027,11 @@ function entwicklungAnzeigen() {
     achseX = spanne >= 2
       ? (t, i) => (i > 0 && t.slice(5) === '01-01' ? t.slice(0, 4) : null)
       : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
+  } else if (entwicklungZeitraum === 'vortag') {
+    // vom vorletzten bis zum letzten Schlusskurs
+    const tage = [...new Set(Object.values(kurse.preise).flatMap((k) => (k.reihe || []).map(([d]) => d)))].sort();
+    start = tage.length > 1 ? tage[tage.length - 2] : isoDatum(h);
+    achseX = (t) => `${t.slice(8)}.${t.slice(5, 7)}.`;
   } else if (entwicklungZeitraum === 'wtd' || entwicklungZeitraum === 'mtd') {
     // WTD: ab Schluss der Vorwoche (Sonntag davor), MTD: ab Schluss des Vormonats
     if (entwicklungZeitraum === 'wtd') { const so = new Date(h); so.setDate(so.getDate() - ((so.getDay() + 6) % 7) - 1); start = isoDatum(so); }
@@ -4028,6 +4048,8 @@ function entwicklungAnzeigen() {
       : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
   }
 
+  entwicklungGewinn(start, bis, gewaehlt);
+
   const verlauf = vermoegensVerlauf(start, bis);
   if (verlauf && entwicklungZeitraum === 'mtd') {
     // bei vielen Handelstagen nicht jeden Tag beschriften
@@ -4040,10 +4062,10 @@ function entwicklungAnzeigen() {
     linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
       gruen: true,
       hoehe: 110, // flacher, damit die Aktien-Seite auf einen Bildschirm passt
-      platzUnten: 680, // auf iPad/Laptop: Chart nur so hoch, dass die Depot-Seite ins Fenster passt
+      platzUnten: 580, // auf iPad/Laptop: Chart nur so hoch, dass die Depot-Seite ins Fenster passt
       format: (v) => geld(v),
       // kurze Zeiträume schwanken wenig: dort auf ganze Euro, sonst auf 100 € gerundet
-      formatKurz: (v) => (['wtd', 'mtd'].includes(entwicklungZeitraum) ? `${zahl(Math.round(v), 0)} €` : `${zahl(Math.round(v / 100) * 100, 0)} €`),
+      formatKurz: (v) => (['wtd', 'mtd', 'vortag'].includes(entwicklungZeitraum) ? `${zahl(Math.round(v), 0)} €` : `${zahl(Math.round(v / 100) * 100, 0)} €`),
       achseX,
     });
   } else {
@@ -4052,17 +4074,6 @@ function entwicklungAnzeigen() {
   hinweis.textContent = vollstaendig ? ''
     : `Kurse ab ${deDatum(ersterVollerTag)} – ältere Jahre folgen, sobald die Kurshistorie importiert ist.`;
 }
-
-const GV_TITEL = {
-  gesamt: 'Gewinn/Verlust seit Eröffnung',
-  jahr: 'Gewinn/Verlust seit Jahresanfang (YTD)',
-  monat: 'Gewinn/Verlust seit Monatsanfang (MTD)',
-  vortag: 'Gewinn/Verlust zum Vortag',
-};
-// passender Zeitraum auf der Gewinn-Seite
-const GV_ZU_GEWINN = { gesamt: 'eroeffnung', jahr: 'jahr', monat: 'monat', vortag: 'gestern' };
-let gvZeitraum = 'gesamt';
-try { if (GV_TITEL[localStorage.getItem('depot-gv')]) gvZeitraum = localStorage.getItem('depot-gv'); } catch { /* nur Komfort */ }
 
 function hauptAnzeigen() {
   reiterZeigen(letzterReiter);
@@ -4121,23 +4132,6 @@ function hauptRendern() {
   document.getElementById('mehr-kosten').textContent = kostenJahr > 0 ? `ca. ${geld(kostenJahr)} pro Jahr` : '';
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
-
-  // Gewinn/Verlust mit wählbarem Zeitraum
-  let gv, basis;
-  if (gvZeitraum === 'vortag') { gv = b.tagAend; basis = b.vorherWert; }
-  else if (gvZeitraum === 'gesamt') { gv = gewinn; basis = b.investiert; }
-  else {
-    const zeilen = gewinnListe(gvZeitraum).zeilen;
-    gv = zeilen.reduce((s, z) => s + z.gewinn, 0);
-    basis = zeilen.reduce((s, z) => s + z.basis, 0);
-  }
-  document.getElementById('gv-titel').textContent = GV_TITEL[gvZeitraum];
-  document.getElementById('gv-segmente').style.setProperty('--idx', Object.keys(GV_TITEL).indexOf(gvZeitraum));
-  document.querySelectorAll('[data-gv]').forEach((el) => el.classList.toggle('aktiv', el.dataset.gv === gvZeitraum));
-  const tEl = document.getElementById('tag-eur');
-  tEl.className = 'wert-gross ' + klasse(gv);
-  tEl.innerHTML = betragHTML(gv, true);
-  setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
 
   const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
   rangliste(document.getElementById('top'), sortiert); // alle Positionen, absteigend nach Veränderung
@@ -5009,13 +5003,6 @@ document.addEventListener('click', (e) => {
     entwicklungAnzeigen();
     return;
   }
-  const gvWahl = e.target.closest('[data-gv]')?.dataset.gv;
-  if (gvWahl) {
-    gvZeitraum = gvWahl;
-    try { localStorage.setItem('depot-gv', gvWahl); } catch { /* nur Komfort */ }
-    hauptRendern();
-    return;
-  }
   const reiter = e.target.closest('[data-tab]')?.dataset.tab;
   if (reiter) { reiterZeigen(reiter); return; }
   const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
@@ -5075,7 +5062,14 @@ document.addEventListener('click', (e) => {
     'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
-    'gv-details': () => { gewinnZeitraum = GV_ZU_GEWINN[gvZeitraum] || 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
+    'gv-details': () => {
+      // Einzeljahr -> Jahresansicht dieses Jahres, Monat -> Monat, Vortag -> Gestern, sonst seit Eröffnung
+      const jahre = entwJahre();
+      gwVersatz = 0;
+      if (jahre.length === 1) { gewinnZeitraum = 'jahr'; gwVersatz = jahre[0] - heute().getFullYear(); }
+      else gewinnZeitraum = { mtd: 'monat', vortag: 'gestern' }[entwicklungZeitraum] || 'eroeffnung';
+      zeige('ansicht-gewinn'); gewinnAnzeigen();
+    },
     'zinsbuch-zurueck': () => tagesgeldAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
