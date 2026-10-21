@@ -71,7 +71,7 @@
     touch-action: manipulation; /* kein Zoom per Doppeltipp */
   }
   main { max-width: 540px; margin: 0 auto;
-    padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 32px); }
+    padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 32px); } /* oben etwas Luft, auf allen Seiten */
   [hidden] { display: none !important; }
   .ansicht { animation: rein 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); }
   @keyframes rein { from { opacity: 0; transform: translateY(10px); } }
@@ -88,8 +88,8 @@
   .rund.dreht svg { animation: drehen 0.9s linear infinite; }
   @keyframes drehen { to { transform: rotate(360deg); } }
 
-  .navi { position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top) + 6px) 8px 6px;
-    margin: calc(-1 * (env(safe-area-inset-top) + 8px)) -16px 0;
+  .navi { position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top) + 22px) 8px 6px;
+    margin: calc(-1 * (env(safe-area-inset-top) + 24px)) -16px 0;
     background: var(--glas); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
   .zurueck { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; color: var(--akzent);
     font: inherit; font-size: 17px; padding: 6px 8px; cursor: pointer; }
@@ -359,7 +359,7 @@
   /* Aktien-Reiter kompakt: alles auf einen Bildschirm */
   #ansicht-haupt .kopf { margin: 4px 2px 10px; }
   /* Startseite: nur das Datum oben, etwas tiefer und mittig zum Menü-Knopf */
-  #ansicht-start .kopf { align-items: center; margin: 24px 2px 16px; }
+  #ansicht-start .kopf { align-items: center; margin: 8px 2px 16px; }
   #ansicht-start .kopf .datum { margin-bottom: 0; }
   #ansicht-haupt .karte { padding: 14px 16px; margin-bottom: 10px; }
   #ansicht-haupt .wert-karte .zeile-wert { align-items: baseline; }
@@ -1181,7 +1181,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2031'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2034'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
