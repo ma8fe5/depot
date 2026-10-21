@@ -683,7 +683,6 @@
     </div>
 
     <p id="status" class="fuss"></p>
-    <p class="fuss">Bitcoin: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · Übrige Kurse: Schlusskurse von EODHD</p>
   </section>
 
   <!-- Tops & Lows (zweiter Reiter) -->
@@ -1118,6 +1117,7 @@
       <div class="feld"><label class="feldname">Zugangsschlüssel</label>
         <input type="text" id="vermittler-token" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="nicht gesetzt"></div>
       <button class="knopf zweit breit" data-aktion="vermittler-speichern">Speichern</button>
+      <p class="unter" style="margin: 12px 0 0; font-size: 12px">Kurse: Bitcoin <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · übrige Schlusskurse von EODHD</p>
     </div>
   </section>
 
@@ -1181,7 +1181,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2037'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2039'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3954,6 +3954,8 @@ function rangliste(el, eintraege) {
 
 let entwicklungZeitraum = 'gesamt';
 try { entwicklungZeitraum = localStorage.getItem('depot-entw') || 'gesamt'; } catch { /* nur Komfort */ }
+// gewählte Jahre (Mehrfachauswahl), z. B. „2021,2022“ – sonst ein einzelner Zeitraum (gesamt, wtd, mtd)
+const entwJahre = () => (/^\d{4}(,\d{4})*$/.test(entwicklungZeitraum) ? entwicklungZeitraum.split(',').map(Number).sort((a, b) => a - b) : []);
 
 function entwicklungAnzeigen() {
   const chartEl = document.getElementById('start-chart');
@@ -3983,12 +3985,13 @@ function entwicklungAnzeigen() {
   const jahre = [];
   for (let j = h.getFullYear(); j >= startJahr; j--) jahre.push(j); // neuestes Jahr direkt neben „Seit Eröffnung“
   const kurz = { wtd: 'WTD', mtd: 'MTD' };
-  if (!['gesamt', 'wtd', 'mtd'].includes(entwicklungZeitraum) && !jahre.includes(Number(entwicklungZeitraum))) entwicklungZeitraum = 'gesamt';
+  if (!['gesamt', 'wtd', 'mtd'].includes(entwicklungZeitraum) && !(entwJahre().length && entwJahre().every((j) => jahre.includes(j)))) entwicklungZeitraum = 'gesamt';
+  const gewaehlt = entwJahre();
   chips.innerHTML = [`<button class="chip${entwicklungZeitraum === 'gesamt' ? ' aktiv' : ''}" data-entw="gesamt">Seit Eröffnung</button>`]
     .concat(Object.entries(kurz).map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`))
     .concat(jahre.map((j) => {
       const ohneDaten = `${j}-12-31` < ersterVollerTag;
-      return `<button class="chip${String(j) === String(entwicklungZeitraum) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
+      return `<button class="chip${gewaehlt.includes(j) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
     })).join('');
 
   let start, bis = null, achseX;
@@ -4008,11 +4011,14 @@ function entwicklungAnzeigen() {
     else start = stichtag('monat');
     achseX = (t, i, n) => `${t.slice(8)}.${t.slice(5, 7)}.`;
   } else {
-    const j = Number(entwicklungZeitraum);
-    start = `${j - 1}-12-31`;
+    // ein oder mehrere Jahre: vom Jahresbeginn des ersten bis zum Jahresende des letzten gewählten Jahres
+    const von = gewaehlt[0], bisJahr = gewaehlt[gewaehlt.length - 1];
+    start = `${von - 1}-12-31`;
     if (start < ersterVollerTag) { const ab = new Date(ersterVollerTag + 'T00:00:00'); ab.setDate(ab.getDate() - 1); start = isoDatum(ab); }
-    bis = `${j}-12-31`;
-    achseX = (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
+    bis = `${bisJahr}-12-31`;
+    achseX = bisJahr - von >= 2
+      ? (t, i) => (i > 0 && t.slice(5) === '01-01' ? t.slice(0, 4) : null)
+      : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
   }
 
   const verlauf = vermoegensVerlauf(start, bis);
@@ -4145,8 +4151,7 @@ function hauptRendern() {
   const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
   document.getElementById('tops-datum').textContent = daten_.length
     ? `Schlusskurse vom ${deDatum(daten_[0])}` : 'Veränderung zum letzten Handelstag';
-  status.innerHTML = '';
-  status.append(`Aktualisiert ${zeit}${schluss}`, document.createElement('br'), 'Zum Aktualisieren nach unten ziehen');
+  status.innerHTML = ''; // Depot-Seite: nur noch Fehlermeldungen (siehe unten)
   // Startseite: Aktualisiert und Schlusskurse in zwei Zeilen
   const startStatus = document.getElementById('start-status');
   startStatus.innerHTML = '';
@@ -4985,8 +4990,15 @@ function importieren(datei) {
 document.addEventListener('click', (e) => {
   const entw = e.target.closest('[data-entw]')?.dataset.entw;
   if (entw) {
-    entwicklungZeitraum = entw;
-    try { localStorage.setItem('depot-entw', entw); } catch { /* nur Komfort */ }
+    if (/^\d{4}$/.test(entw)) {
+      // Jahr: zur Auswahl hinzufügen bzw. entfernen; letztes abgewählt -> Seit Eröffnung
+      const j = Number(entw), alt = entwJahre();
+      const neu = alt.includes(j) ? alt.filter((x) => x !== j) : [...alt, j].sort((a, b) => a - b);
+      entwicklungZeitraum = neu.length ? neu.join(',') : 'gesamt';
+    } else {
+      entwicklungZeitraum = entw;
+    }
+    try { localStorage.setItem('depot-entw', entwicklungZeitraum); } catch { /* nur Komfort */ }
     entwicklungAnzeigen();
     return;
   }
