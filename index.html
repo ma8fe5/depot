@@ -677,8 +677,7 @@
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
     <div class="titel"><h1>Tops & Lows</h1><div class="unterzeile" id="tops-datum">Veränderung zum letzten Handelstag</div></div>
     <div class="ranglisten">
-      <div class="karte"><div class="etikett">Top 3</div><ul id="top" class="liste"></ul></div>
-      <div class="karte"><div class="etikett">Low 3</div><ul id="low" class="liste"></ul></div>
+      <div class="karte"><div class="etikett">Alle Positionen · beste zuerst</div><ul id="top" class="liste"></ul></div>
     </div>
     <p class="fuss">Prozent und Euro beziehen sich auf deine Position. Zum Aktualisieren nach unten ziehen.</p>
   </section>
@@ -1170,7 +1169,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2002'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2004'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4061,8 +4060,7 @@ function hauptRendern() {
   setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
 
   const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
-  rangliste(document.getElementById('top'), sortiert.slice(0, 3));
-  rangliste(document.getElementById('low'), sortiert.slice(-3).reverse());
+  rangliste(document.getElementById('top'), sortiert); // alle Positionen, absteigend nach Veränderung
   // Kurzfassung auf der Aktien-Seite: Bester und Schwächster
   const kurz = document.getElementById('tops-kurz');
   kurz.innerHTML = '';
