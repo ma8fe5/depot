@@ -617,12 +617,10 @@
       <div class="karte tippbar" data-tab="ansicht-haupt" role="button" tabindex="0">
         <div class="etikett">Depot <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-aktien"></div>
-        <span class="unter anteil" id="start-aktien-anteil"></span>
       </div>
       <div class="karte tippbar" data-tab="ansicht-tagesgeld" role="button" tabindex="0">
         <div class="etikett">Tagesgeld <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-tagesgeld"></div>
-        <span class="unter anteil" id="start-tagesgeld-anteil"></span>
       </div>
     </div>
     <div class="karte tippbar arten-karte" data-aktion="arten" role="button" tabindex="0">
@@ -1181,7 +1179,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2026'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2028'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4082,9 +4080,6 @@ function hauptRendern() {
   const gesamtEl = document.getElementById('gesamt');
   gesamtEl.classList.remove('skelett');
   zaehle(gesamtEl, b.wert + tg, false);
-  const anteil = (v) => (b.wert + tg ? zahl((v / (b.wert + tg)) * 100, 0) : '0');
-  document.getElementById('start-aktien-anteil').textContent = `${anteil(b.wert)} % vom Gesamtvermögen`;
-  document.getElementById('start-tagesgeld-anteil').textContent = `${anteil(tg)} % vom Gesamtvermögen`;
   document.getElementById('start-aktien').innerHTML = betragHTML(b.wert);
   document.getElementById('start-tagesgeld').innerHTML = betragHTML(tg);
   const artTeile = anlagearten();
@@ -4151,7 +4146,11 @@ function hauptRendern() {
     ? `Schlusskurse vom ${deDatum(daten_[0])}` : 'Veränderung zum letzten Handelstag';
   status.innerHTML = '';
   status.append(`Aktualisiert ${zeit}${schluss}`, document.createElement('br'), 'Zum Aktualisieren nach unten ziehen');
-  document.getElementById('start-status').textContent = `Aktualisiert ${zeit}${schluss}`;
+  // Startseite: Aktualisiert und Schlusskurse in zwei Zeilen
+  const startStatus = document.getElementById('start-status');
+  startStatus.innerHTML = '';
+  startStatus.append(`Aktualisiert ${zeit}`);
+  if (daten_.length) startStatus.append(document.createElement('br'), `Schlusskurse vom ${deDatum(daten_[0])}`);
   const meldungen = [...(kurse.hinweise || [])];
   if (kurse.fehler && kurse.fehler.length) meldungen.push(`Keine aktuellen Kurse für: ${kurse.fehler.join(', ')}`);
   for (const text of meldungen) {
