@@ -1181,7 +1181,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2006'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2008'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3936,11 +3936,13 @@ function entwicklungAnzeigen() {
   const startJahr = Number(eroeffnung.slice(0, 4));
   const ersterVollerTag = vollstaendig ? eroeffnung : datenAb;
 
-  // Auswahl: Seit Eröffnung + jedes Jahr; Jahre ohne Kursdaten sind ausgegraut
+  // Auswahl: Seit Eröffnung, WTD, MTD, dann jedes Jahr; Jahre ohne Kursdaten sind ausgegraut
   const jahre = [];
   for (let j = h.getFullYear(); j >= startJahr; j--) jahre.push(j); // neuestes Jahr direkt neben „Seit Eröffnung“
-  if (entwicklungZeitraum !== 'gesamt' && !jahre.includes(Number(entwicklungZeitraum))) entwicklungZeitraum = 'gesamt';
+  const kurz = { wtd: 'WTD', mtd: 'MTD' };
+  if (!['gesamt', 'wtd', 'mtd'].includes(entwicklungZeitraum) && !jahre.includes(Number(entwicklungZeitraum))) entwicklungZeitraum = 'gesamt';
   chips.innerHTML = [`<button class="chip${entwicklungZeitraum === 'gesamt' ? ' aktiv' : ''}" data-entw="gesamt">Seit Eröffnung</button>`]
+    .concat(Object.entries(kurz).map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`))
     .concat(jahre.map((j) => {
       const ohneDaten = `${j}-12-31` < ersterVollerTag;
       return `<button class="chip${String(j) === String(entwicklungZeitraum) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
@@ -3957,6 +3959,11 @@ function entwicklungAnzeigen() {
     achseX = spanne >= 2
       ? (t, i) => (i > 0 && t.slice(5) === '01-01' ? t.slice(0, 4) : null)
       : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
+  } else if (entwicklungZeitraum === 'wtd' || entwicklungZeitraum === 'mtd') {
+    // WTD: ab Schluss der Vorwoche (Sonntag davor), MTD: ab Schluss des Vormonats
+    if (entwicklungZeitraum === 'wtd') { const so = new Date(h); so.setDate(so.getDate() - ((so.getDay() + 6) % 7) - 1); start = isoDatum(so); }
+    else start = stichtag('monat');
+    achseX = (t, i, n) => `${t.slice(8)}.${t.slice(5, 7)}.`;
   } else {
     const j = Number(entwicklungZeitraum);
     start = `${j - 1}-12-31`;
@@ -3966,13 +3973,21 @@ function entwicklungAnzeigen() {
   }
 
   const verlauf = vermoegensVerlauf(start, bis);
-  if (verlauf) {
+  if (verlauf && entwicklungZeitraum === 'mtd') {
+    // bei vielen Handelstagen nicht jeden Tag beschriften
+    const n = verlauf.depot.length;
+    achseX = (t, i) => (i === 0 || i === n - 1 || (n <= 8 || i % Math.ceil(n / 5) === 0) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
+  }
+  if (verlauf && verlauf.depot.length < 2) {
+    chartEl.innerHTML = '<p class="unter">Diese Woche gibt es noch keinen neuen Schlusskurs.</p>';
+  } else if (verlauf) {
     linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
       gruen: true,
       hoehe: 110, // flacher, damit die Aktien-Seite auf einen Bildschirm passt
       platzUnten: 680, // auf iPad/Laptop: Chart nur so hoch, dass die Depot-Seite ins Fenster passt
       format: (v) => geld(v),
-      formatKurz: (v) => `${zahl(Math.round(v / 100) * 100, 0)} €`,
+      // kurze Zeiträume schwanken wenig: dort auf ganze Euro, sonst auf 100 € gerundet
+      formatKurz: (v) => (['wtd', 'mtd'].includes(entwicklungZeitraum) ? `${zahl(Math.round(v), 0)} €` : `${zahl(Math.round(v / 100) * 100, 0)} €`),
       achseX,
     });
   } else {
