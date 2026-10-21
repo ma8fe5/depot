@@ -207,6 +207,7 @@
   .segmente button { position: relative; z-index: 1; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 500;
     color: var(--text-2); padding: 8px 2px; cursor: pointer; transition: color 0.2s; }
   .segmente button.aktiv { color: var(--text); font-weight: 650; }
+  .segmente button small { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-top: 1px; }
 
   /* ---------- Charts ---------- */
   .chart { position: relative; margin: 6px -4px 0; }
@@ -810,10 +811,9 @@
     </div>
     <!-- nur bei „Bis zur Rente“: Annahmen direkt hier umschalten -->
     <div id="zz-schalter" hidden>
-      <div class="segmente drei klein" id="zz-szenario">
+      <div class="segmente zwei klein" id="zz-szenario">
         <button data-zz-szenario="moderat">Moderat 5 %</button>
         <button data-zz-szenario="realistisch">Realistisch 7 %</button>
-        <button data-zz-szenario="markt">Markt 7,5 %</button>
       </div>
       <div class="segmente zwei klein" id="zz-einzahlen" style="margin-top: 8px">
         <button data-zz-einzahlen="weiter">Weiter einzahlen</button>
@@ -838,10 +838,9 @@
   <section id="ansicht-rente" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Prognose bis zur Rente</h1><div class="unterzeile" id="rt-unterzeile"></div></div>
-    <div class="segmente drei" id="rt-segmente">
-      <button data-rendite="moderat">Moderat</button>
-      <button data-rendite="realistisch">Realistisch</button>
-      <button data-rendite="markt">Markt</button>
+    <div class="segmente zwei" id="rt-segmente">
+      <button data-rendite="moderat">Moderat<small>5 % pro Jahr</small></button>
+      <button data-rendite="realistisch">Realistisch<small>7 % pro Jahr</small></button>
     </div>
     <p class="unter" id="rt-rendite-info" style="margin: -4px 4px 14px"></p>
     <!-- Einkommen aus allen Säulen (Daten per Import, Stand der Unterlagen) -->
@@ -1181,7 +1180,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2008'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2014'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3114,10 +3113,8 @@ const RENTE_STANDARD = { rentenalter: 67, wunschEntnahme: 1000, entnahmeJahre: 2
 const RENDITE_SZENARIEN = {
   moderat: { name: 'Moderat', info: '5 % pro Jahr für alle Positionen – vorsichtig' },
   realistisch: { name: 'Realistisch', info: '7 % pro Jahr – etwas unter dem langfristigen Aktienmittel' },
-  markt: { name: 'Markt', info: '7,5 % pro Jahr – langfristige Marktrendite seit 1970 für alle Positionen' },
 };
-const MARKT_RENDITE = 7.5;
-let renditeSzenario = 'realistisch';
+let renditeSzenario = 'realistisch'; // nur noch moderat | realistisch
 
 function renteAnnahmen() {
   return { ...RENTE_STANDARD, ...(daten.rente || {}) };
@@ -3142,9 +3139,7 @@ function monateBis(datum) {
 function renditeFuer(p, szenario) {
   const eigen = simEinstellung(p).rendite;
   if (eigen != null) return eigen; // in der Simulation selbst eingestellt
-  if (szenario === 'moderat') return 5;
-  if (szenario === 'realistisch') return 7;
-  return MARKT_RENDITE;
+  return szenario === 'moderat' ? 5 : 7; // Realistisch (das frühere „Markt“ mit 7,5 % entfällt)
 }
 
 // Hochrechnung je Position (siehe simulieren); sparFaktor 0 = ab sofort nichts mehr einzahlen
@@ -3296,12 +3291,17 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       zeilen.push({ name: v.name, wert: null, info: v.hinweis || 'Unterlagen folgen' });
     }
   }
-  // Entnahme aus dem Depot (1b) über die eingestellte Dauer
-  const nachRenten = vorsorge.findIndex((v) => v.art !== 'rente');
-  zeilen.splice(nachRenten < 0 ? zeilen.length : nachRenten, 0, {
-    name: `Entnahme Depot (${a.entnahmeJahre} Jahre)`, wert: (bisher.ende / inflation) / faktor,
-    info: `Depotwert ${geld(bisher.ende / inflation)} heute · Szenario ${RENDITE_SZENARIEN[renditeSzenario].name}`,
-  });
+  // Entnahme aus dem Depot (1b) über die eingestellte Dauer – je Position einzeln
+  for (const p of daten.positionen) {
+    const wert = bisher.jePosition[p.id];
+    if (!(wert > 0)) continue;
+    zeilen.push({
+      name: `Entnahme ${p.name}`, wert: (wert / inflation) / faktor,
+      info: `Wert ${geld(wert / inflation)} heute · ${a.entnahmeJahre} Jahre · ${zahl(renditeFuer(p, renditeSzenario), 1)} % bis zur Rente`,
+    });
+  }
+  // höchster Betrag zuerst, offene Posten ans Ende
+  zeilen.sort((x, y) => (y.wert == null ? -1 : x.wert == null ? 1 : y.wert - x.wert));
   const summe = zeilen.reduce((s, z) => s + (z.wert || 0), 0);
   const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
   document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
