@@ -150,6 +150,12 @@
   .ranglisten .etikett { padding: 0 18px; margin-bottom: 2px; }
   /* Alle Positionen ohne Scrollen: einzeilig, Prozent und Euro nebeneinander */
   #top li { min-height: 0; padding: 7px 18px; gap: 10px; }
+  /* Depot → Wert: kompakte Zeilen, damit alles ohne Scrollen passt */
+  #ansicht-vermoegen .titel { margin-bottom: 10px; }
+  #ansicht-vermoegen .karte { margin-bottom: 10px; }
+  #vermoegen-positionen li, #vermoegen-tagesgeld li { min-height: 0; padding: 8px 18px; }
+  #vermoegen-positionen .name, #vermoegen-tagesgeld .name { font-size: 15px; }
+  #vermoegen-positionen .wert, #vermoegen-tagesgeld .wert { font-size: 15px; }
   #top li.mit-rang + li::before { left: 56px; }
   #top .rang { width: 24px; height: 24px; font-size: 12px; }
   #top .name { font-size: 15px; }
@@ -1181,7 +1187,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2039'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2042'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2193,7 +2199,8 @@ function vermoegenAnzeigen() {
   }
   const verlauf = vermoegensVerlauf();
   if (verlauf) {
-    linienChart(chartEl, [{ name: 'Depot', punkte: verlauf.depot }], { format: (v) => geld(v) });
+    // flach, damit Chart und alle Positionen ohne Scrollen auf den iPhone-Bildschirm passen
+    linienChart(chartEl, [{ name: 'Depot', punkte: verlauf.depot }], { format: (v) => geld(v), hoehe: 110, platzUnten: 640 });
   } else {
     chartEl.innerHTML = '<p class="unter">Für den Verlauf fehlen noch Kursdaten.</p>';
   }
