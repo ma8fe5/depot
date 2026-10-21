@@ -1180,7 +1180,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2014'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2020'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3249,14 +3249,21 @@ function renteAnzeigen() {
 // daten.rente.vorsorge (per Import, persönliche Werte nie im Code):
 //   { id, name, art: 'rente' | 'kapital' | 'offen', kaufkraft: 'heute' | 'rentenbeginn',
 //     monat (Rente/Monat), sicher (heute schon sicher), kurve ({ '2': …, '4': … } Rente je Fondsrendite in %),
-//     garantie (Mindestrente), kapital, vergleichRente, quelle, hinweis }
+//     garantie (Mindestrente), kapital, vergleichRente, quelle, hinweis,
+//     kapitalKurve / renteKurve ({ '0': …, '6': … } Kapital bzw. Rente je Fondsrendite), kapitalGarantie }
 // Alles wird in heutige Kaufkraft umgerechnet (brutto, vor Steuern und Kranken-/Pflegeversicherung).
 
-// Wert zwischen den Stützstellen einer Modellrechnung ablesen (linear, außerhalb: Randwert)
-function kurveBei(kurve, prozent) {
+// Wert zwischen den Stützstellen einer Modellrechnung ablesen (linear, außerhalb: Randwert).
+// weiter = true: oberhalb der letzten Stützstelle mit dem Wachstum der letzten beiden Stützstellen fortschreiben
+// (z. B. Swiss Life rechnet bis 6 %, das Szenario Realistisch nimmt 7 %)
+function kurveBei(kurve, prozent, weiter = false) {
   const p = Object.keys(kurve).map(Number).sort((x, y) => x - y);
   if (prozent <= p[0]) return kurve[p[0]];
-  if (prozent >= p[p.length - 1]) return kurve[p[p.length - 1]];
+  if (prozent >= p[p.length - 1]) {
+    if (!weiter || p.length < 2 || prozent === p[p.length - 1]) return kurve[p[p.length - 1]];
+    const [x0, x1] = [p[p.length - 2], p[p.length - 1]];
+    return kurve[x1] * Math.pow(kurve[x1] / kurve[x0], (prozent - x1) / (x1 - x0));
+  }
   const i = p.findIndex((x) => x >= prozent);
   const [x0, x1] = [p[i - 1], p[i]];
   return kurve[x0] + ((prozent - x0) / (x1 - x0)) * (kurve[x1] - kurve[x0]);
@@ -3283,10 +3290,18 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite, abgelesen`);
       zeilen.push({ name: v.name, wert: h, info: info.join(' · ') });
     } else if (v.art === 'kapital') {
-      const k = heute(v.kapital, v.kaufkraft);
+      // Kapital fest (bAV) oder je Fondsrendite aus der Modellrechnung (Swiss Life), nie unter der Garantie
+      let kapital = v.kapitalKurve ? kurveBei(v.kapitalKurve, rendite, true) : v.kapital;
+      if (v.kapitalGarantie != null) kapital = Math.max(kapital, v.kapitalGarantie);
+      const vergleich = v.renteKurve ? kurveBei(v.renteKurve, rendite, true) : v.vergleichRente;
+      const k = heute(kapital, v.kaufkraft);
       topf += k;
       topfTeile.push(`${v.name} ${geld(k)}`);
-      zeilen.push({ name: v.name, wert: k / faktor, info: `Kapital ${geld(k)} in den Entnahme-Topf${v.vergleichRente ? ` · als Rente wären es ≈ ${geld(heute(v.vergleichRente, v.kaufkraft))}` : ''}` });
+      const kurveMax = v.kapitalKurve ? Math.max(...Object.keys(v.kapitalKurve).map(Number)) : null;
+      const info = [`Kapital ${geld(k)} in den Entnahme-Topf`];
+      if (vergleich) info.push(`als lebenslange Rente ≈ ${geld(heute(vergleich, v.kaufkraft))}`);
+      if (v.kapitalKurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite${rendite > kurveMax ? ` (über ${zahl(kurveMax, 0)} % fortgeschrieben)` : ''}`);
+      zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · ') });
     } else {
       zeilen.push({ name: v.name, wert: null, info: v.hinweis || 'Unterlagen folgen' });
     }
