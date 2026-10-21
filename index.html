@@ -207,6 +207,7 @@
   .segmente button { position: relative; z-index: 1; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 500;
     color: var(--text-2); padding: 8px 2px; cursor: pointer; transition: color 0.2s; }
   .segmente button.aktiv { color: var(--text); font-weight: 650; }
+  .chip.mini { display: inline-block; margin-top: 6px; padding: 3px 10px; font-size: 12px; }
   .segmente button small { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-top: 1px; }
 
   /* ---------- Charts ---------- */
@@ -1180,7 +1181,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2020'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2026'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3250,7 +3251,11 @@ function renteAnzeigen() {
 //   { id, name, art: 'rente' | 'kapital' | 'offen', kaufkraft: 'heute' | 'rentenbeginn',
 //     monat (Rente/Monat), sicher (heute schon sicher), kurve ({ '2': …, '4': … } Rente je Fondsrendite in %),
 //     garantie (Mindestrente), kapital, vergleichRente, quelle, hinweis,
-//     kapitalKurve / renteKurve ({ '0': …, '6': … } Kapital bzw. Rente je Fondsrendite), kapitalGarantie }
+//     kapitalKurve / renteKurve ({ '0': …, '6': … } Kapital bzw. Rente je Fondsrendite), kapitalGarantie,
+//     dynamik: { satz, monat, beitrag, faktor: { ohne: { '5': …, '7': … }, mit: {…} }, beitraegeOhne, beitraegeMit, letzterBeitragMit } }
+// Die Tabellen der Versicherer rechnen mit gleichbleibendem Beitrag. dynamik.faktor (eigenes, auf die Tabelle abgestimmtes Modell)
+// rechnet auf „ohne weitere Dynamik“ (heutiger Beitrag bleibt) bzw. „mit Dynamik“ (Beitrag steigt jährlich) um.
+// Schalter je Vertrag: daten.rente.dynamikAn[id] (Standard: an, wie im Vertrag vereinbart)
 // Alles wird in heutige Kaufkraft umgerechnet (brutto, vor Steuern und Kranken-/Pflegeversicherung).
 
 // Wert zwischen den Stützstellen einer Modellrechnung ablesen (linear, außerhalb: Randwert).
@@ -3269,6 +3274,18 @@ function kurveBei(kurve, prozent, weiter = false) {
   return kurve[x0] + ((prozent - x0) / (x1 - x0)) * (kurve[x1] - kurve[x0]);
 }
 
+const dynamikAn = (v) => !(daten.rente && daten.rente.dynamikAn && daten.rente.dynamikAn[v.id] === false);
+function dynamikFaktor(v, rendite) {
+  if (!v.dynamik) return 1;
+  return kurveBei(v.dynamik.faktor[dynamikAn(v) ? 'mit' : 'ohne'], rendite);
+}
+function dynamikInfo(v) {
+  const d = v.dynamik;
+  return dynamikAn(v)
+    ? `mit Dynamik ${zahl(d.satz, 0)} %: Beitrag steigt jeden ${d.monat} bis auf ≈ ${geld(d.letzterBeitragMit)} · zusammen ${geld(d.beitraegeMit)} bis 2052 (ohne: ${geld(d.beitraegeOhne)})`
+    : `ohne weitere Dynamik: Beitrag bleibt ${geld(d.beitrag)} · zusammen ${geld(d.beitraegeOhne)} bis 2052`;
+}
+
 function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
   const karte = document.getElementById('rt-einkommen-karte');
@@ -3281,19 +3298,21 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   const topfTeile = [`Depot ${geld(topf)}`];
   for (const v of vorsorge) {
     if (v.art === 'rente') {
-      let monat = v.kurve ? kurveBei(v.kurve, rendite) : v.monat;
+      let monat = (v.kurve ? kurveBei(v.kurve, rendite) : v.monat) * dynamikFaktor(v, rendite);
       if (v.garantie != null) monat = Math.max(monat, v.garantie);
       const h = heute(monat, v.kaufkraft);
       const info = [];
       if (v.sicher != null) info.push(`heute schon sicher ${geld(heute(v.sicher, v.kaufkraft))}`);
       if (v.garantie != null) info.push(`garantiert ${geld(heute(v.garantie, v.kaufkraft))}`);
-      if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite, abgelesen`);
-      zeilen.push({ name: v.name, wert: h, info: info.join(' · ') });
+      if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite`);
+      if (v.dynamik) info.push(dynamikInfo(v));
+      zeilen.push({ name: v.name, wert: h, info: info.join(' · '), dynamik: v.dynamik ? v : null });
     } else if (v.art === 'kapital') {
       // Kapital fest (bAV) oder je Fondsrendite aus der Modellrechnung (Swiss Life), nie unter der Garantie
-      let kapital = v.kapitalKurve ? kurveBei(v.kapitalKurve, rendite, true) : v.kapital;
+      const df = dynamikFaktor(v, rendite);
+      let kapital = (v.kapitalKurve ? kurveBei(v.kapitalKurve, rendite, true) : v.kapital) * df;
       if (v.kapitalGarantie != null) kapital = Math.max(kapital, v.kapitalGarantie);
-      const vergleich = v.renteKurve ? kurveBei(v.renteKurve, rendite, true) : v.vergleichRente;
+      const vergleich = (v.renteKurve ? kurveBei(v.renteKurve, rendite, true) : v.vergleichRente) * (v.renteKurve ? df : 1);
       const k = heute(kapital, v.kaufkraft);
       topf += k;
       topfTeile.push(`${v.name} ${geld(k)}`);
@@ -3301,7 +3320,8 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       const info = [`Kapital ${geld(k)} in den Entnahme-Topf`];
       if (vergleich) info.push(`als lebenslange Rente ≈ ${geld(heute(vergleich, v.kaufkraft))}`);
       if (v.kapitalKurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite${rendite > kurveMax ? ` (über ${zahl(kurveMax, 0)} % fortgeschrieben)` : ''}`);
-      zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · ') });
+      if (v.dynamik) info.push(dynamikInfo(v));
+      zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · '), dynamik: v.dynamik ? v : null });
     } else {
       zeilen.push({ name: v.name, wert: null, info: v.hinweis || 'Unterlagen folgen' });
     }
@@ -3331,6 +3351,14 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     li.querySelector('.n').textContent = z.name;
     li.querySelector('small').textContent = z.info;
     li.querySelector('.wert').textContent = z.wert == null ? 'offen' : geld(z.wert);
+    if (z.dynamik) {
+      const an = dynamikAn(z.dynamik);
+      const knopf = document.createElement('button');
+      knopf.className = `chip mini${an ? ' aktiv' : ''}`;
+      knopf.dataset.dynamik = z.dynamik.id;
+      knopf.textContent = `Dynamik ${zahl(z.dynamik.dynamik.satz, 0)} % · ${an ? 'an' : 'aus'}`;
+      li.querySelector('.name').appendChild(knopf);
+    }
     ul.appendChild(li);
   }
   document.getElementById('rt-einkommen-hinweis').textContent =
@@ -4988,6 +5016,15 @@ document.addEventListener('click', (e) => {
   if (zzEin) { zzEinzahlen = zzEin; zinseszinsAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
   if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
+  const dyn = e.target.closest('[data-dynamik]')?.dataset.dynamik;
+  if (dyn) {
+    daten.rente = daten.rente || {};
+    const v = (daten.rente.vorsorge || []).find((x) => x.id === dyn);
+    daten.rente.dynamikAn = { ...(daten.rente.dynamikAn || {}), [dyn]: !dynamikAn(v) };
+    speichern();
+    renteAnzeigen();
+    return;
+  }
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
   const posZeile = e.target.closest('[data-pos]');
