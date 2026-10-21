@@ -1170,7 +1170,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-18.1715'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2002'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3815,16 +3815,16 @@ function detailAnzeigen(posId) {
   if (document.getElementById('ansicht-detail').hidden) zeige('ansicht-detail');
   detailPosId = posId;
 
-  // Zeitraum-Auswahl: Seit Eröffnung, dann nach Aktualität absteigend (Vortag, MTD, YTD, frühere Jahre)
+  // Zeitraum-Auswahl: Seit Eröffnung, dann nach Aktualität absteigend (Vortag, WTD, MTD, YTD, frühere Jahre)
   const lang = langeReihe(p, k);
   const erster = ersterKauf(p, k);
   const h = heute();
   const startJahr = Number((erster || isoDatum(h)).slice(0, 4));
   const jahre = [];
   for (let j = h.getFullYear() - 1; j >= startJahr; j--) jahre.push(String(j));
-  const wahl = ['eroeffnung', 'vortag', 'mtd', 'ytd', ...jahre];
+  const wahl = ['eroeffnung', 'vortag', 'wtd', 'mtd', 'ytd', ...jahre];
   if (!wahl.includes(detailZeitraum)) detailZeitraum = 'ytd';
-  const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', vortag: 'Vortag' };
+  const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
   document.getElementById('detail-chips').innerHTML = wahl.map((z) =>
     `<button class="chip${z === detailZeitraum ? ' aktiv' : ''}" data-detail-zeit="${z}">${NAMEN[z] || z}</button>`).join('');
 
@@ -3839,6 +3839,11 @@ function detailAnzeigen(posId) {
     start = isoDatum(d); titel = 'seit Eröffnung';
   } else if (detailZeitraum === 'ytd') { start = stichtag('jahr'); titel = 'seit Jahresbeginn'; }
   else if (detailZeitraum === 'mtd') { start = stichtag('monat'); titel = 'seit Monatsbeginn'; }
+  else if (detailZeitraum === 'wtd') {
+    // Stichtag = Sonntag vor dem Montag dieser Woche: verglichen wird mit dem Schlusskurs der Vorwoche
+    const so = new Date(h); so.setDate(so.getDate() - ((so.getDay() + 6) % 7) - 1);
+    start = isoDatum(so); titel = 'seit Wochenbeginn';
+  }
   else if (detailZeitraum === 'vortag') {
     start = lang.length > 1 ? lang[lang.length - 2][0] : letzter; titel = 'zum Vortag';
   } else {
@@ -3849,7 +3854,9 @@ function detailAnzeigen(posId) {
   const vorStart = lang.filter(([d]) => d <= start).pop();
   const reihe = (vorStart ? [vorStart] : []).concat(lang.filter(([d]) => d > start && d <= ende));
   if (reihe.length < 2) {
-    chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum gibt es keine Kurse.</p>';
+    chartEl.innerHTML = detailZeitraum === 'wtd'
+      ? '<p class="unter">Diese Woche gibt es noch keinen neuen Schlusskurs.</p>'
+      : '<p class="unter">Für diesen Zeitraum gibt es keine Kurse.</p>';
     document.getElementById('detail-chart-titel').textContent = `Kurs ${titel}`;
     return;
   }
