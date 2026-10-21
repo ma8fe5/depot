@@ -375,7 +375,22 @@
   #ansicht-haupt .etikett { margin-bottom: 4px; }
   #ansicht-haupt .chips { margin-bottom: 4px; }
   #entw-hinweis:empty { display: none; }
-  #ansicht-haupt .chip { padding: 5px 11px; }
+  #ansicht-haupt .chip { padding: 5px 10px; }
+  #entw-chips, #entw-jahre, .entw-zeile { gap: 5px; }
+  #entw-chips > :first-child, #entw-jahre > :first-child, .entw-zeile > :first-child { margin-left: auto; }
+  #entw-chips > :last-child, #entw-jahre > :last-child, .entw-zeile > :last-child { margin-right: auto; }
+  .entw-zeile { margin-bottom: 6px; }
+  .entw-zeile .chip { padding: 5px 10px; }
+  @media (max-width: 380px) { #entw-jahre .chip, #gw-jahre .chip { padding: 5px 8px; } }
+  /* Gewinn-Seite ohne Scrollen: kompakte Zeilen, Prozent neben dem Betrag */
+  #ansicht-gewinn .titel { margin-bottom: 10px; }
+  #ansicht-gewinn .held { margin-top: 6px; margin-bottom: 10px; padding: 14px 18px 14px; }
+  #ansicht-gewinn .held .betrag { font-size: 38px; margin: 2px 0 6px; }
+  #gewinn-positionen li { min-height: 0; padding: 7px 18px; }
+  #gewinn-positionen .name { font-size: 15px; }
+  #gewinn-positionen .wert { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+  #gewinn-positionen .wert small { margin: 0; }
+  @media (max-width: 380px) { #gewinn-positionen li { padding-top: 6px; padding-bottom: 6px; } }
   #ansicht-haupt .karte.liste-karte { padding-bottom: 2px; }
   #tops-kurz li { min-height: 0; padding: 9px 16px; }
   #tops-kurz li + li::before { left: 16px; }
@@ -927,24 +942,15 @@
   <section id="ansicht-gewinn" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Gewinn</h1></div>
-    <div class="segmente" id="segmente">
-      <button data-zeitraum="eroeffnung">Eröffnung</button>
-      <button data-zeitraum="jahr">Jahr</button>
-      <button data-zeitraum="monat">Monat</button>
-      <button data-zeitraum="gestern">Gestern</button>
-    </div>
-    <!-- Blättern durch frühere Jahre und Monate (bei Jahr und Monat) -->
-    <div class="periode" id="gw-periode-zeile" hidden>
-      <button class="rund klein" id="gw-zurueck" data-aktion="gw-zurueck" aria-label="Früher">‹</button>
-      <span id="gw-periode"></span>
-      <button class="rund klein" id="gw-vor" data-aktion="gw-vor" aria-label="Später">›</button>
-    </div>
+    <!-- gleiche Auswahl wie die Entwicklung auf der Depot-Seite (geteilt) -->
+    <div class="chips entw-zeile" id="gw-chips"></div>
+    <div class="chips entw-zeile" id="gw-jahre"></div>
     <div class="karte held">
       <div class="etikett" id="gewinn-zeitraum"></div>
       <div id="gewinn-gesamt" class="betrag"></div>
       <span id="gewinn-gesamt-pct" class="pill"></span>
+      <div class="unter" id="gw-zahlen" style="margin-top: 8px; font-size: 12px"></div>
     </div>
-    <div class="karte liste-karte" id="gw-zahlen-karte" hidden><dl class="zeilen" id="gw-zahlen"></dl></div>
     <div class="abschnitt">Positionen</div>
     <div class="karte liste-karte"><ul id="gewinn-positionen" class="liste"></ul></div>
     <p id="gewinn-meldung" class="fuss"></p>
@@ -1140,7 +1146,7 @@
     <div class="abschnitt">Auswerten</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
-        <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>jedes Jahr, jeder Monat</small></span></li>
+        <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>seit Eröffnung, Vortag, WTD, MTD, Jahre</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
         <li class="tippbar" data-aktion="kosten"><span class="kachel kg-zurueck"><svg><use href="#i-kosten"/></svg></span><span class="name">Kosten<small id="mehr-kosten"></small></span></li>
         <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Prognose bis zur Rente<small id="mehr-rente"></small></span></li>
@@ -1179,7 +1185,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2046'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2055'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2055,68 +2061,21 @@ function gwZeitraum(art, versatz) {
 }
 
 function gewinnAnzeigen() {
-  const reihenfolge = Object.keys(ZEITRAEUME);
-  document.getElementById('segmente').style.setProperty('--idx', reihenfolge.indexOf(gewinnZeitraum));
-  document.querySelectorAll('#ansicht-gewinn [data-zeitraum]').forEach((el) => {
-    el.classList.toggle('aktiv', el.dataset.zeitraum === gewinnZeitraum);
-  });
-  const titel = document.getElementById('gewinn-zeitraum');
-  const liste = document.getElementById('gewinn-positionen');
-  liste.innerHTML = '';
-  const meldung = document.getElementById('gewinn-meldung');
-  meldung.textContent = '';
   if (document.getElementById('ansicht-gewinn').hidden) zeige('ansicht-gewinn');
-  const blaettern = gewinnZeitraum === 'jahr' || gewinnZeitraum === 'monat';
-  document.getElementById('gw-periode-zeile').hidden = !blaettern;
-  document.getElementById('gw-zahlen-karte').hidden = !blaettern;
-  if (!kurse) {
-    meldung.textContent = 'Noch keine Kurse geladen.';
-    return;
-  }
-
-  let zeilen, fehlend = [], zusatz = null;
-  if (blaettern) {
-    const z = gwZeitraum(gewinnZeitraum, gwVersatz);
-    const erste = eroeffnungsDatum();
-    document.getElementById('gw-periode').textContent = z.titel;
-    document.getElementById('gw-zurueck').disabled = !erste || z.start < erste;
-    document.getElementById('gw-vor').disabled = gwVersatz >= 0;
-    titel.textContent = gwVersatz === 0 ? `${ZEITRAEUME[gewinnZeitraum]} · Stichtag ${deDatum(z.start)}` : z.name;
-    const a = auswertung(z.start, z.ende);
-    zeilen = a.zeilen.slice().sort((x, y) => y.gewinn - x.gewinn);
-    zusatz = a;
-    meldung.textContent = `Stichtag ${deDatum(z.start)} bis ${deDatum(z.ende)}.` + (a.geschaetzt ? ` Käufe vor ${schaetzGrenze()} teils aus dem Sparplan geschätzt.` : '');
-  } else {
-    titel.textContent = ZEITRAEUME[gewinnZeitraum];
-    ({ zeilen, fehlend } = gewinnListe(gewinnZeitraum));
-  }
-
-  const summe = zeilen.reduce((s, z) => s + z.gewinn, 0);
-  const basis = zeilen.reduce((s, z) => s + z.basis, 0);
+  const liste = document.getElementById('gewinn-positionen');
+  const meldung = document.getElementById('gewinn-meldung');
+  liste.innerHTML = '';
+  meldung.textContent = '';
+  if (!kurse) { meldung.textContent = 'Noch keine Kurse geladen.'; return; }
+  entwChipsZeichnen(document.getElementById('gw-chips'), document.getElementById('gw-jahre'));
+  const a = entwAuswertung();
+  document.getElementById('gewinn-zeitraum').textContent = a.titel + (a.start ? ` · ${deDatum(a.start)} bis ${deDatum(a.ende)}` : '');
   const gesamt = document.getElementById('gewinn-gesamt');
-  gesamt.className = 'betrag ' + klasse(summe);
-  zaehle(gesamt, summe, true);
-  setzePill(document.getElementById('gewinn-gesamt-pct'), summe, pct(basis ? (summe / basis) * 100 : 0));
-
-  // Aufschlüsselung des Zeitraums
-  if (zusatz) {
-    const dl = document.getElementById('gw-zahlen');
-    dl.innerHTML = '';
-    for (const [name, wert] of [
-      ['Wert am Anfang', geld(zusatz.wertStart)],
-      ['Einzahlungen', geld(zusatz.einz)],
-      ['Gebühren', zusatz.gebuehren ? geld(zusatz.gebuehren) : '–'],
-      ['Wert am Ende', geld(zusatz.wertEnde)],
-    ]) {
-      const reihe = document.createElement('div');
-      reihe.innerHTML = '<dt></dt><dd></dd>';
-      reihe.querySelector('dt').textContent = name;
-      reihe.querySelector('dd').textContent = wert;
-      dl.appendChild(reihe);
-    }
-  }
-
-  for (const z of zeilen) {
+  gesamt.className = 'betrag ' + klasse(a.gewinn);
+  zaehle(gesamt, a.gewinn, true);
+  setzePill(document.getElementById('gewinn-gesamt-pct'), a.gewinn, pct(a.basis ? (a.gewinn / a.basis) * 100 : 0));
+  document.getElementById('gw-zahlen').textContent = a.zahlen;
+  for (const z of a.zeilen) {
     const li = document.createElement('li');
     li.className = 'tippbar';
     li.dataset.pos = z.id;
@@ -2125,7 +2084,6 @@ function gewinnAnzeigen() {
     li.querySelector('.name').textContent = z.name;
     liste.appendChild(li);
   }
-  if (fehlend.length) meldung.textContent = `Ohne Kursdaten für diesen Zeitraum: ${fehlend.join(', ')}`;
 }
 
 function bewertung() {
@@ -2245,9 +2203,10 @@ let chartNr = 0;
 
 // Zeichenfläche in echter Breite: Schrift und Linien bleiben auf iPad und PC so groß wie auf dem iPhone.
 // Bis 360 px (iPhone) bleibt alles wie bisher (340 breit).
-function chartMasse(el, hoehe, platzUnten) {
+function chartMasse(el, hoehe, platzUnten, hoeheFix) {
   const breite = el.clientWidth;
   const W = breite > 360 ? Math.round(breite) : 340;
+  if (hoeheFix) return { W, H: Math.round(hoeheFix * (W > 340 ? 1 : 340 / Math.max(1, breite || 340))) };
   let H = Math.min(320, Math.round(hoehe * Math.min(2.2, W / 340)));
   // optional: nicht höher, als das Fenster hergibt (nie flacher als auf dem iPhone)
   if (platzUnten && W > 340) H = Math.max(hoehe, Math.min(H, innerHeight - platzUnten));
@@ -2259,7 +2218,7 @@ function chartMasse(el, hoehe, platzUnten) {
 function linienChart(el, serien, opt) {
   serien = serien.filter((s) => s.punkte && s.punkte.length);
   if (!serien.length) return;
-  const { W, H } = chartMasse(el, opt.hoehe || 180, opt.platzUnten), L = 4, R = 46, T = 10, B = 22;
+  const { W, H } = chartMasse(el, opt.hoehe || 180, opt.platzUnten, opt.hoeheFix), L = 4, R = 46, T = 10, B = 22;
   const tage = serien[0].punkte.map((p) => p[0]);
   const alle = serien.flatMap((s) => s.punkte.map((p) => p[1]));
   let min = Math.min(...alle), max = Math.max(...alle);
@@ -3820,7 +3779,7 @@ let detailHerkunft = 'ansicht-vermoegen';
 // Von wo aus die Detailseite geöffnet wurde: Beschriftung und Ziel von „Zurück“
 const DETAIL_HERKUNFT = {
   'ansicht-vermoegen': { name: 'Vermögen', zurueck: () => vermoegenAnzeigen() },
-  'ansicht-gewinn': { name: 'Gewinn', zurueck: () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); } },
+  'ansicht-gewinn': { name: 'Gewinn', zurueck: () => gewinnAnzeigen() },
   'ansicht-haupt': { name: 'Depot', zurueck: () => reiterZeigen('ansicht-haupt') },
   'ansicht-tops': { name: 'Tops & Lows', zurueck: () => { zeige('ansicht-tops'); hauptRendern(); } },
   'ansicht-arten': { name: 'Anlagearten', zurueck: () => artenAnzeigen() },
@@ -3956,22 +3915,76 @@ try { entwicklungZeitraum = localStorage.getItem('depot-entw') || 'gesamt'; } ca
 // gewählte Jahre (Mehrfachauswahl), z. B. „2021,2022“ – sonst ein einzelner Zeitraum (gesamt, wtd, mtd)
 const entwJahre = () => (/^\d{4}(,\d{4})*$/.test(entwicklungZeitraum) ? entwicklungZeitraum.split(',').map(Number).sort((a, b) => a - b) : []);
 
-// Gewinn für die Auswahl der Entwicklung: Wert am Ende − Wert am Anfang − Einzahlungen dazwischen
-function entwicklungGewinn(start, bis, gewaehlt) {
-  const b = bewertung();
-  const heuteIso = isoDatum(heute());
-  let gv, basis, titel;
-  if (entwicklungZeitraum === 'gesamt') {
-    gv = b.wert - b.investiert; basis = b.investiert; titel = 'Gewinn seit Eröffnung';
-  } else if (entwicklungZeitraum === 'vortag') {
-    gv = b.tagAend; basis = b.vorherWert; titel = 'Gewinn zum Vortag';
-  } else {
-    const a = auswertung(start, bis && bis < heuteIso ? bis : heuteIso);
-    gv = a.gewinn; basis = a.zeilen.reduce((s, z) => s + z.basis, 0);
-    if (entwicklungZeitraum === 'mtd') titel = 'Gewinn seit Monatsbeginn';
-    else if (entwicklungZeitraum === 'wtd') titel = 'Gewinn seit Wochenbeginn';
-    else titel = gewaehlt.length > 1 ? `Gewinn ${gewaehlt[0]}–${gewaehlt[gewaehlt.length - 1]}` : `Gewinn ${gewaehlt[0]}`;
+// ---------- Auswahl „Entwicklung“ – gilt für die Depot-Seite und die Gewinn-Seite ----------
+const ZEITRAEUME_ENTW = { gesamt: 'Seit Eröffnung', vortag: 'Vortag', wtd: 'WTD', mtd: 'MTD' };
+
+// Jahre mit Kursdaten (für die zweite Auswahlzeile); ungültige Auswahl -> Seit Eröffnung
+function entwJahreListe() {
+  let erste = null;
+  for (const p of daten.positionen) {
+    const k = kurse && kurse.preise[p.id];
+    const d = k ? ersterKauf(p, k) : null;
+    if (d && (!erste || d < erste)) erste = d;
   }
+  const startJahr = Number((erste || stichtag('jahr')).slice(0, 4));
+  const jahre = [];
+  for (let j = startJahr; j <= heute().getFullYear(); j++) jahre.push(j); // aufsteigend
+  if (!ZEITRAEUME_ENTW[entwicklungZeitraum] && !(entwJahre().length && entwJahre().every((j) => jahre.includes(j)))) entwicklungZeitraum = 'gesamt';
+  return jahre;
+}
+
+// beide Auswahlzeilen füllen (ausgegraute Jahre ohne Kurse optional)
+function entwChipsZeichnen(zeile1, zeile2, ohneDaten = () => false) {
+  const jahre = entwJahreListe();
+  const gewaehlt = entwJahre();
+  zeile1.innerHTML = Object.entries(ZEITRAEUME_ENTW)
+    .map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`).join('');
+  zeile2.innerHTML = jahre.map((j) =>
+    `<button class="chip${gewaehlt.includes(j) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten(j) ? ' disabled' : ''}>${j}</button>`).join('');
+}
+
+// Stichtag (Tag davor), Ende und Titel der Auswahl; gesamt/vortag ohne Stichtag
+function entwGrenzen() {
+  const h = heute(), heuteIso = isoDatum(h);
+  const gewaehlt = entwJahre();
+  if (entwicklungZeitraum === 'gesamt') return { art: 'gesamt', titel: 'Gewinn seit Eröffnung' };
+  if (entwicklungZeitraum === 'vortag') return { art: 'vortag', titel: 'Gewinn zum Vortag' };
+  if (entwicklungZeitraum === 'wtd') {
+    const so = new Date(h); so.setDate(so.getDate() - ((so.getDay() + 6) % 7) - 1);
+    return { art: 'zeitraum', start: isoDatum(so), ende: heuteIso, titel: 'Gewinn seit Wochenbeginn' };
+  }
+  if (entwicklungZeitraum === 'mtd') return { art: 'zeitraum', start: stichtag('monat'), ende: heuteIso, titel: 'Gewinn seit Monatsbeginn' };
+  const von = gewaehlt[0], bis = gewaehlt[gewaehlt.length - 1];
+  return {
+    art: 'zeitraum', start: `${von - 1}-12-31`, ende: `${bis}-12-31` < heuteIso ? `${bis}-12-31` : heuteIso,
+    titel: gewaehlt.length > 1 ? `Gewinn ${von}–${bis}` : `Gewinn ${von}`,
+  };
+}
+
+// Gewinn der Auswahl, gesamt und je Position: Wert am Ende − Wert am Anfang − Einzahlungen dazwischen
+function entwAuswertung() {
+  const g = entwGrenzen();
+  const b = bewertung();
+  if (g.art === 'gesamt') {
+    const l = gewinnListe('eroeffnung');
+    return { ...g, gewinn: b.wert - b.investiert, basis: b.investiert, zeilen: l.zeilen, zahlen: `Investiert ${geld(b.investiert)} · Wert heute ${geld(b.wert)}` };
+  }
+  if (g.art === 'vortag') {
+    const l = gewinnListe('gestern');
+    return { ...g, gewinn: b.tagAend, basis: b.vorherWert, zeilen: l.zeilen, zahlen: `Wert am Vortag ${geld(b.vorherWert)} · heute ${geld(b.vorherWert + b.tagAend)}` };
+  }
+  const a = auswertung(g.start, g.ende);
+  return {
+    ...g, gewinn: a.gewinn, basis: a.zeilen.reduce((s, z) => s + z.basis, 0), geschaetzt: a.geschaetzt,
+    zeilen: a.zeilen.slice().sort((x, y) => y.gewinn - x.gewinn),
+    zahlen: `Anfang ${geld(a.wertStart)} · Einzahlungen ${geld(a.einz)}${a.gebuehren ? ` · Gebühren ${geld(a.gebuehren)}` : ''} · Ende ${geld(a.wertEnde)}`,
+  };
+}
+
+// Gewinn für die Auswahl der Entwicklung (Depot-Seite)
+function entwicklungGewinn() {
+  const a = entwAuswertung();
+  const gv = a.gewinn, basis = a.basis, titel = a.titel;
   document.getElementById('gv-titel').textContent = titel;
   const el = document.getElementById('tag-eur');
   el.className = 'wert-gross ' + klasse(gv);
@@ -4006,15 +4019,8 @@ function entwicklungAnzeigen() {
   // Auswahl: Seit Eröffnung, WTD, MTD, dann jedes Jahr; Jahre ohne Kursdaten sind ausgegraut
   const jahre = [];
   for (let j = h.getFullYear(); j >= startJahr; j--) jahre.push(j); // neuestes Jahr direkt neben „Seit Eröffnung“
-  const ZEITRAEUME_ENTW = { gesamt: 'Seit Eröffnung', mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
-  if (!ZEITRAEUME_ENTW[entwicklungZeitraum] && !(entwJahre().length && entwJahre().every((j) => jahre.includes(j)))) entwicklungZeitraum = 'gesamt';
+  entwChipsZeichnen(chips, document.getElementById('entw-jahre'), (j) => `${j}-12-31` < ersterVollerTag);
   const gewaehlt = entwJahre();
-  chips.innerHTML = Object.entries(ZEITRAEUME_ENTW)
-    .map(([z, n]) => `<button class="chip${entwicklungZeitraum === z ? ' aktiv' : ''}" data-entw="${z}">${n}</button>`).join('');
-  document.getElementById('entw-jahre').innerHTML = jahre.map((j) => {
-    const ohneDaten = `${j}-12-31` < ersterVollerTag;
-    return `<button class="chip${gewaehlt.includes(j) ? ' aktiv' : ''}" data-entw="${j}"${ohneDaten ? ' disabled' : ''}>${j}</button>`;
-  }).join('');
 
   let start, bis = null, achseX;
   const kurzJahr = (t) => `${MONATE[Number(t.slice(5, 7)) - 1]} ${t.slice(2, 4)}`;
@@ -4048,7 +4054,7 @@ function entwicklungAnzeigen() {
       : (t, i) => (i > 0 && t.slice(8) === '01' && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null);
   }
 
-  entwicklungGewinn(start, bis, gewaehlt);
+  entwicklungGewinn();
 
   const verlauf = vermoegensVerlauf(start, bis);
   if (verlauf && entwicklungZeitraum === 'mtd') {
@@ -4059,15 +4065,23 @@ function entwicklungAnzeigen() {
   if (verlauf && verlauf.depot.length < 2) {
     chartEl.innerHTML = '<p class="unter">Diese Woche gibt es noch keinen neuen Schlusskurs.</p>';
   } else if (verlauf) {
-    linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
-      gruen: true,
-      hoehe: 110, // flacher, damit die Aktien-Seite auf einen Bildschirm passt
-      platzUnten: 580, // auf iPad/Laptop: Chart nur so hoch, dass die Depot-Seite ins Fenster passt
+    const zeichnen = (hoeheFix) => linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
+      gruen: true, hoeheFix,
       format: (v) => geld(v),
       // kurze Zeiträume schwanken wenig: dort auf ganze Euro, sonst auf 100 € gerundet
       formatKurz: (v) => (['wtd', 'mtd', 'vortag'].includes(entwicklungZeitraum) ? `${zahl(Math.round(v), 0)} €` : `${zahl(Math.round(v / 100) * 100, 0)} €`),
       achseX,
     });
+    zeichnen(110);
+    // freien Platz bis zum unteren Rand messen und dem Chart geben (nur wenn die Depot-Seite sichtbar ist)
+    const seite = document.getElementById('ansicht-haupt');
+    if (!seite.hidden) {
+      const tabbar = document.getElementById('tabbar');
+      const unten = innerWidth < 768 && !tabbar.hidden ? tabbar.getBoundingClientRect().top - 14 : innerHeight - 24;
+      const letzte = seite.querySelector('.tops-karte').getBoundingClientRect().bottom;
+      const frei = Math.floor(unten - letzte);
+      if (frei > 4) zeichnen(Math.min(110 + frei, 460));
+    }
   } else {
     chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum fehlen noch Kursdaten.</p>';
   }
@@ -5000,13 +5014,11 @@ document.addEventListener('click', (e) => {
       entwicklungZeitraum = entw;
     }
     try { localStorage.setItem('depot-entw', entwicklungZeitraum); } catch { /* nur Komfort */ }
-    entwicklungAnzeigen();
+    if (!document.getElementById('ansicht-gewinn').hidden) gewinnAnzeigen(); else entwicklungAnzeigen();
     return;
   }
   const reiter = e.target.closest('[data-tab]')?.dataset.tab;
   if (reiter) { reiterZeigen(reiter); return; }
-  const zeitraum = e.target.closest('[data-zeitraum]')?.dataset.zeitraum;
-  if (zeitraum) { gewinnZeitraum = zeitraum; gwVersatz = 0; gewinnAnzeigen(); return; }
 
   const rendite = e.target.closest('[data-rendite]')?.dataset.rendite;
   if (rendite) { renditeSzenario = rendite; renteAnzeigen(); return; }
@@ -5059,17 +5071,10 @@ document.addEventListener('click', (e) => {
     verbinden: mitIphoneVerbinden,
     'abgleich-an': abgleichEinschalten,
     'abgleich-aus': abgleichAusschalten,
-    'gewinn-liste': () => { gewinnZeitraum = 'eroeffnung'; gwVersatz = 0; zeige('ansicht-gewinn'); gewinnAnzeigen(); },
+    'gewinn-liste': () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
-    'gv-details': () => {
-      // Einzeljahr -> Jahresansicht dieses Jahres, Monat -> Monat, Vortag -> Gestern, sonst seit Eröffnung
-      const jahre = entwJahre();
-      gwVersatz = 0;
-      if (jahre.length === 1) { gewinnZeitraum = 'jahr'; gwVersatz = jahre[0] - heute().getFullYear(); }
-      else gewinnZeitraum = { mtd: 'monat', vortag: 'gestern' }[entwicklungZeitraum] || 'eroeffnung';
-      zeige('ansicht-gewinn'); gewinnAnzeigen();
-    },
+    'gv-details': () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); }, // gleiche Auswahl wie die Entwicklung
     'zinsbuch-zurueck': () => tagesgeldAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
@@ -5092,8 +5097,6 @@ document.addEventListener('click', (e) => {
     kosten: kostenAnzeigen,
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
-    'gw-zurueck': () => { gwVersatz--; gewinnAnzeigen(); },
-    'gw-vor': () => { gwVersatz = Math.min(0, gwVersatz + 1); gewinnAnzeigen(); },
     'push-an': pushEinschalten,
     'push-test': pushTest,
     'push-aus': pushAusschalten,
