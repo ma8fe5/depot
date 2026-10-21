@@ -1181,7 +1181,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2034'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2037'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4131,10 +4131,9 @@ function hauptRendern() {
   // Kurzfassung auf der Aktien-Seite: Bester und Schwächster
   const kurz = document.getElementById('tops-kurz');
   kurz.innerHTML = '';
+  // nur Vorschau: ein Tipp irgendwo auf die Karte öffnet die ganze Rangliste (dort geht es zu den Details)
   for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
     const li = document.createElement('li');
-    li.className = 'tippbar';
-    if (e.id) li.dataset.pos = e.id;
     li.innerHTML = `<span class="name"></span>
       <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
     li.querySelector('.name').textContent = e.name;
