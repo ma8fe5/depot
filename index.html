@@ -313,7 +313,7 @@
     display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-3); font: inherit; font-size: 11px; font-weight: 600; }
   .tabbar button svg { width: 25px; height: 25px; }
   .tabbar button.aktiv { color: var(--akzent); }
-  body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 96px); }
+  body.mit-tabs main { padding-bottom: calc(env(safe-area-inset-bottom) + 80px); } /* Leiste unten ist 64 px hoch */
   body.mit-tabs .toast { bottom: calc(env(safe-area-inset-bottom) + 80px); }
 
   /* ---------- Menü (von links) ---------- */
@@ -1123,6 +1123,7 @@
       <button class="knopf zweit breit" data-aktion="vermittler-speichern">Speichern</button>
       <p class="unter" style="margin: 12px 0 0; font-size: 12px">Kurse: Bitcoin <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a> · übrige Schlusskurse von EODHD</p>
     </div>
+    <p class="fuss" id="app-version"></p>
   </section>
 
   <input type="file" id="datei" accept="application/json,.json" hidden>
@@ -1185,7 +1186,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2055'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-21.2104'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4073,13 +4074,12 @@ function entwicklungAnzeigen() {
       achseX,
     });
     zeichnen(110);
-    // freien Platz bis zum unteren Rand messen und dem Chart geben (nur wenn die Depot-Seite sichtbar ist)
+    // Chart so hoch machen, dass die ganze Seite exakt in den Bildschirm passt: gemessen wird die echte
+    // Seitenhöhe (inkl. Abstand für die Leiste unten), sonst ließe sich die Seite ein paar Pixel scrollen
     const seite = document.getElementById('ansicht-haupt');
     if (!seite.hidden) {
-      const tabbar = document.getElementById('tabbar');
-      const unten = innerWidth < 768 && !tabbar.hidden ? tabbar.getBoundingClientRect().top - 14 : innerHeight - 24;
-      const letzte = seite.querySelector('.tops-karte').getBoundingClientRect().bottom;
-      const frei = Math.floor(unten - letzte);
+      const ende = document.querySelector('main').getBoundingClientRect().bottom + scrollY; // Inhalt inkl. Abstand unten
+      const frei = Math.floor(innerHeight - ende) - 2;
       if (frei > 4) zeichnen(Math.min(110 + frei, 460));
     }
   } else {
@@ -4110,7 +4110,7 @@ function hauptRendern() {
     : 'Von diesem iPhone gibt es noch keins.';
 
   const status = document.getElementById('status');
-  if (!kurse) { status.textContent = 'Noch keine Kurse geladen.'; return; }
+  if (!kurse) { status.hidden = false; status.textContent = 'Noch keine Kurse geladen.'; return; }
 
   const b = bewertung();
   const gewinn = b.wert - b.investiert;
@@ -4180,6 +4180,7 @@ function hauptRendern() {
     f.textContent = text;
     status.append(f);
   }
+  status.hidden = !meldungen.length; // leer: kein Platz belegen (Depot-Seite soll ohne Scrollen passen)
 }
 
 // ---------- Monats-Check ----------
@@ -4344,6 +4345,7 @@ function naechsterCheck() {
 }
 
 function einstellungenAnzeigen() {
+  document.getElementById('app-version').textContent = `App-Version ${APP_VERSION}`;
   document.getElementById('backup-info').textContent = daten.letztesBackup
     ? `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`
     : 'Noch kein Backup von diesem iPhone.';
