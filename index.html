@@ -1190,7 +1190,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-23.2059'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-23.2105'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3250,8 +3250,9 @@ function dynamikInfo(v) {
 }
 
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
-// daten.rente.netto (per Import): { ziel, kv: 'privat', pkvBeitrag, pkvSteigerungReal, veranlagung: 'zusammen' | 'einzeln',
-//   kirche, partnerRente }. Vereinfachungen: Tarif 2026 auf Beträge in heutiger Kaufkraft; Besteuerungsanteil 97 %
+// daten.rente.netto (per Import): { ziel (heutige Kaufkraft) oder zielRentenbeginn (Euro bei Rentenbeginn), zielVorPkv,
+//   kv: 'privat', pkvBeitrag, pkvSteigerungReal, veranlagung: 'zusammen' | 'einzeln', kirche, partnerRente }.
+//   zielVorPkv: Ziel gilt nach Steuern, die PKV wird davon noch bezahlt (wie heute: Netto inkl. Arbeitgeberzuschuss). Vereinfachungen: Tarif 2026 auf Beträge in heutiger Kaufkraft; Besteuerungsanteil 97 %
 //   (Rentenbeginn 2052); Steuer auf Kapitalauszahlungen wird über die Entnahmejahre verteilt.
 
 // Einkommensteuer-Grundtarif 2026 (§ 32a EStG)
@@ -3375,20 +3376,28 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   dl.hidden = !n;
   if (n) {
     const x = nettoRechnung(n, teile, summe, faktor, jahre);
-    document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · netto pro Monat`;
-    zaehle(document.getElementById('rt-einkommen'), x.netto, false);
-    const luecke = (n.ziel || 0) - x.netto;
-    document.getElementById('rt-einkommen-unter').textContent = n.ziel
-      ? (luecke > 0 ? `Ziel ${geld(n.ziel)} netto: es fehlen ${geld(luecke)} pro Monat` : `Ziel ${geld(n.ziel)} netto erreicht (+${geld(-luecke)})`)
-      : 'in heutiger Kaufkraft';
+    const nachSteuern = x.netto + x.pkv; // nach Steuern, PKV noch nicht bezahlt
+    const vorPkv = !!n.zielVorPkv;
+    const wert = vorPkv ? nachSteuern : x.netto;
+    // Ziel in heutiger Kaufkraft (aus Euro bei Rentenbeginn umgerechnet)
+    const ziel = n.zielRentenbeginn ? n.zielRentenbeginn / inflation : (n.ziel || 0);
+    document.getElementById('rt-einkommen-titel').textContent =
+      `Dein Einkommen ab ${bis} · ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat`;
+    zaehle(document.getElementById('rt-einkommen'), wert, false);
+    const luecke = ziel - wert;
+    const zielText = n.zielRentenbeginn ? `Ziel ${geld(n.zielRentenbeginn)} (${beginn.getFullYear()}) ≈ ${geld(ziel)} heute` : `Ziel ${geld(ziel)}`;
+    document.getElementById('rt-einkommen-unter').textContent =
+      `≈ ${geld(wert * inflation)} in Euro von ${beginn.getFullYear()}` +
+      (ziel ? ` · ${zielText}: ${luecke > 0 ? `es fehlen ${geld(luecke)} pro Monat` : `erreicht (+${geld(-luecke)})`}` : '');
     dl.innerHTML = '';
     for (const [name, wert, klasseWert] of [
       ['Brutto (alle Bausteine)', geld(x.brutto)],
       ['Einkommensteuer & Soli auf Renten', `−${geld(x.steuerRenten)}`],
       ['Steuer auf Kapitalauszahlungen (verteilt)', `−${geld(x.steuerKapital)}`],
       ['Abgeltungsteuer Depot-Entnahmen', `−${geld(x.steuerDepot)}`],
+      ...(vorPkv ? [['Nach Steuern (vor PKV)', geld(nachSteuern), 'summe']] : []),
       [`PKV ${geld(x.pkvBeitrag)} abzgl. Zuschuss ${geld(x.zuschuss)}`, `−${geld(x.pkv)}`],
-      ['Netto', geld(x.netto), 'summe'],
+      [vorPkv ? 'Bleibt nach PKV' : 'Netto', geld(x.netto), 'summe'],
     ]) {
       const reihe = document.createElement('div');
       if (klasseWert) reihe.className = klasseWert;
