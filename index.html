@@ -213,6 +213,9 @@
   .segmente button { position: relative; z-index: 1; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 500;
     color: var(--text-2); padding: 8px 2px; cursor: pointer; transition: color 0.2s; }
   .segmente button.aktiv { color: var(--text); font-weight: 650; }
+  .zeilen.netto { margin: 12px 0 4px; font-size: 14px; }
+  .zeilen.netto > div { padding: 5px 0; }
+  .zeilen.netto .summe { font-weight: 700; border-top: 1px solid var(--linie); }
   .chip.mini { display: inline-block; margin-top: 6px; padding: 3px 10px; font-size: 12px; }
   .segmente button small { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-top: 1px; }
 
@@ -861,6 +864,7 @@
       <div class="etikett" id="rt-einkommen-titel"></div>
       <div class="betrag mittel-gross" id="rt-einkommen"></div>
       <div class="unter" id="rt-einkommen-unter"></div>
+      <dl class="zeilen netto" id="rt-netto" hidden></dl>
       <ul class="liste einkommen" id="rt-saeulen"></ul>
       <p class="unter annahmen" id="rt-einkommen-hinweis"></p>
     </div>
@@ -1186,7 +1190,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-21.2104'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-23.2059'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3245,7 +3249,63 @@ function dynamikInfo(v) {
     : `ohne weitere Dynamik: Beitrag bleibt ${geld(d.beitrag)} · zusammen ${geld(d.beitraegeOhne)} bis 2052`;
 }
 
+// ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
+// daten.rente.netto (per Import): { ziel, kv: 'privat', pkvBeitrag, pkvSteigerungReal, veranlagung: 'zusammen' | 'einzeln',
+//   kirche, partnerRente }. Vereinfachungen: Tarif 2026 auf Beträge in heutiger Kaufkraft; Besteuerungsanteil 97 %
+//   (Rentenbeginn 2052); Steuer auf Kapitalauszahlungen wird über die Entnahmejahre verteilt.
+
+// Einkommensteuer-Grundtarif 2026 (§ 32a EStG)
+function estTarif(x) {
+  x = Math.floor(Math.max(0, x));
+  if (x <= 12348) return 0;
+  if (x <= 17799) { const y = (x - 12348) / 10000; return Math.floor((914.51 * y + 1400) * y); }
+  if (x <= 69878) { const z = (x - 17799) / 10000; return Math.floor((173.10 * z + 2397) * z + 1034.87); }
+  if (x <= 277825) return Math.floor(0.42 * x - 11135.63);
+  return Math.floor(0.45 * x - 19470.38);
+}
+// Einkommensteuer + Soli (+ Kirchensteuer 9 %) für ein zu versteuerndes Jahreseinkommen
+function steuerJahr(zvE, n) {
+  const zusammen = n.veranlagung === 'zusammen';
+  const est = zusammen ? 2 * estTarif(zvE / 2) : estTarif(zvE);
+  const frei = zusammen ? 40700 : 20350; // Soli-Freigrenze 2026
+  const soli = est <= frei ? 0 : Math.min(0.055 * est, 0.119 * (est - frei));
+  return est + soli + (n.kirche ? 0.09 * est : 0);
+}
+const BESTEUERUNGSANTEIL = 0.97; // Rentenbeginn 2052: 82,5 % (2023) + 0,5 Punkte je Jahr
+
+// teile: { renten: [{ brutto, gesetzlich }], kapital: [{ k, gewinnHeute, art }], depot: [{ e, gewinnAnteil, freistellung }] }
+function nettoRechnung(n, teile, brutto, faktor, jahre) {
+  const gesetzlich = teile.renten.filter((x) => x.gesetzlich).reduce((s, x) => s + x.brutto, 0);
+  const renten = teile.renten.reduce((s, x) => s + x.brutto, 0);
+  // PKV im Alter: Beitrag mit realer Steigerung, Zuschuss der Rentenversicherung (7,3 % + halber Zusatzbeitrag ≈ 8,75 %)
+  const pkvBeitrag = n.kv === 'privat' ? (n.pkvBeitrag || 0) * Math.pow(1 + (n.pkvSteigerungReal ?? 1.5) / 100, jahre) : 0;
+  const zuschuss = Math.min(pkvBeitrag / 2, 0.0875 * gesetzlich);
+  // laufende Renten: zu versteuern mit Besteuerungsanteil, PKV-Basisanteil (≈ 80 %) als Sonderausgabe
+  const eigen = Math.max(0, 12 * renten * BESTEUERUNGSANTEIL - 102);
+  const partner = n.veranlagung === 'zusammen' ? Math.max(0, 12 * (n.partnerRente || 0) * BESTEUERUNGSANTEIL - 102) : 0;
+  const vorsorge = Math.max(0, 12 * (0.8 * pkvBeitrag - zuschuss));
+  const zvE = Math.max(0, eigen + partner - vorsorge - (n.veranlagung === 'zusammen' ? 72 : 36));
+  const steuerBasis = steuerJahr(zvE, n);
+  const steuerRenten = (eigen + partner > 0 ? steuerBasis * eigen / (eigen + partner) : 0) / 12;
+  // Kapitalauszahlungen im Auszahlungsjahr: bAV voll mit Fünftelregelung, private Rentenversicherung halber Gewinn
+  let steuerKapital = 0;
+  for (const kp of teile.kapital) {
+    const jahr = kp.art === 'halb'
+      ? steuerJahr(zvE + 0.5 * Math.max(0, kp.gewinnHeute), n) - steuerBasis
+      : 5 * (steuerJahr(zvE + kp.k / 5, n) - steuerBasis);
+    steuerKapital += jahr / faktor; // über die Entnahme verteilt
+  }
+  // Depot-Entnahmen: Abgeltungsteuer auf den Gewinnanteil, Teilfreistellung, Sparerpauschbetrag (deine Hälfte)
+  const depotGewinn = teile.depot.reduce((s, d) => s + 12 * d.e * d.gewinnAnteil * (1 - d.freistellung), 0);
+  const steuerDepot = Math.max(0, depotGewinn - 1000) * (0.25 * (1 + 0.055 + (n.kirche ? 0.09 : 0))) / 12;
+  const pkv = pkvBeitrag - zuschuss;
+  return { brutto, steuerRenten, steuerKapital, steuerDepot, pkvBeitrag, zuschuss, pkv,
+    netto: brutto - steuerRenten - steuerKapital - steuerDepot - pkv };
+}
+
 function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
+  const teile = { renten: [], kapital: [], depot: [] };
+  const jahre = Math.log(inflation) / Math.log(1 + a.inflation / 100) || 0;
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
   const karte = document.getElementById('rt-einkommen-karte');
   karte.hidden = !vorsorge.length;
@@ -3266,6 +3326,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: h, info: info.join(' · '), dynamik: v.dynamik ? v : null });
+      teile.renten.push({ brutto: h, gesetzlich: v.id === 'gesetzlich' });
     } else if (v.art === 'kapital') {
       // Kapital fest (bAV) oder je Fondsrendite aus der Modellrechnung (Swiss Life), nie unter der Garantie
       const df = dynamikFaktor(v, rendite);
@@ -3281,6 +3342,9 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       if (v.kapitalKurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite${rendite > kurveMax ? ` (über ${zahl(kurveMax, 0)} % fortgeschrieben)` : ''}`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · '), dynamik: v.dynamik ? v : null });
+      // Gewinn = Kapital − eingezahlte Beiträge (nur für die halbe Besteuerung privater Rentenversicherungen nötig)
+      const beitraege = (v.beitraegeBisher || 0) + (v.dynamik ? (dynamikAn(v) ? v.dynamik.beitraegeMit : v.dynamik.beitraegeOhne) : 0);
+      teile.kapital.push({ k, art: v.steuer || 'voll', gewinnHeute: (kapital - beitraege) / inflation });
     } else {
       zeilen.push({ name: v.name, wert: null, info: v.hinweis || 'Unterlagen folgen' });
     }
@@ -3289,6 +3353,14 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   for (const p of daten.positionen) {
     const wert = bisher.jePosition[p.id];
     if (!(wert > 0)) continue;
+    // Gewinnanteil für die Abgeltungsteuer: Wert bei Rentenbeginn gegen Investiertes + künftige Sparraten
+    const k = kurse.preise[p.id];
+    const basis = (k ? aktuellerBestand(p, k).inv : p.investiert) + simRate(p) * Math.round(jahre * 12);
+    const art = anlageart(p);
+    teile.depot.push({
+      e: (wert / inflation) / faktor, gewinnAnteil: Math.max(0, (wert - basis) / wert),
+      freistellung: art === 'Krypto' ? 1 : (art === 'ETF' || art === 'Fonds') ? 0.3 : 0, // Bitcoin nach 1 Jahr steuerfrei
+    });
     zeilen.push({
       name: `Entnahme ${p.name}`, wert: (wert / inflation) / faktor,
       info: `Wert ${geld(wert / inflation)} heute · ${a.entnahmeJahre} Jahre · ${zahl(renditeFuer(p, renditeSzenario), 1)} % bis zur Rente`,
@@ -3298,9 +3370,38 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   zeilen.sort((x, y) => (y.wert == null ? -1 : x.wert == null ? 1 : y.wert - x.wert));
   const summe = zeilen.reduce((s, z) => s + (z.wert || 0), 0);
   const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
-  document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
-  zaehle(document.getElementById('rt-einkommen'), summe, false);
-  document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
+  const n = daten.rente && daten.rente.netto;
+  const dl = document.getElementById('rt-netto');
+  dl.hidden = !n;
+  if (n) {
+    const x = nettoRechnung(n, teile, summe, faktor, jahre);
+    document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · netto pro Monat`;
+    zaehle(document.getElementById('rt-einkommen'), x.netto, false);
+    const luecke = (n.ziel || 0) - x.netto;
+    document.getElementById('rt-einkommen-unter').textContent = n.ziel
+      ? (luecke > 0 ? `Ziel ${geld(n.ziel)} netto: es fehlen ${geld(luecke)} pro Monat` : `Ziel ${geld(n.ziel)} netto erreicht (+${geld(-luecke)})`)
+      : 'in heutiger Kaufkraft';
+    dl.innerHTML = '';
+    for (const [name, wert, klasseWert] of [
+      ['Brutto (alle Bausteine)', geld(x.brutto)],
+      ['Einkommensteuer & Soli auf Renten', `−${geld(x.steuerRenten)}`],
+      ['Steuer auf Kapitalauszahlungen (verteilt)', `−${geld(x.steuerKapital)}`],
+      ['Abgeltungsteuer Depot-Entnahmen', `−${geld(x.steuerDepot)}`],
+      [`PKV ${geld(x.pkvBeitrag)} abzgl. Zuschuss ${geld(x.zuschuss)}`, `−${geld(x.pkv)}`],
+      ['Netto', geld(x.netto), 'summe'],
+    ]) {
+      const reihe = document.createElement('div');
+      if (klasseWert) reihe.className = klasseWert;
+      reihe.innerHTML = '<dt></dt><dd></dd>';
+      reihe.querySelector('dt').textContent = name;
+      reihe.querySelector('dd').textContent = wert;
+      dl.appendChild(reihe);
+    }
+  } else {
+    document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
+    zaehle(document.getElementById('rt-einkommen'), summe, false);
+    document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
+  }
   const ul = document.getElementById('rt-saeulen');
   ul.innerHTML = '';
   for (const z of zeilen) {
@@ -3323,7 +3424,9 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   document.getElementById('rt-einkommen-hinweis').textContent =
     `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet. ` +
     `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite. ` +
-    'Noch ohne Steuern und Kranken-/Pflegeversicherung, Tagesgeld nicht enthalten.';
+    (n ? `Netto: Steuertarif 2026 auf heutige Beträge, ${n.veranlagung === 'zusammen' ? `Splitting mit Partnerrente ${geld(n.partnerRente || 0)}` : 'Einzelveranlagung'}${n.kirche ? ', mit Kirchensteuer' : ''}, Renten zu 97 % steuerpflichtig, ` +
+      `PKV real +${zahl(n.pkvSteigerungReal ?? 1.5, 1)} % pro Jahr. Die Einzelzeilen oben sind brutto. Tagesgeld nicht enthalten.`
+      : 'Noch ohne Steuern und Kranken-/Pflegeversicherung, Tagesgeld nicht enthalten.');
 }
 
 // Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
