@@ -216,6 +216,21 @@
   .zeilen.netto { margin: 12px 0 4px; font-size: 14px; }
   .zeilen.netto > div { padding: 5px 0; }
   .zeilen.netto .summe { font-weight: 700; border-top: 1px solid var(--linie); }
+  .pos-wahl-zeile { display: flex; justify-content: center; margin: 2px 0 6px; }
+  .pos-wahl-knopf { border: 0; background: var(--akzent-weich); color: var(--akzent); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1;
+    padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .blatt-ebene { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.35); display: flex; align-items: flex-end; justify-content: center; }
+  .blatt { width: min(560px, 100%); max-height: 82vh; overflow-y: auto; background: var(--bg); border-radius: 22px 22px 0 0;
+    padding: 14px 16px calc(env(safe-area-inset-bottom) + 18px); box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2); }
+  .blatt-kopf { display: flex; align-items: center; justify-content: space-between; margin: 2px 4px 12px; }
+  .blatt-kopf small { display: block; font-size: 13px; color: var(--text-2); margin-top: 2px; }
+  #pos-gruppen { flex-wrap: wrap; margin-bottom: 10px; }
+  #pos-liste { background: var(--flaeche); border-radius: var(--radius); }
+  #pos-liste li.wahl { gap: 12px; }
+  #pos-liste li.wahl::after { display: none; } /* Haken statt Pfeil: die Zeile schaltet nur um */
+  #pos-liste .haken { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--text-3); flex-shrink: 0; display: grid; place-items: center; }
+  #pos-liste li.an .haken { background: var(--akzent); border-color: var(--akzent); }
+  #pos-liste li.an .haken::after { content: '✓'; color: #fff; font-size: 13px; font-weight: 700; }
   .chip.mini { display: inline-block; margin-top: 6px; padding: 3px 10px; font-size: 12px; }
   .segmente button small { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-top: 1px; }
 
@@ -671,7 +686,7 @@
 
     <!-- kompakt: alles auf einen iPhone-Bildschirm (nur die Fußzeile darf darunter liegen) -->
     <div class="karte tippbar wert-karte" data-aktion="vermoegen-liste" role="button" tabindex="0">
-      <div class="etikett">Wert <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div class="etikett"><span id="wert-titel">Wert</span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="zeile-wert">
         <div id="vermoegen" class="wert-gross skelett">00.000 €</div>
         <span id="investiert" class="unter klein">&nbsp;</span>
@@ -689,6 +704,7 @@
       </div>
       <div class="chips" id="entw-chips" style="margin-top: 10px"></div>
       <div class="chips" id="entw-jahre"></div>
+      <div class="pos-wahl-zeile"><button class="pos-wahl-knopf" data-aktion="pos-wahl" id="entw-pos">Alle Positionen ▾</button></div>
       <div id="start-chart" class="chart"></div>
       <p class="unter" id="entw-hinweis" style="margin: 6px 0 0; font-size: 12px"></p>
     </div>
@@ -952,6 +968,7 @@
     <!-- gleiche Auswahl wie die Entwicklung auf der Depot-Seite (geteilt) -->
     <div class="chips entw-zeile" id="gw-chips"></div>
     <div class="chips entw-zeile" id="gw-jahre"></div>
+    <div class="pos-wahl-zeile"><button class="pos-wahl-knopf" data-aktion="pos-wahl" id="gw-pos">Alle Positionen ▾</button></div>
     <div class="karte held">
       <div class="etikett" id="gewinn-zeitraum"></div>
       <div id="gewinn-gesamt" class="betrag"></div>
@@ -1134,6 +1151,16 @@
   </section>
 
   <input type="file" id="datei" accept="application/json,.json" hidden>
+
+  <!-- Auswahl der Investments (Depot-Seite, Gewinn-Seite) -->
+  <div id="pos-wahl" class="blatt-ebene" hidden>
+    <div class="blatt">
+      <div class="blatt-kopf"><span><b>Investments</b><small id="pos-wahl-titel"></small></span>
+        <button class="textknopf" data-aktion="pos-wahl-fertig">Fertig</button></div>
+      <div class="chips" id="pos-gruppen"></div>
+      <ul class="liste" id="pos-liste"></ul>
+    </div>
+  </div>
 </main>
 
 <!-- Tableiste unten -->
@@ -1192,7 +1219,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-23.2129'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-28.1643'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2008,6 +2035,7 @@ function gewinnListe(zeitraum) {
   const zeilen = [];
   const fehlend = [];
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse && kurse.preise[p.id];
     if (!k) { fehlend.push(p.name); continue; }
     const { stueck, inv } = aktuellerBestand(p, k);
@@ -2069,6 +2097,11 @@ function gwZeitraum(art, versatz) {
 }
 
 function gewinnAnzeigen() {
+  document.getElementById('gw-pos').textContent = `${posAuswahlText()} ▾`;
+  return gefiltert(gewinnZeichnen);
+}
+
+function gewinnZeichnen() {
   if (document.getElementById('ansicht-gewinn').hidden) zeige('ansicht-gewinn');
   const liste = document.getElementById('gewinn-positionen');
   const meldung = document.getElementById('gewinn-meldung');
@@ -2094,11 +2127,76 @@ function gewinnAnzeigen() {
   }
 }
 
+// ---------- Auswahl der Investments (Depot-Seite: Wert und Entwicklung, Gewinn-Seite) ----------
+// posAuswahl: null = alle, sonst Liste der Positions-ids. Die Rechenfunktionen filtern nur innerhalb von gefiltert(…),
+// damit Gesamtvermögen, Anlagearten und Prognose immer das ganze Depot zählen.
+let posAuswahl = null;
+try { posAuswahl = JSON.parse(localStorage.getItem('depot-pos')) || null; } catch { posAuswahl = null; }
+let filterAktiv = false;
+const posZaehlt = (p) => !filterAktiv || !posAuswahl || posAuswahl.includes(p.id);
+function gefiltert(fn) {
+  const vorher = filterAktiv;
+  filterAktiv = true;
+  try { return fn(); } finally { filterAktiv = vorher; }
+}
+function posAuswahlGueltig() {
+  if (posAuswahl) posAuswahl = posAuswahl.filter((id) => daten.positionen.some((p) => p.id === id));
+  if (posAuswahl && (!posAuswahl.length || posAuswahl.length === daten.positionen.length)) posAuswahl = null;
+}
+// kurze Beschriftung: „Alle Positionen“, „ETFs (4)“, „Telekom + Eureka“, „3 Positionen“
+function posAuswahlText() {
+  posAuswahlGueltig();
+  if (!posAuswahl) return 'Alle Positionen';
+  const gewaehlt = daten.positionen.filter((p) => posAuswahl.includes(p.id));
+  for (const [art, name] of [['ETF', 'ETFs'], ['Fonds', 'Fonds'], ['Aktie', 'Einzelaktien'], ['Krypto', 'Bitcoin']]) {
+    const alle = daten.positionen.filter((p) => anlageart(p) === art);
+    if (alle.length && alle.length === gewaehlt.length && gewaehlt.every((p) => anlageart(p) === art)) return `${name} (${alle.length})`;
+  }
+  const kurz = (p) => p.name.replace(/^(iShares Core|iShares|SPDR|VanEck|Xtrackers|Amundi)\s+/, '').split(' ').slice(0, 2).join(' ');
+  return gewaehlt.length <= 2 ? gewaehlt.map(kurz).join(' + ') : `${gewaehlt.length} Positionen`;
+}
+
+function posWahlOeffnen() {
+  const ebene = document.getElementById('pos-wahl');
+  posWahlZeichnen();
+  ebene.hidden = false;
+}
+function posWahlZeichnen() {
+  posAuswahlGueltig();
+  const gruppen = [['alle', 'Alle'], ['ETF', 'ETFs'], ['Fonds', 'Fonds'], ['Aktie', 'Einzelaktien'], ['Krypto', 'Bitcoin']]
+    .filter(([art]) => art === 'alle' || daten.positionen.some((p) => anlageart(p) === art));
+  document.getElementById('pos-gruppen').innerHTML = gruppen
+    .map(([art, name]) => `<button class="chip" data-wahl-gruppe="${art}">${name}</button>`).join('');
+  const ul = document.getElementById('pos-liste');
+  ul.innerHTML = '';
+  for (const p of daten.positionen.slice().sort((a, b) => a.name.localeCompare(b.name))) {
+    const an = !posAuswahl || posAuswahl.includes(p.id);
+    const li = document.createElement('li');
+    li.className = `tippbar wahl${an ? ' an' : ''}`;
+    li.dataset.wahl = p.id;
+    li.innerHTML = '<span class="haken"></span><span class="name"><span class="n"></span><small></small></span>';
+    li.querySelector('.n').textContent = p.name;
+    li.querySelector('small').textContent = artName(p);
+    ul.appendChild(li);
+  }
+  document.getElementById('pos-wahl-titel').textContent = posAuswahlText();
+}
+function posWahlAendern(neu) {
+  posAuswahl = neu;
+  posAuswahlGueltig();
+  try { localStorage.setItem('depot-pos', JSON.stringify(posAuswahl)); } catch { /* nur Komfort */ }
+  posWahlZeichnen();
+  // betroffene Seite neu zeichnen
+  if (!document.getElementById('ansicht-gewinn').hidden) gewinnAnzeigen();
+  else if (!document.getElementById('ansicht-haupt').hidden) hauptRendern();
+}
+
 function bewertung() {
   const zeilen = [];
   const werte = [];
   let wert = 0, investiert = 0, tagAend = 0, vorherWert = 0;
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse && kurse.preise[p.id];
     if (!k) continue;
     // offene Buchungen vorläufig zum aktuellen Kurs mitrechnen
@@ -2117,6 +2215,11 @@ function bewertung() {
 }
 
 function vermoegenAnzeigen() {
+  if (letzterReiter === 'ansicht-haupt') return gefiltert(vermoegenZeichnen);
+  return vermoegenZeichnen();
+}
+
+function vermoegenZeichnen() {
   const liste = document.getElementById('vermoegen-positionen');
   liste.innerHTML = '';
   const chartEl = document.getElementById('vermoegen-chart');
@@ -2170,6 +2273,7 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
   const pos = [];
   let ende = start;
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse.preise[p.id];
     if (!k) continue;
     const reihe = langeReihe(p, k);
@@ -3720,6 +3824,7 @@ function auswertung(startIso, endeIso) {
   const zeilen = [];
   let geschaetzt = false;
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse && kurse.preise[p.id];
     if (!k || !k.reihe) continue;
     const reihe = langeReihe(p, k); // lange Historie, damit auch frühere Jahre gehen
@@ -4038,6 +4143,7 @@ const ZEITRAEUME_ENTW = { gesamt: 'Seit Eröffnung', vortag: 'Vortag', wtd: 'WTD
 function entwJahreListe() {
   let erste = null;
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse && kurse.preise[p.id];
     const d = k ? ersterKauf(p, k) : null;
     if (d && (!erste || d < erste)) erste = d;
@@ -4109,6 +4215,11 @@ function entwicklungGewinn() {
 }
 
 function entwicklungAnzeigen() {
+  document.getElementById('entw-pos').textContent = `${posAuswahlText()} ▾`;
+  return gefiltert(entwicklungZeichnen);
+}
+
+function entwicklungZeichnen() {
   const chartEl = document.getElementById('start-chart');
   const chips = document.getElementById('entw-chips');
   const hinweis = document.getElementById('entw-hinweis');
@@ -4117,6 +4228,7 @@ function entwicklungAnzeigen() {
   // Eröffnung = frühester Kauf; Daten reichen so weit zurück, wie jede Position Kurse hat
   let eroeffnung = null, datenAb = '0000';
   for (const p of daten.positionen) {
+    if (!posZaehlt(p)) continue;
     const k = kurse.preise[p.id];
     if (!k) continue;
     const erster = ersterKauf(p, k);
@@ -4240,10 +4352,12 @@ function hauptRendern() {
   const artTeile = anlagearten();
   ringZeichnen(document.getElementById('start-ring'), document.getElementById('start-arten'), artTeile, null, false);
 
+  const bDepot = gefiltert(() => bewertung()); // Wert der gewählten Investments
   const vEl = document.getElementById('vermoegen');
   vEl.classList.remove('skelett');
-  zaehle(vEl, b.wert, false);
-  document.getElementById('investiert').textContent = `${geld(b.investiert)} investiert`;
+  zaehle(vEl, bDepot.wert, false);
+  document.getElementById('investiert').textContent = `${geld(bDepot.investiert)} investiert`;
+  document.getElementById('wert-titel').textContent = posAuswahl ? `Wert · ${posAuswahlText()}` : 'Wert';
   document.getElementById('mehr-tagesgeld').textContent = tg ? geld(tg) : '';
   entwicklungAnzeigen();
 
@@ -5151,6 +5265,17 @@ document.addEventListener('click', (e) => {
   if (zzEin) { zzEinzahlen = zzEin; zinseszinsAnzeigen(); return; }
   const zz = e.target.closest('[data-zinseszins]')?.dataset.zinseszins;
   if (zz) { zinseszinsSicht = zz; zinseszinsAnzeigen(); return; }
+  // Auswahl der Investments: Hintergrund schließt, Gruppe setzt, Zeile schaltet um
+  if (e.target.id === 'pos-wahl') { e.target.hidden = true; return; }
+  const gruppe = e.target.closest('[data-wahl-gruppe]')?.dataset.wahlGruppe;
+  if (gruppe) { posWahlAendern(gruppe === 'alle' ? null : daten.positionen.filter((p) => anlageart(p) === gruppe).map((p) => p.id)); return; }
+  const wahl = e.target.closest('[data-wahl]')?.dataset.wahl;
+  if (wahl) {
+    const jetzt = posAuswahl || daten.positionen.map((p) => p.id);
+    const neu = jetzt.includes(wahl) ? jetzt.filter((id) => id !== wahl) : [...jetzt, wahl];
+    if (neu.length) posWahlAendern(neu); // mindestens eine Position bleibt gewählt
+    return;
+  }
   const dyn = e.target.closest('[data-dynamik]')?.dataset.dynamik;
   if (dyn) {
     daten.rente = daten.rente || {};
@@ -5191,6 +5316,8 @@ document.addEventListener('click', (e) => {
     'gewinn-liste': () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); },
     'detail-zurueck': () => (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).zurueck(),
     'detail-pflegen': () => positionAnzeigen(detailPosId),
+    'pos-wahl': posWahlOeffnen,
+    'pos-wahl-fertig': () => { document.getElementById('pos-wahl').hidden = true; },
     'gv-details': () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); }, // gleiche Auswahl wie die Entwicklung
     'zinsbuch-zurueck': () => tagesgeldAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
