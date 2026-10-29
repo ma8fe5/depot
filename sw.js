@@ -130,7 +130,8 @@ self.addEventListener('push', (event) => {
     if (nachricht.titel === 'Depot') {
       try { text = await mitFrist(tagesbilanz(), 20000); } catch (e) { /* neutraler Text bleibt */ }
     }
-    await self.registration.showNotification(nachricht.titel, {
+    // iOS zeigt den App-Namen „DEPOT“ schon im Kopf – als Titel daher nicht noch einmal „Depot“
+    await self.registration.showNotification(nachricht.titel === 'Depot' ? 'Tagesbilanz' : nachricht.titel, {
       body: text,
       icon: 'icon-mf-180.png',
       tag: nachricht.titel === 'Depot' ? 'depot-morgen' : `depot-${nachricht.titel}`,
