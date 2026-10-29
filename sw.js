@@ -135,14 +135,21 @@ self.addEventListener('push', (event) => {
       body: text,
       icon: 'icon-mf-180.png',
       tag: nachricht.titel === 'Depot' ? 'depot-morgen' : `depot-${nachricht.titel}`,
+      data: nachricht.titel === 'Depot' ? { ziel: 'tops' } : {},
     });
   })());
 });
 
+// Antippen der Tagesbilanz springt zu Tops & Lows (offene App per Nachricht, sonst per ?ziel=)
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const ziel = (event.notification.data || {}).ziel;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((fenster) => {
-    for (const f of fenster) if ('focus' in f) return f.focus();
-    return self.clients.openWindow('./');
+    for (const f of fenster) {
+      if (!('focus' in f)) continue;
+      if (ziel) f.postMessage({ ziel });
+      return f.focus();
+    }
+    return self.clients.openWindow(ziel ? `./?ziel=${ziel}` : './');
   }));
 });

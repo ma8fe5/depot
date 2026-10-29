@@ -1219,7 +1219,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-29.2128'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-29.2133'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4317,9 +4317,27 @@ function entwicklungZeichnen() {
     : `Kurse ab ${deDatum(ersterVollerTag)} – ältere Jahre folgen, sobald die Kurshistorie importiert ist.`;
 }
 
+// Sprungziel aus einer angetippten Mitteilung; wird nach dem Laden/Entsperren eingelöst
+let sprungZiel = new URLSearchParams(location.search).get('ziel');
+if (sprungZiel) history.replaceState(null, '', location.pathname);
+
 function hauptAnzeigen() {
+  if (sprungZiel === 'tops') {
+    sprungZiel = null;
+    zeige('ansicht-tops');
+    hauptRendern();
+    return;
+  }
   reiterZeigen(letzterReiter);
 }
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+  if (!e.data || !e.data.ziel) return;
+  sprungZiel = e.data.ziel;
+  // gesperrt oder noch ohne Daten: Ziel bleibt bis nach dem Entsperren liegen.
+  // Kurz warten, damit eine fällige Sperre (visibilitychange) zuerst greift.
+  setTimeout(() => { if (sprungZiel && daten && !(schutzAktiv() && !schluessel)) hauptAnzeigen(); }, 400);
+});
 
 function hauptRendern() {
   document.getElementById('heute-datum').textContent =
