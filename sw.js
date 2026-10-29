@@ -109,11 +109,9 @@ async function tagesbilanz() {
   const geldRund = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   const zahl = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const vz = (n) => (n > 0 ? '+' : '');
-  const prozent = (n) => `${vz(n)}${zahl.format(n)} %`;
-  zeilen.sort((x, y) => y.pct - x.pct);
-  const top = zeilen[0], low = zeilen[zeilen.length - 1];
-  const zeile1 = `Vortag ${vz(aend)}${geld.format(aend)} (${prozent(vorherWert ? (aend / vorherWert) * 100 : 0)}) · Gesamt ${geldRund.format(wert + (b.tagesgeld || 0))}`;
-  const zeile2 = `▲ ${top.name} ${prozent(top.pct)} · ▼ ${low.name} ${prozent(low.pct)}`;
+  const prozent = (n) => `${vz(n)}${zahl.format(n)}%`;
+  const zeile1 = `${vz(aend)}${geld.format(aend)} ggü. Vortag (${prozent(vorherWert ? (aend / vorherWert) * 100 : 0)})`;
+  const zeile2 = `Gesamt: ${geldRund.format(wert + (b.tagesgeld || 0))}`;
   return `${zeile1}\n${zeile2}`;
 }
 

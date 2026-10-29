@@ -1219,7 +1219,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-29.2118'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-29.2125'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4993,7 +4993,7 @@ async function pushStatusAnzeigen() {
   }
   const abo = await pushAbo();
   info.textContent = abo
-    ? 'Aktiv: Dienstag bis Samstag um 9 Uhr deine Tagesbilanz (Veränderung zum Vortag, Gesamtvermögen, bester und schwächster Wert) – das iPhone rechnet sie selbst, deine Bestände verlassen es nicht. Dazu um 9 Uhr die Erinnerungen an deine Tagesgeld-Termine.'
+    ? 'Aktiv: Dienstag bis Samstag um 9 Uhr deine Tagesbilanz (Veränderung zum Vortag und Gesamtvermögen) – das iPhone rechnet sie selbst, deine Bestände verlassen es nicht. Dazu um 9 Uhr die Erinnerungen an deine Tagesgeld-Termine.'
     : 'Aus. Auf Wunsch erinnert dich die App Dienstag bis Samstag um 9 Uhr an die Veränderung zum Vortag.';
   an.hidden = !!abo;
   test.hidden = aus.hidden = !abo;
