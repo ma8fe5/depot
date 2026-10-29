@@ -1219,7 +1219,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-28.1643'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-29.2118'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1880,6 +1880,7 @@ async function kurseHolen() {
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   if (daten) historieFortschreiben(preise);
   if (daten) bestandskopieSchreiben();
+  if (daten && !window.pushGemeldet) { window.pushGemeldet = true; pushAboMelden().catch(() => {}); }
   if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
@@ -4996,6 +4997,7 @@ async function pushStatusAnzeigen() {
     : 'Aus. Auf Wunsch erinnert dich die App Dienstag bis Samstag um 9 Uhr an die Veränderung zum Vortag.';
   an.hidden = !!abo;
   test.hidden = aus.hidden = !abo;
+  if (abo) pushAboMelden().catch(() => {});
 }
 
 async function pushEinschalten() {
@@ -5025,8 +5027,19 @@ async function pushEinschalten() {
   pushStatusAnzeigen();
 }
 
+// Meldet das Abo dieses Geräts (erneut) beim Vermittler an – z. B. nach Neuinstallation vom Home-Bildschirm
+async function pushAboMelden() {
+  const abo = await pushAbo();
+  if (!abo || !daten.vermittler) return false;
+  const a = await vermittler('/push/anmelden', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abo.toJSON()),
+  });
+  return a.ok;
+}
+
 async function pushTest() {
   try {
+    await pushAboMelden();
     const r = await vermittler('/push/test', { method: 'POST' });
     const j = await r.json();
     if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
