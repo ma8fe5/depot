@@ -135,7 +135,7 @@ self.addEventListener('push', (event) => {
       body: text,
       icon: 'icon-mf-180.png',
       tag: nachricht.titel === 'Depot' ? 'depot-morgen' : `depot-${nachricht.titel}`,
-      data: nachricht.titel === 'Depot' ? { ziel: 'tops' } : {},
+      data: nachricht.titel === 'Depot' ? { ziel: 'tops' } : /^Tagesgeld /.test(nachricht.titel) ? { ziel: 'tagesgeld' } : {},
     });
   })());
 });

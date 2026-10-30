@@ -372,6 +372,10 @@
   .klippe .balken i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--pos), #f0a020); }
   .klippe .zahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; color: var(--text-2); }
   .klippe .zahlen b { display: block; font-size: 16px; color: var(--text); font-weight: 650; }
+  .klippe .anschluss { margin-top: 12px; }
+  .klippe .anschluss .zeile { display: flex; gap: 8px; margin-top: 4px; }
+  .klippe .anschluss input { flex: 1; min-width: 0; }
+  .klippe .anschluss .knopf { flex: none; width: auto; padding: 0 18px; }
   .klippe .warnung { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--neg-weich); color: var(--neg); font-size: 14px; font-weight: 600; }
   .zinsbild { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; text-align: center; }
   .zinsbild b { display: block; font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
@@ -1227,7 +1231,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-30.0805'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-30.0809'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2752,8 +2756,6 @@ function tagesgeldAnzeigen() {
   for (const k of aktiv.filter((x) => x.termin).sort((a, b) => a.termin.localeCompare(b.termin))) {
     const rest = tageZwischen(h, k.termin);
     const tag = tgTagesZins(k);
-    const danach = k.zinsDanach != null ? k.zinsDanach : 0;
-    const warten = (k.stand * ((k.zins || 0) - danach)) / 100 / 365;
     // Laufzeitbalken: Beginn aus den aufgelaufenen Zinsen zurückgerechnet, sonst ab Erfassung
     const beginn = tgBeginn(k).datum || h;
     const gesamt = Math.max(1, tageZwischen(beginn, k.termin));
@@ -2770,11 +2772,14 @@ function tagesgeldAnzeigen() {
         ${k.auszahlung === 'termin' ? `<div>Aufgelaufen<b data-live-aufgelaufen="${k.id}">${geld(tgAufgelaufen(k))}</b></div>
         <div>Auszahlung am ${deDatum(k.termin).slice(0, 6)}<b>${auszahlung != null ? `≈ ${geld(auszahlung)}` : '–'}</b></div>` : ''}
         <div>Danach<b>${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}</b></div>
-        <div>Jeder Tag Warten kostet<b>${k.zins ? geld(warten) : '–'}</b></div>
+        <div>Liegenlassen kostet<b>${k.zins ? `${geld(tgKostenMonat(k))} / Monat` : '–'}</b></div>
       </div>
-      ${rest <= 7 ? `<div class="warnung">${rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.'}</div>
-        <div class="knoepfe"><button class="knopf breit" data-aktion="tg-wechsel">Bankwechsel durchführen</button></div>` : ''}
-      ${k.zinsDanach == null && k.zins ? '<p class="unter" style="margin: 10px 0 0; font-size: 12px">Anschlusszins unbekannt – gerechnet mit 0 %.</p>' : ''}`;
+      ${k.zinsDanach == null && k.zins ? `<div class="anschluss">
+        <label class="feldname">Anschlusszins bekannt? Sonst rechnet die App mit 0 %.</label>
+        <div class="zeile"><input type="text" inputmode="decimal" class="tg-anschluss" placeholder="% p. a."><button class="knopf" data-aktion="tg-anschluss">Speichern</button></div>
+      </div>` : ''}
+      ${rest <= 14 ? `<div class="warnung">${rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.'}</div>
+        <div class="knoepfe"><button class="knopf breit" data-aktion="tg-wechsel">Bankwechsel durchführen</button></div>` : ''}`;
     card.querySelector('.bank').textContent = k.bank;
     klippen.appendChild(card);
   }
@@ -2991,13 +2996,43 @@ function tgWechsel(e) {
 }
 
 // Erinnerungen an den Vermittler geben; er schickt sie am Termin um 9 Uhr (mit Bank und Betrag, User-Wahl)
+// Was das Liegenlassen nach dem Aktionsende pro Monat kostet (Aktionszins gegen Anschlusszins, unbekannt = 0 %)
+const tgKostenMonat = (k) => (k.stand * ((k.zins || 0) - (k.zinsDanach != null ? k.zinsDanach : 0))) / 100 / 12;
+
+// Erinnerungen je Konto mit Aktionsende: 14 und 3 Tage vorher (Bank aussuchen) und am Tag selbst (umziehen)
+const TG_VORWARNUNG = [14, 3];
 function tgTerminListe() {
   const ab = isoDatum(heute());
-  return tgAktiv().filter((k) => k.termin && k.termin >= ab).map((k) => ({
-    datum: k.termin,
-    titel: `Tagesgeld ${k.bank}`,
-    text: `Heute kommen die Zinsen – ${eur.format(k.stand)} zur neuen Bank umziehen. In der App: Tagesgeld → Wechsel.`,
-  }));
+  const liste = [];
+  for (const k of tgAktiv().filter((x) => x.termin && x.termin >= ab)) {
+    const titel = `Tagesgeld ${k.bank}`;
+    const danach = k.zinsDanach != null ? `danach ${zahl(k.zinsDanach, 2)} %` : 'Anschlusszins unbekannt';
+    const kosten = k.zins ? ` Liegenlassen kostet ≈ ${eurGanz.format(tgKostenMonat(k))} pro Monat.` : '';
+    for (const tage of TG_VORWARNUNG) {
+      const d = new Date(k.termin + 'T00:00:00');
+      d.setDate(d.getDate() - tage);
+      const datum = isoDatum(d);
+      if (datum < ab) continue;
+      liste.push({ datum, titel,
+        text: `${k.zins ? `${zahl(k.zins, 2)} % enden` : 'Aktion endet'} am ${deDatum(k.termin).slice(0, 6)} (in ${tage} Tagen), ${danach}.${kosten} Neue Bank schon ausgesucht?` });
+    }
+    liste.push({ datum: k.termin, titel,
+      text: `Heute kommen die Zinsen – ${eur.format(k.stand)} zur neuen Bank umziehen. In der App: Tagesgeld → Wechsel.` });
+  }
+  return liste.sort((x, y) => x.datum.localeCompare(y.datum)).slice(0, 20); // Vermittler nimmt höchstens 20
+}
+
+// Anschlusszins direkt auf der Klippen-Karte nachtragen
+function tgAnschlussSpeichern(e) {
+  const k = tgKontoAus(e);
+  if (!k) return;
+  const feld = e.target.closest('.karte').querySelector('.tg-anschluss');
+  const wert = parseZahl(feld.value.trim());
+  if (!(wert >= 0 && wert < 20)) { alert('Bitte den Anschlusszins in Prozent eintragen, z. B. 1,5.'); return; }
+  k.zinsDanach = wert;
+  speichern();
+  tagesgeldAnzeigen();
+  tgTermineSenden(); // Texte der Erinnerungen enthalten den Anschlusszins
 }
 
 async function tgTermineSenden(meldenWennOk = false) {
@@ -4420,6 +4455,11 @@ function hauptAnzeigen() {
     hauptRendern();
     return;
   }
+  if (sprungZiel === 'tagesgeld') {
+    sprungZiel = null;
+    reiterZeigen('ansicht-tagesgeld');
+    return;
+  }
   reiterZeigen(letzterReiter);
 }
 
@@ -5465,6 +5505,7 @@ document.addEventListener('click', (e) => {
     'tg-speichern': tgSpeichern,
     'tg-neu': tgNeu,
     'tg-wechsel': () => tgWechsel(e),
+    'tg-anschluss': () => tgAnschlussSpeichern(e),
     'tg-loeschen': () => tgLoeschen(e),
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
