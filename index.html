@@ -442,6 +442,13 @@
   .liste.einkommen .name, .liste.einkommen .name small { white-space: normal; }
   .liste.einkommen li.offen .wert { color: var(--text-3); font-weight: 500; }
   .annahmen { margin: 12px 0 0; font-size: 13px; line-height: 1.45; }
+  /* aufklappbare Erklärungen (Prognose) */
+  details.aufklapp { margin: 10px 0 0; border-top: 1px solid var(--linie); }
+  details.aufklapp summary { list-style: none; cursor: pointer; padding: 11px 0 1px; font-size: 14px; font-weight: 600; color: var(--akzent, var(--text-2)); }
+  details.aufklapp summary::-webkit-details-marker { display: none; }
+  details.aufklapp summary::after { content: ' ▾'; font-size: 12px; }
+  details.aufklapp[open] summary::after { content: ' ▴'; }
+  details.aufklapp .annahmen { margin-top: 8px; }
   .segmente.drei::before { width: calc((100% - 6px) / 3); }
   .segmente.vier { grid-template-columns: repeat(4, 1fr); }
 
@@ -877,15 +884,20 @@
       <button data-rendite="moderat">Moderat<small>5 % pro Jahr</small></button>
       <button data-rendite="realistisch">Realistisch<small>7 % pro Jahr</small></button>
     </div>
-    <p class="unter" id="rt-rendite-info" style="margin: -4px 4px 14px"></p>
     <!-- Einkommen aus allen Säulen (Daten per Import, Stand der Unterlagen) -->
     <div class="karte held" id="rt-einkommen-karte" hidden>
       <div class="etikett" id="rt-einkommen-titel"></div>
       <div class="betrag mittel-gross" id="rt-einkommen"></div>
       <div class="unter" id="rt-einkommen-unter"></div>
-      <dl class="zeilen netto" id="rt-netto" hidden></dl>
       <ul class="liste einkommen" id="rt-saeulen"></ul>
-      <p class="unter annahmen" id="rt-einkommen-hinweis"></p>
+      <details class="aufklapp" id="rt-netto-block" hidden><summary>Von brutto zu netto</summary><dl class="zeilen netto" id="rt-netto"></dl></details>
+      <details class="aufklapp"><summary>So wird gerechnet</summary><p class="unter annahmen" id="rt-einkommen-hinweis"></p></details>
+    </div>
+    <!-- Ziel: wie viel monatlich zusätzlich, damit das Einkommen oben das Ziel erreicht -->
+    <div class="karte szenario ziel">
+      <div class="etikett" id="rt-c-titel"></div>
+      <div class="betrag mittel-gross" id="rt-c"></div>
+      <div class="unter" id="rt-c-unter"></div>
     </div>
     <div class="abschnitt">Depot</div>
     <div class="karte szenario">
@@ -899,11 +911,6 @@
       <div class="betrag mittel-gross" id="rt-b"></div>
       <div class="unter" id="rt-b-unter"></div>
       <span class="pill" id="rt-b-pill"></span>
-    </div>
-    <div class="karte szenario ziel">
-      <div class="etikett" id="rt-c-titel"></div>
-      <div class="betrag mittel-gross" id="rt-c"></div>
-      <div class="unter" id="rt-c-unter"></div>
     </div>
     <div class="karte">
       <div class="etikett">Depotwert bis Rentenbeginn</div>
@@ -932,6 +939,7 @@
       <div class="regler"><label for="rt-dauer">Entnahme über <b id="rt-dauer-w"></b></label><input type="range" id="rt-dauer" min="10" max="40" step="1"></div>
       <div class="regler"><label for="rt-entnahme-rendite">Rendite während der Rente <b id="rt-entnahme-rendite-w"></b></label><input type="range" id="rt-entnahme-rendite" min="0" max="8" step="0.5"></div>
       <div class="regler"><label for="rt-inflation">Inflation <b id="rt-inflation-w"></b></label><input type="range" id="rt-inflation" min="0" max="5" step="0.25"></div>
+      <div class="regler"><label for="rt-tg-zins">Tagesgeld-Zins bis zur Rente <b id="rt-tg-zins-w"></b></label><input type="range" id="rt-tg-zins" min="0" max="4" step="0.25"></div>
       <div class="raster" style="margin-top: 6px">
         <div><label class="feldname">Geburtsdatum</label><input type="date" id="rt-geburt"></div>
         <div><label class="feldname">Rentenalter</label><input type="text" inputmode="numeric" id="rt-alter"></div>
@@ -1219,7 +1227,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-29.2133'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-30.0803'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1235,13 +1243,17 @@ const pct = (n) => (n > 0 ? '+' : '') + zahl(n, 2) + ' %';
 // Privatsphäre-Modus: Geldbeträge werden als •••• angezeigt, Prozente und Kurse bleiben sichtbar
 const istPrivat = () => document.body.classList.contains('privat');
 const geld = (n) => (istPrivat() ? '•••• €' : eur.format(n));
+// Zukunftswerte (Prognose): auf 10 € gerundet, ohne Cent – genauer ist eine Rechnung über Jahrzehnte nicht
+const eurGanz = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const geldRund = (n) => (istPrivat() ? '•••• €' : eurGanz.format(Math.round(n / 10) * 10));
 const mitVorzeichen = (n) => (istPrivat() ? '•••• €' : (n > 0 ? '+' : '') + eur.format(n));
 const klasse = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const pfeil = (n) => (n > 0 ? '▲ ' : n < 0 ? '▼ ' : '');
 
 // Betrag mit zurückgenommenen Cent: „14.267“ groß, „,49 €“ klein
-function betragHTML(v, vorzeichen) {
+function betragHTML(v, vorzeichen, ganz = false) {
   if (istPrivat()) return '••••<span class="cent"> €</span>';
+  if (ganz) return (vorzeichen && v > 0 ? '+' : '') + geldRund(v).replace(/\s€$/, '<span class="cent"> €</span>');
   const s = (vorzeichen && v > 0 ? '+' : '') + eur.format(v);
   const i = s.lastIndexOf(',');
   return i < 0 ? s : `${s.slice(0, i)}<span class="cent">${s.slice(i)}</span>`;
@@ -1253,20 +1265,20 @@ function setzePill(el, wert, text) {
 }
 
 // Zählt einen Betrag sanft vom letzten angezeigten Wert hoch
-function zaehle(el, ziel, vorzeichen) {
+function zaehle(el, ziel, vorzeichen, ganz = false) {
   const vorher = Number(el.dataset.wert);
   const start = Number.isFinite(vorher) ? vorher : ziel * 0.92;
   el.dataset.wert = ziel;
   // ohne Animation: kein Unterschied, reduzierte Bewegung gewünscht oder App im Hintergrund (dann ruht requestAnimationFrame)
   if (start === ziel || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    el.innerHTML = betragHTML(ziel, vorzeichen);
+    el.innerHTML = betragHTML(ziel, vorzeichen, ganz);
     return;
   }
   const t0 = performance.now(), dauer = 700;
   const schritt = (t) => {
     const f = Math.min(1, (t - t0) / dauer);
     const e = 1 - Math.pow(1 - f, 3);
-    el.innerHTML = betragHTML(start + (ziel - start) * e, vorzeichen);
+    el.innerHTML = betragHTML(start + (ziel - start) * e, vorzeichen, ganz);
     if (f < 1) requestAnimationFrame(schritt);
   };
   requestAnimationFrame(schritt);
@@ -3181,7 +3193,7 @@ function simulieren(szenario, monate, { sparFaktor = 1, extra = null, ungekappt 
 
 // ---------- Rente: Annahmen und Szenarien ----------
 
-const RENTE_STANDARD = { rentenalter: 67, wunschEntnahme: 1000, entnahmeJahre: 25, entnahmeRendite: 4, inflation: 2 };
+const RENTE_STANDARD = { rentenalter: 67, wunschEntnahme: 1000, entnahmeJahre: 25, entnahmeRendite: 4, inflation: 2, tagesgeldZins: 2 };
 const RENDITE_SZENARIEN = {
   moderat: { name: 'Moderat', info: '5 % pro Jahr für alle Positionen – vorsichtig' },
   realistisch: { name: 'Realistisch', info: '7 % pro Jahr – etwas unter dem langfristigen Aktienmittel' },
@@ -3243,11 +3255,14 @@ function renteAnzeigen() {
   document.getElementById('rt-dauer-w').textContent = `${a.entnahmeJahre} Jahre`;
   document.getElementById('rt-entnahme-rendite-w').textContent = `${zahl(a.entnahmeRendite, 1)} %`;
   document.getElementById('rt-inflation-w').textContent = `${zahl(a.inflation, 2)} %`;
+  setze('rt-tg-zins', a.tagesgeldZins);
+  document.getElementById('rt-tg-zins-w').textContent = `${zahl(a.tagesgeldZins, 2)} %`;
+  // Mit Netto-Ziel ist der Wunsch-Entnahmebetrag überflüssig: es gibt nur noch ein Ziel
+  document.getElementById('rt-wunsch').closest('.regler').hidden = !!nettoZielDa();
 
   const idx = Object.keys(RENDITE_SZENARIEN).indexOf(renditeSzenario);
   document.getElementById('rt-segmente').style.setProperty('--idx', idx);
   document.querySelectorAll('[data-rendite]').forEach((b) => b.classList.toggle('aktiv', b.dataset.rendite === renditeSzenario));
-  document.getElementById('rt-rendite-info').textContent = RENDITE_SZENARIEN[renditeSzenario].info + '.';
 
   if (!beginn || !kurse) {
     document.getElementById('rt-unterzeile').textContent = 'Bitte unten dein Geburtsdatum eintragen.';
@@ -3257,7 +3272,7 @@ function renteAnzeigen() {
   const jahre = monate / 12;
   document.getElementById('rt-unterzeile').textContent =
     `Rentenbeginn ${new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn)} · noch ${Math.floor(jahre)} Jahre, ${monate % 12} Monate` +
-    (a.gesetzlicheRenteBrutto ? ` · dazu gesetzliche Rente ca. ${geld(a.gesetzlicheRenteBrutto)} brutto` : '');
+    (a.gesetzlicheRenteBrutto ? ` · dazu gesetzliche Rente ca. ${geldRund(a.gesetzlicheRenteBrutto)} brutto` : '');
 
   const faktor = rentenfaktor(a);
   const inflation = kaufkraft(a, jahre);
@@ -3267,35 +3282,68 @@ function renteAnzeigen() {
   const ohne = projektion(renditeSzenario, 0, monate);
   const bisher = projektion(renditeSzenario, 1, monate);
   const zeigeSzenario = (kennung, ergebnis) => {
-    zaehle(document.getElementById(`rt-${kennung}`), ergebnis.ende, false);
-    document.getElementById(`rt-${kennung}-unter`).textContent = `≈ ${geld(ergebnis.ende / inflation)} in heutiger Kaufkraft`;
+    zaehle(document.getElementById(`rt-${kennung}`), ergebnis.ende, false, true);
+    document.getElementById(`rt-${kennung}-unter`).textContent = `≈ ${geldRund(ergebnis.ende / inflation)} in heutiger Kaufkraft`;
     const pill = document.getElementById(`rt-${kennung}-pill`);
     pill.className = 'pill pos';
-    pill.textContent = `reicht für ≈ ${geld(entnahme(ergebnis.ende))} pro Monat über ${a.entnahmeJahre} Jahre`;
+    pill.textContent = `reicht für ≈ ${geldRund(entnahme(ergebnis.ende))} pro Monat über ${a.entnahmeJahre} Jahre`;
   };
   zeigeSzenario('a', ohne);
   document.getElementById('rt-b-titel').textContent =
     `1b · Weiter ${simAngepasst() ? 'wie simuliert' : 'wie bisher'} · ${geld(sparplanSumme)} pro Monat`;
   zeigeSzenario('b', bisher);
 
-  // Zielwertsuche: Mehrbetrag in der gewählten Position. Der Endwert ist linear im Mehrbetrag -> direkt auflösbar.
-  const zielKapital = a.wunschEntnahme * faktor * inflation;
+  // 1c Ziel: Mehrbetrag pro Monat in der gewählten Position
   const zp = zielPosition();
-  document.getElementById('rt-c-titel').textContent = `1c · Ziel: ${geld(a.wunschEntnahme)} pro Monat (heutige Kaufkraft)`;
   const jeEuro = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: 1 }).ende - bisher.ende;
-  let zielReihe;
-  if (bisher.ende >= zielKapital) {
-    document.getElementById('rt-c').innerHTML = betragHTML(0);
-    document.getElementById('rt-c-unter').textContent =
-      `Mit deinen Sparraten schon erreicht – ${geld(bisher.ende - zielKapital)} über dem Zielkapital von ${geld(zielKapital)}.`;
-    zielReihe = bisher.reihe;
+  const cWert = document.getElementById('rt-c'), cUnter = document.getElementById('rt-c-unter');
+  const mehrText = (mehr) => `zusätzlich pro Monat in ${zp.name} – dort dann ${geldRund(simRate(zp) + mehr)} statt ${geldRund(simRate(zp))}.`;
+  let zielReihe = null;
+  if (nettoZielDa()) {
+    // Ein Ziel für die ganze Seite: das Einkommen oben (nach Steuern). Steuern machen es nichtlinear -> Intervallhalbierung.
+    const n = daten.rente.netto;
+    const rechne = (mehr) => einkommenRechnen(a, beginn, inflation, faktor,
+      mehr ? projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }) : bisher);
+    const e0 = rechne(0);
+    document.getElementById('rt-c-titel').textContent =
+      `1c · Ziel ${n.zielRentenbeginn ? `${geldRund(n.zielRentenbeginn)} (${beginn.getFullYear()})` : `${geldRund(e0.ziel)} heute`} · ${e0.vorPkv ? 'nach Steuern, vor PKV' : 'netto'}`;
+    if (e0.luecke <= 0) {
+      cWert.innerHTML = betragHTML(0, false, true);
+      cUnter.textContent = `Schon erreicht – ${geldRund(-e0.luecke)} pro Monat über dem Ziel (heutige Kaufkraft).`;
+      zielReihe = bisher.reihe;
+    } else if (!(jeEuro > 0)) {
+      cWert.textContent = '–';
+      cUnter.textContent = `Für ${zp.name} fehlt gerade ein Kurs – das Ziel lässt sich nicht berechnen.`;
+    } else {
+      let lo = 0, hi = 100;
+      while (rechne(hi).luecke > 0 && hi < 1e6) hi *= 2;
+      if (rechne(hi).luecke > 0) {
+        cWert.textContent = '–';
+        cUnter.textContent = 'Mit Sparraten allein nicht erreichbar – prüfe Rendite, Rentenalter oder Ziel.';
+      } else {
+        while (hi - lo > 1) { const m = (lo + hi) / 2; if (rechne(m).luecke > 0) lo = m; else hi = m; }
+        zaehle(cWert, hi, false, true);
+        cUnter.textContent = `${mehrText(hi)} Damit schließt sich die Lücke von ${geldRund(e0.luecke)} pro Monat (heutige Kaufkraft).`;
+        zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: hi }).reihe;
+      }
+    }
   } else {
-    const mehr = (zielKapital - bisher.ende) / jeEuro;
-    zaehle(document.getElementById('rt-c'), mehr, false);
-    document.getElementById('rt-c-unter').textContent =
-      `zusätzlich pro Monat in ${zp.name} – dort dann ${geld(simRate(zp) + mehr)} statt ${geld(simRate(zp))}. ` +
-      `Zielkapital ${geld(zielKapital)} ≈ ${geld(zielKapital / inflation)} heute.`;
-    zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }).reihe;
+    // ohne Netto-Daten: Ziel = gewünschte Entnahme aus dem Depot. Der Endwert ist linear im Mehrbetrag -> direkt auflösbar.
+    const zielKapital = a.wunschEntnahme * faktor * inflation;
+    document.getElementById('rt-c-titel').textContent = `1c · Ziel: ${geldRund(a.wunschEntnahme)} pro Monat (heutige Kaufkraft)`;
+    if (bisher.ende >= zielKapital) {
+      cWert.innerHTML = betragHTML(0, false, true);
+      cUnter.textContent = `Mit deinen Sparraten schon erreicht – ${geldRund(bisher.ende - zielKapital)} über dem Zielkapital von ${geldRund(zielKapital)}.`;
+      zielReihe = bisher.reihe;
+    } else if (!(jeEuro > 0)) {
+      cWert.textContent = '–';
+      cUnter.textContent = `Für ${zp.name} fehlt gerade ein Kurs – das Ziel lässt sich nicht berechnen.`;
+    } else {
+      const mehr = (zielKapital - bisher.ende) / jeEuro;
+      zaehle(cWert, mehr, false, true);
+      cUnter.textContent = `${mehrText(mehr)} Zielkapital ${geldRund(zielKapital)} ≈ ${geldRund(zielKapital / inflation)} heute.`;
+      zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }).reihe;
+    }
   }
   einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
   simListeAnzeigen(bisher.jePosition, sparplanSumme, bisher.ende);
@@ -3353,8 +3401,8 @@ function dynamikFaktor(v, rendite) {
 function dynamikInfo(v) {
   const d = v.dynamik;
   return dynamikAn(v)
-    ? `mit Dynamik ${zahl(d.satz, 0)} %: Beitrag steigt jeden ${d.monat} bis auf ≈ ${geld(d.letzterBeitragMit)} · zusammen ${geld(d.beitraegeMit)} bis 2052 (ohne: ${geld(d.beitraegeOhne)})`
-    : `ohne weitere Dynamik: Beitrag bleibt ${geld(d.beitrag)} · zusammen ${geld(d.beitraegeOhne)} bis 2052`;
+    ? `mit Dynamik ${zahl(d.satz, 0)} %: Beitrag steigt jeden ${d.monat} bis auf ≈ ${geldRund(d.letzterBeitragMit)} · zusammen ${geldRund(d.beitraegeMit)} bis 2052 (ohne: ${geldRund(d.beitraegeOhne)})`
+    : `ohne weitere Dynamik: Beitrag bleibt ${geld(d.beitrag)} · zusammen ${geldRund(d.beitraegeOhne)} bis 2052`;
 }
 
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
@@ -3412,26 +3460,31 @@ function nettoRechnung(n, teile, brutto, faktor, jahre) {
     netto: brutto - steuerRenten - steuerKapital - steuerDepot - pkv };
 }
 
-function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
+// Ein Ziel für die ganze Prognose: das Netto-Ziel aus dem Import (sonst der Entnahme-Wunsch aus den Annahmen)
+const nettoZielDa = () => {
+  const r = daten && daten.rente;
+  return !!(r && r.netto && (r.netto.zielRentenbeginn || r.netto.ziel) && (r.vorsorge || []).length);
+};
+const tagesgeldAn = () => !(daten.rente && daten.rente.tagesgeldAn === false);
+
+// Einkommen ab Rentenbeginn aus allen Bausteinen, ohne Anzeige – für die Karte und für die Zielsuche (1c)
+function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
   const teile = { renten: [], kapital: [], depot: [] };
   const jahre = Math.log(inflation) / Math.log(1 + a.inflation / 100) || 0;
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
-  const karte = document.getElementById('rt-einkommen-karte');
-  karte.hidden = !vorsorge.length;
-  if (!vorsorge.length) return;
   const heute = (wert, kk) => (kk === 'heute' ? wert : wert / inflation); // Euro von 2052 → heutige Kaufkraft
   const rendite = renditeFuer({ id: '' }, renditeSzenario);
   const zeilen = [];
   let topf = bisher.ende / inflation; // Depot (1b) in heutiger Kaufkraft
-  const topfTeile = [`Depot ${geld(topf)}`];
+  const topfTeile = [`Depot ${geldRund(topf)}`];
   for (const v of vorsorge) {
     if (v.art === 'rente') {
       let monat = (v.kurve ? kurveBei(v.kurve, rendite) : v.monat) * dynamikFaktor(v, rendite);
       if (v.garantie != null) monat = Math.max(monat, v.garantie);
       const h = heute(monat, v.kaufkraft);
       const info = [];
-      if (v.sicher != null) info.push(`heute schon sicher ${geld(heute(v.sicher, v.kaufkraft))}`);
-      if (v.garantie != null) info.push(`garantiert ${geld(heute(v.garantie, v.kaufkraft))}`);
+      if (v.sicher != null) info.push(`heute schon sicher ${geldRund(heute(v.sicher, v.kaufkraft))}`);
+      if (v.garantie != null) info.push(`garantiert ${geldRund(heute(v.garantie, v.kaufkraft))}`);
       if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: h, info: info.join(' · '), dynamik: v.dynamik ? v : null });
@@ -3444,10 +3497,10 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       const vergleich = (v.renteKurve ? kurveBei(v.renteKurve, rendite, true) : v.vergleichRente) * (v.renteKurve ? df : 1);
       const k = heute(kapital, v.kaufkraft);
       topf += k;
-      topfTeile.push(`${v.name} ${geld(k)}`);
+      topfTeile.push(`${v.name} ${geldRund(k)}`);
       const kurveMax = v.kapitalKurve ? Math.max(...Object.keys(v.kapitalKurve).map(Number)) : null;
-      const info = [`Kapital ${geld(k)} in den Entnahme-Topf`];
-      if (vergleich) info.push(`als lebenslange Rente ≈ ${geld(heute(vergleich, v.kaufkraft))}`);
+      const info = [`Kapital ${geldRund(k)} in den Entnahme-Topf`];
+      if (vergleich) info.push(`als lebenslange Rente ≈ ${geldRund(heute(vergleich, v.kaufkraft))}`);
       if (v.kapitalKurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite${rendite > kurveMax ? ` (über ${zahl(kurveMax, 0)} % fortgeschrieben)` : ''}`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · '), dynamik: v.dynamik ? v : null });
@@ -3472,51 +3525,82 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     });
     zeilen.push({
       name: `Entnahme ${p.name}`, wert: (wert / inflation) / faktor,
-      info: `Wert ${geld(wert / inflation)} heute · ${a.entnahmeJahre} Jahre · ${zahl(renditeFuer(p, renditeSzenario), 1)} % bis zur Rente`,
+      // Dauer und Rendite stehen unter „So wird gerechnet“; hier nur, was sich je Position unterscheidet
+      info: `Wert ${geldRund(wert / inflation)} heute${simEinstellung(p).rendite != null ? ` · ${zahl(renditeFuer(p, renditeSzenario), 1)} % bis zur Rente` : ''}`,
+    });
+  }
+  // Tagesgeld: heutiger Stand wächst mit dem angenommenen Zins (nach Abgeltungsteuer) bis Rentenbeginn,
+  // danach in den Entnahme-Topf. Die Zinsen sind dann schon versteuert (Gewinnanteil 0). Abschaltbar, z. B. als Notgroschen.
+  const tgHeute = tgSumme();
+  if (tgHeute > 0) {
+    const zinsNetto = (a.tagesgeldZins / 100) * (1 - 0.26375);
+    const k = tgHeute * Math.pow(1 + zinsNetto, jahre) / inflation;
+    const an = tagesgeldAn();
+    if (an) {
+      topf += k;
+      topfTeile.push(`Tagesgeld ${geldRund(k)}`);
+      teile.depot.push({ e: k / faktor, gewinnAnteil: 0, freistellung: 0 });
+    }
+    zeilen.push({
+      name: 'Entnahme Tagesgeld', wert: an ? k / faktor : null, aus: !an, schalter: 'tagesgeld',
+      info: `heute ${geldRund(tgHeute)} · ${zahl(a.tagesgeldZins, 2)} % Zins bis zur Rente (nach Steuer), Wert ≈ ${geldRund(k)} heute`,
     });
   }
   // höchster Betrag zuerst, offene Posten ans Ende
   zeilen.sort((x, y) => (y.wert == null ? -1 : x.wert == null ? 1 : y.wert - x.wert));
   const summe = zeilen.reduce((s, z) => s + (z.wert || 0), 0);
-  const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
   const n = daten.rente && daten.rente.netto;
-  const dl = document.getElementById('rt-netto');
-  dl.hidden = !n;
+  let x = null, wert = summe, ziel = 0, vorPkv = false;
   if (n) {
-    const x = nettoRechnung(n, teile, summe, faktor, jahre);
-    const nachSteuern = x.netto + x.pkv; // nach Steuern, PKV noch nicht bezahlt
-    const vorPkv = !!n.zielVorPkv;
-    const wert = vorPkv ? nachSteuern : x.netto;
+    x = nettoRechnung(n, teile, summe, faktor, jahre);
+    vorPkv = !!n.zielVorPkv;
+    wert = vorPkv ? x.netto + x.pkv : x.netto; // vor PKV = nach Steuern, PKV noch nicht bezahlt
     // Ziel in heutiger Kaufkraft (aus Euro bei Rentenbeginn umgerechnet)
-    const ziel = n.zielRentenbeginn ? n.zielRentenbeginn / inflation : (n.ziel || 0);
+    ziel = n.zielRentenbeginn ? n.zielRentenbeginn / inflation : (n.ziel || 0);
+  }
+  // Lücke aus den gerundeten Werten, damit die angezeigten Zahlen aufgehen (Ziel − Einkommen = Lücke)
+  const r10 = (v) => Math.round(v / 10) * 10;
+  return { zeilen, summe, topfTeile, n, x, wert, ziel, luecke: ziel ? r10(ziel) - r10(wert) : 0, vorPkv };
+}
+
+function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
+  const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
+  const karte = document.getElementById('rt-einkommen-karte');
+  karte.hidden = !vorsorge.length;
+  if (!vorsorge.length) return;
+  const { zeilen, summe, topfTeile, n, x, wert, ziel, luecke, vorPkv } = einkommenRechnen(a, beginn, inflation, faktor, bisher);
+  const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
+  const dl = document.getElementById('rt-netto');
+  document.getElementById('rt-netto-block').hidden = !n;
+  if (n) {
     document.getElementById('rt-einkommen-titel').textContent =
       `Dein Einkommen ab ${bis} · ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat`;
-    zaehle(document.getElementById('rt-einkommen'), wert, false);
-    const luecke = ziel - wert;
-    const zielText = n.zielRentenbeginn ? `Ziel ${geld(n.zielRentenbeginn)} (${beginn.getFullYear()}) ≈ ${geld(ziel)} heute` : `Ziel ${geld(ziel)}`;
+    zaehle(document.getElementById('rt-einkommen'), wert, false, true);
+    const zielText = n.zielRentenbeginn ? `Ziel ${geldRund(n.zielRentenbeginn)} (${beginn.getFullYear()}) ≈ ${geldRund(ziel)} heute` : `Ziel ${geldRund(ziel)}`;
     document.getElementById('rt-einkommen-unter').textContent =
-      `≈ ${geld(wert * inflation)} in Euro von ${beginn.getFullYear()}` +
-      (ziel ? ` · ${zielText}: ${luecke > 0 ? `es fehlen ${geld(luecke)} pro Monat` : `erreicht (+${geld(-luecke)})`}` : '');
+      `≈ ${geldRund(wert * inflation)} in Euro von ${beginn.getFullYear()}` +
+      (ziel ? ` · ${zielText}: ${luecke > 0 ? `es fehlen ${geldRund(luecke)} pro Monat` : `erreicht (+${geldRund(-luecke)})`}` : '');
     dl.innerHTML = '';
-    for (const [name, wert, klasseWert] of [
-      ['Brutto (alle Bausteine)', geld(x.brutto)],
-      ['Einkommensteuer & Soli auf Renten', `−${geld(x.steuerRenten)}`],
-      ['Steuer auf Kapitalauszahlungen (verteilt)', `−${geld(x.steuerKapital)}`],
-      ['Abgeltungsteuer Depot-Entnahmen', `−${geld(x.steuerDepot)}`],
-      ...(vorPkv ? [['Nach Steuern (vor PKV)', geld(nachSteuern), 'summe']] : []),
-      [`PKV ${geld(x.pkvBeitrag)} abzgl. Zuschuss ${geld(x.zuschuss)}`, `−${geld(x.pkv)}`],
-      [vorPkv ? 'Bleibt nach PKV' : 'Netto', geld(x.netto), 'summe'],
+    for (const [name, betrag, klasseWert] of [
+      ['Brutto (alle Bausteine)', x.brutto, 'summe-start'],
+      ['Einkommensteuer & Soli auf Renten', -x.steuerRenten],
+      ['Steuer auf Kapitalauszahlungen (verteilt)', -x.steuerKapital],
+      ['Abgeltungsteuer Depot-Entnahmen', -x.steuerDepot],
+      ...(vorPkv ? [['Nach Steuern (vor PKV)', x.netto + x.pkv, 'summe']] : []),
+      [`PKV ${geldRund(x.pkvBeitrag)} abzgl. Zuschuss ${geldRund(x.zuschuss)}`, -x.pkv],
+      [vorPkv ? 'Bleibt nach PKV' : 'Netto', x.netto, 'summe'],
     ]) {
+      if (!klasseWert && Math.abs(betrag) < 5) continue; // Abzüge, die (gerundet) 0 sind, nur Ballast
       const reihe = document.createElement('div');
-      if (klasseWert) reihe.className = klasseWert;
+      if (klasseWert === 'summe') reihe.className = 'summe';
       reihe.innerHTML = '<dt></dt><dd></dd>';
       reihe.querySelector('dt').textContent = name;
-      reihe.querySelector('dd').textContent = wert;
+      reihe.querySelector('dd').textContent = betrag < 0 ? `−${geldRund(-betrag)}` : geldRund(betrag);
       dl.appendChild(reihe);
     }
   } else {
     document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
-    zaehle(document.getElementById('rt-einkommen'), summe, false);
+    zaehle(document.getElementById('rt-einkommen'), summe, false, true);
     document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
   }
   const ul = document.getElementById('rt-saeulen');
@@ -3527,7 +3611,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
     li.querySelector('.n').textContent = z.name;
     li.querySelector('small').textContent = z.info;
-    li.querySelector('.wert').textContent = z.wert == null ? 'offen' : geld(z.wert);
+    li.querySelector('.wert').textContent = z.wert == null ? (z.aus ? 'aus' : 'offen') : geldRund(z.wert);
     if (z.dynamik) {
       const an = dynamikAn(z.dynamik);
       const knopf = document.createElement('button');
@@ -3536,14 +3620,21 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       knopf.textContent = `Dynamik ${zahl(z.dynamik.dynamik.satz, 0)} % · ${an ? 'an' : 'aus'}`;
       li.querySelector('.name').appendChild(knopf);
     }
+    if (z.schalter === 'tagesgeld') {
+      const knopf = document.createElement('button');
+      knopf.className = `chip mini${z.aus ? '' : ' aktiv'}`;
+      knopf.dataset.tagesgeldSchalter = '1';
+      knopf.textContent = `Einrechnen · ${z.aus ? 'aus' : 'an'}`;
+      li.querySelector('.name').appendChild(knopf);
+    }
     ul.appendChild(li);
   }
   document.getElementById('rt-einkommen-hinweis').textContent =
-    `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet. ` +
+    `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet und auf 10 € gerundet. ` +
     `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite. ` +
-    (n ? `Netto: Steuertarif 2026 auf heutige Beträge, ${n.veranlagung === 'zusammen' ? `Splitting mit Partnerrente ${geld(n.partnerRente || 0)}` : 'Einzelveranlagung'}${n.kirche ? ', mit Kirchensteuer' : ''}, Renten zu 97 % steuerpflichtig, ` +
-      `PKV real +${zahl(n.pkvSteigerungReal ?? 1.5, 1)} % pro Jahr. Die Einzelzeilen oben sind brutto. Tagesgeld nicht enthalten.`
-      : 'Noch ohne Steuern und Kranken-/Pflegeversicherung, Tagesgeld nicht enthalten.');
+    (n ? `Netto: Steuertarif 2026 auf heutige Beträge, ${n.veranlagung === 'zusammen' ? `Splitting mit Partnerrente ${geldRund(n.partnerRente || 0)}` : 'Einzelveranlagung'}${n.kirche ? ', mit Kirchensteuer' : ''}, Renten zu 97 % steuerpflichtig, ` +
+      `PKV real +${zahl(n.pkvSteigerungReal ?? 1.5, 1)} % pro Jahr. Die Einzelzeilen oben sind brutto.`
+      : 'Noch ohne Steuern und Kranken-/Pflegeversicherung.');
 }
 
 // Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
@@ -3605,6 +3696,7 @@ function renteSpeichern() {
     entnahmeJahre: zahlAus('rt-dauer'),
     entnahmeRendite: zahlAus('rt-entnahme-rendite'),
     inflation: zahlAus('rt-inflation'),
+    tagesgeldZins: zahlAus('rt-tg-zins'),
     geburtsdatum: document.getElementById('rt-geburt').value || null,
     rentenalter: Math.min(75, Math.max(55, parseInt(document.getElementById('rt-alter').value, 10) || RENTE_STANDARD.rentenalter)),
   };
@@ -5316,6 +5408,12 @@ document.addEventListener('click', (e) => {
     renteAnzeigen();
     return;
   }
+  if (e.target.closest('[data-tagesgeld-schalter]')) {
+    daten.rente = { ...(daten.rente || {}), tagesgeldAn: !tagesgeldAn() };
+    speichern();
+    renteAnzeigen();
+    return;
+  }
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
   const posZeile = e.target.closest('[data-pos]');
@@ -5459,7 +5557,7 @@ for (const id of ['pg-jahre']) {
 
 // Renten-Annahmen: Regler sofort, Datum und Alter beim Verlassen des Feldes übernehmen
 let renteRahmen = 0;
-for (const id of ['rt-wunsch', 'rt-dauer', 'rt-entnahme-rendite', 'rt-inflation']) {
+for (const id of ['rt-wunsch', 'rt-dauer', 'rt-entnahme-rendite', 'rt-inflation', 'rt-tg-zins']) {
   document.getElementById(id).addEventListener('input', () => {
     cancelAnimationFrame(renteRahmen);
     renteRahmen = requestAnimationFrame(renteSpeichern);
