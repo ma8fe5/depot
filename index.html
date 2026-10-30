@@ -26,11 +26,11 @@
     --linie: rgba(60, 60, 67, 0.12);
     --pos: #1a9e4b;
     --neg: #e0393e;
-    --akzent: #5b57e0;
+    --akzent: #E20074;
     --pos-weich: rgba(26, 158, 75, 0.11);
     --neg-weich: rgba(224, 57, 62, 0.10);
-    --akzent-weich: rgba(91, 87, 224, 0.10);
-    --akzent-glanz: rgba(91, 87, 224, 0.16);
+    --akzent-weich: rgba(226, 0, 116, 0.09);
+    --akzent-glanz: rgba(226, 0, 116, 0.10);
     --hinweis: #fff6dc;
     --hinweis-text: #6a4b00;
     --schatten: 0 1px 1px rgba(16, 16, 32, 0.03), 0 6px 22px rgba(16, 16, 32, 0.06);
@@ -49,11 +49,11 @@
       --linie: rgba(255, 255, 255, 0.08);
       --pos: #34d058;
       --neg: #ff5b55;
-      --akzent: #8f8bff;
+      --akzent: #FF3D9A;
       --pos-weich: rgba(52, 208, 88, 0.14);
       --neg-weich: rgba(255, 91, 85, 0.14);
-      --akzent-weich: rgba(143, 139, 255, 0.12);
-      --akzent-glanz: rgba(143, 139, 255, 0.22);
+      --akzent-weich: rgba(255, 61, 154, 0.14);
+      --akzent-glanz: rgba(255, 61, 154, 0.22);
       --hinweis: #2a2310;
       --hinweis-text: #f3d27a;
       --schatten: none;
@@ -310,14 +310,14 @@
   .menue li + li::before { left: 62px !important; }
   .kachel { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex-shrink: 0; }
   .kachel svg { width: 18px; height: 18px; }
-  .kachel.k1 { background: linear-gradient(145deg, #8f7bff, #5b57e0); }
+  .kachel.k1 { background: linear-gradient(145deg, #ff4fa3, #E20074); }
   .kachel.k2 { background: linear-gradient(145deg, #ff8a5c, #e5533d); }
   .kachel.k3 { background: linear-gradient(145deg, #34d399, #0f9f6e); }
   .kachel.k4 { background: linear-gradient(145deg, #fbbf24, #e08a00); }
   .liste .wert.leise { color: var(--text-2); font-weight: 500; font-size: 15px; }
 
   .kachel.k0 { background: linear-gradient(145deg, #a1a1aa, #6b7280); }
-  .kachel.kg-heute { background: linear-gradient(145deg, #8f7bff, #5b57e0); }
+  .kachel.kg-heute { background: linear-gradient(145deg, #ff4fa3, #E20074); }
   .kachel.kg-zurueck { background: linear-gradient(145deg, #fbbf24, #e08a00); }
   .kachel.kg-zukunft { background: linear-gradient(145deg, #34d399, #0f9f6e); }
   .menue-panel .abschnitt { margin: 18px 14px 8px; }
@@ -346,7 +346,7 @@
   .menue-kopf { display: flex; align-items: center; justify-content: space-between; margin: 4px 4px 18px; }
   .menue-kopf .rund { color: var(--text-2); }
   @media (prefers-reduced-motion: reduce) { .menue-panel, .menue-hintergrund { transition: none; } }
-  .kachel.k5 { background: linear-gradient(145deg, #f472b6, #db2777); }
+  .kachel.k5 { background: linear-gradient(145deg, #22d3ee, #0891b2); }
   .kachel.k6 { background: linear-gradient(145deg, #60a5fa, #2563eb); }
   .segmente.vier button { font-size: 13px; }
   .chips { display: flex; gap: 6px; overflow-x: auto; margin: 2px -4px 12px; padding: 0 4px; scrollbar-width: none; }
@@ -1227,7 +1227,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-30.0803'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-30.0805'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
