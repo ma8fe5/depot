@@ -273,6 +273,7 @@
   .fuss { color: var(--text-3); font-size: 12px; text-align: center; margin: 22px 0 0; line-height: 1.6; }
   .fuss a { color: var(--text-3); }
   .fehler { color: var(--neg); }
+  #status .leise { color: var(--text-3); font-size: 12px; }
   .skelett { color: transparent !important; border-radius: 10px; display: inline-block; min-width: 60%;
     background: linear-gradient(90deg, var(--flaeche-2) 0%, var(--linie) 50%, var(--flaeche-2) 100%); background-size: 200% 100%;
     animation: schimmer 1.3s ease-in-out infinite; }
@@ -1231,7 +1232,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-10-30.0809'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-10-30.1708'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1817,7 +1818,7 @@ async function kurseHolen() {
   const status = document.getElementById('status');
   if (!navigator.onLine) {
     // offline: die zuletzt geladenen Kurse bleiben stehen
-    if (kurse) kurse.hinweise = ['Offline – du siehst die zuletzt geladenen Kurse.'];
+    if (kurse) kurse.veraltet = true; // leise Zeile statt Fehlermeldung
     if (daten) hauptRendern();
     return;
   }
@@ -1825,6 +1826,7 @@ async function kurseHolen() {
   const preise = {};
   const fehler = [];
   const hinweise = [];
+  let veraltet = false; // Kursdienst nicht erreichbar: alte Kurse, kein echter Fehler
 
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   const symbole = kursSymbole();
@@ -1835,7 +1837,7 @@ async function kurseHolen() {
     const j = await r.json();
     if (r.status === 401) hinweise.push('Zugangsschlüssel fehlt oder ist falsch (Einstellungen → Kurs-Vermittler).');
     if (!r.ok) throw new Error(j.fehler || `HTTP ${r.status}`);
-    if (j.veraltet) hinweise.push('Kursdienst gerade nicht erreichbar – zuletzt gespeicherte Kurse.');
+    if (j.veraltet) veraltet = true;
     for (const p of eodPos) {
       const k = j.kurse[p.symbol];
       if (!k || k.fehler || k.schluss == null) { fehler.push(p.name); continue; }
@@ -1858,7 +1860,7 @@ async function kurseHolen() {
     }
   } catch (e) {
     // Vermittler nicht erreichbar: alte Kurse bleiben stehen, ein Satz genügt statt einer Namensliste
-    if (!hinweise.length) hinweise.push('Kursdienst nicht erreichbar – du siehst die zuletzt geladenen Kurse.');
+    if (!hinweise.length) veraltet = true;
     console.error(e);
   }
 
@@ -1891,7 +1893,7 @@ async function kurseHolen() {
   // Bei Teilausfall alte Kurse für die fehlenden Positionen behalten
   const alt = (kurse && kurse.preise) || {};
   kurse = {
-    abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler, hinweise,
+    abgerufen: new Date().toISOString(), preise: { ...alt, ...preise }, fehler, hinweise, veraltet,
   };
   localStorage.setItem(KURS_SPEICHER, JSON.stringify(kurse));
   if (daten) historieFortschreiben(preise);
@@ -4560,7 +4562,14 @@ function hauptRendern() {
     f.textContent = text;
     status.append(f);
   }
-  status.hidden = !meldungen.length; // leer: kein Platz belegen (Depot-Seite soll ohne Scrollen passen)
+  // Keine Verbindung ist kein Fehler: die gespeicherten Kurse gelten weiter, nur leise darauf hinweisen
+  if (kurse.veraltet) {
+    const f = document.createElement('div');
+    f.className = 'leise';
+    f.textContent = `Keine Verbindung zum Kursdienst – Kurse vom ${daten_.length ? deDatum(daten_[0]) : 'letzten Abruf'}`;
+    status.append(f);
+  }
+  status.hidden = !meldungen.length && !kurse.veraltet; // leer: kein Platz belegen (Depot-Seite soll ohne Scrollen passen)
 }
 
 // ---------- Monats-Check ----------
