@@ -1232,7 +1232,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1159'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1203'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2598,6 +2598,8 @@ function tgAufgelaufen(k, jetzt = new Date()) {
 // Tag, an dem die gesammelten Zinsen gutgeschrieben werden
 const tgZahltag = (k) => (k.zinsZahlung && (!k.termin || k.zinsZahlung > k.termin) ? k.zinsZahlung : k.termin);
 const tgZahltagSpaeter = (k) => k.auszahlung === 'termin' && k.termin && tgZahltag(k) > k.termin;
+// Tag nach der Zinsgutschrift: ab dann ist das Geld frei für etwas Neues
+const tgFreiAb = (k) => { const d = new Date(tgZahltag(k) + 'T00:00:00'); d.setDate(d.getDate() + 1); return isoDatum(d); };
 
 // ---------- Zinsbuch: täglich gutgeschriebene Zinsen (z. B. Revolut) monatlich dokumentieren ----------
 // Zu jedem Monatsende bucht die App den Zins des Monats (berechnet aus Stand × Nettozins, täglich aufgezinst)
@@ -2765,11 +2767,13 @@ function tagesgeldAnzeigen() {
   const klippen = document.getElementById('tg-klippen');
   klippen.innerHTML = '';
   for (const k of aktiv.filter((x) => x.termin).sort((a, b) => a.termin.localeCompare(b.termin))) {
-    const rest = tageZwischen(h, k.termin);
-    const tag = tgTagesZins(k);
+    // Bleibt das Geld bis zur späteren Zinsgutschrift liegen, zählt der Tag, an dem es frei wird
+    const spaeter = tgZahltagSpaeter(k);
+    const ziel = spaeter ? tgFreiAb(k) : k.termin;
+    const rest = tageZwischen(h, ziel);
     // Laufzeitbalken: Beginn aus den aufgelaufenen Zinsen zurückgerechnet, sonst ab Erfassung
     const beginn = tgBeginn(k).datum || h;
-    const gesamt = Math.max(1, tageZwischen(beginn, k.termin));
+    const gesamt = Math.max(1, tageZwischen(beginn, ziel));
     const anteil = Math.min(100, Math.max(0, (tageZwischen(beginn, h) / gesamt) * 100));
     const auszahlung = k.auszahlung === 'termin' && k.aufgelaufen ? tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00')) : null;
     const card = document.createElement('div');
@@ -2777,19 +2781,25 @@ function tagesgeldAnzeigen() {
     card.dataset.id = k.id;
     card.innerHTML = `
       <div class="kopfzeile"><span class="bank"></span><span class="unter">${k.zins ? `${zahl(k.zins, 2)} % bis ${deDatum(k.termin)}` : `Aktion bis ${deDatum(k.termin)}`}</span></div>
-      <div class="tage">${rest > 0 ? `${rest}<small>${rest === 1 ? 'Tag' : 'Tage'} bis zur Zins-Klippe</small>` : rest === 0 ? 'Heute<small>Zinsen kommen, Zeit zu wechseln</small>' : `${-rest}<small>Tage über der Klippe</small>`}</div>
+      <div class="tage">${spaeter
+        ? (rest > 0 ? `${rest}<small>${rest === 1 ? 'Tag' : 'Tage'}, bis das Geld frei ist (${deDatum(ziel).slice(0, 6)})</small>` : rest === 0 ? 'Heute<small>Geld frei, Zeit zu wechseln</small>' : `${-rest}<small>Tage seit das Geld frei ist</small>`)
+        : (rest > 0 ? `${rest}<small>${rest === 1 ? 'Tag' : 'Tage'} bis zur Zins-Klippe</small>` : rest === 0 ? 'Heute<small>Zinsen kommen, Zeit zu wechseln</small>' : `${-rest}<small>Tage über der Klippe</small>`)}</div>
       <div class="balken"><i style="width:${anteil}%"></i></div>
       <div class="zahlen">
         ${k.auszahlung === 'termin' ? `<div>Aufgelaufen<b data-live-aufgelaufen="${k.id}">${geld(tgAufgelaufen(k))}</b></div>
         <div>${tgZahltagSpaeter(k) ? 'Gutschrift' : 'Auszahlung'} am ${deDatum(tgZahltag(k)).slice(0, 6)}<b>${auszahlung != null ? `≈ ${geld(auszahlung)}` : '–'}</b></div>` : ''}
         <div>Danach<b>${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}</b></div>
-        <div>Liegenlassen kostet<b>${k.zins ? `${geld(tgKostenMonat(k))} / Monat` : '–'}</b></div>
+        ${spaeter
+          ? `<div>Danach pro Monat<b>${k.zinsDanach != null ? `≈ ${geld((k.stand * k.zinsDanach * tgNetto(k)) / 100 / 12)}` : '–'}</b></div>`
+          : `<div>Liegenlassen kostet<b>${k.zins ? `${geld(tgKostenMonat(k))} / Monat` : '–'}</b></div>`}
       </div>
       ${k.zinsDanach == null && k.zins ? `<div class="anschluss">
         <label class="feldname">Anschlusszins bekannt? Sonst rechnet die App mit 0 %.</label>
         <div class="zeile"><input type="text" inputmode="decimal" class="tg-anschluss" placeholder="% p. a."><button class="knopf" data-aktion="tg-anschluss">Speichern</button></div>
       </div>` : ''}
-      ${rest <= 14 ? `<div class="warnung">${rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.'}</div>
+      ${rest <= 14 ? `<div class="warnung">${spaeter
+        ? (rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} ist dein Geld frei – Alternative schon ausgesucht?` : 'Dein Geld ist frei – jetzt umziehen.')
+        : (rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.')}</div>
         <div class="knoepfe"><button class="knopf breit" data-aktion="tg-wechsel">Bankwechsel durchführen</button></div>` : ''}`;
     card.querySelector('.bank').textContent = k.bank;
     klippen.appendChild(card);
@@ -3017,25 +3027,31 @@ const TG_VORWARNUNG = [14, 3];
 function tgTerminListe() {
   const ab = isoDatum(heute());
   const liste = [];
-  for (const k of tgAktiv().filter((x) => x.termin && x.termin >= ab)) {
+  for (const k of tgAktiv().filter((x) => x.termin && tgZahltag(x) >= ab)) {
     const titel = `Tagesgeld ${k.bank}`;
     const danach = k.zinsDanach != null ? `danach ${zahl(k.zinsDanach, 2)} %` : 'Anschlusszins unbekannt';
     const kosten = k.zins ? ` Liegenlassen kostet ≈ ${eurGanz.format(tgKostenMonat(k))} pro Monat.` : '';
-    for (const tage of TG_VORWARNUNG) {
-      const d = new Date(k.termin + 'T00:00:00');
-      d.setDate(d.getDate() - tage);
-      const datum = isoDatum(d);
-      if (datum < ab) continue;
-      liste.push({ datum, titel,
-        text: `${k.zins ? `${zahl(k.zins, 2)} % enden` : 'Aktion endet'} am ${deDatum(k.termin).slice(0, 6)} (in ${tage} Tagen), ${danach}.${kosten} Neue Bank schon ausgesucht?` });
-    }
+    const vorwarnung = (bezug, text) => {
+      for (const tage of TG_VORWARNUNG) {
+        const d = new Date(bezug + 'T00:00:00');
+        d.setDate(d.getDate() - tage);
+        const datum = isoDatum(d);
+        if (datum >= ab) liste.push({ datum, titel, text: text(tage) });
+      }
+    };
     if (tgZahltagSpaeter(k)) {
-      const gutschrift = k.aufgelaufen ? ` Zinsen ≈ ${eurGanz.format(tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00')))} kommen am ${deDatum(tgZahltag(k)).slice(0, 6)}.` : '';
-      liste.push({ datum: k.termin, titel,
-        text: `Heute endet der Aktionszins, ${danach}.${gutschrift} Wechseln geht jederzeit – Zinsen bis zum Kündigungstag werden mit ausgezahlt.` });
+      // Geld bleibt bis zur Zinsgutschrift liegen: Vorwarnung vor dem Tag, an dem es frei wird, nicht vor dem Aktionsende
+      const frei = tgFreiAb(k);
+      const zinsen = k.aufgelaufen ? eurGanz.format(tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00'))) : null;
+      if (k.termin >= ab) liste.push({ datum: k.termin, titel,
+        text: `Heute endet der Aktionszins, ${danach}. Dein Geld bleibt bis ${deDatum(tgZahltag(k)).slice(0, 6)} liegen${zinsen ? `, dann kommen ≈ ${zinsen} Zinsen` : ''}.` });
+      vorwarnung(frei, (tage) => `Ab ${deDatum(frei).slice(0, 6)} ist dein Geld frei (in ${tage} Tagen) – Zeit, Alternativen zu suchen.`);
       liste.push({ datum: tgZahltag(k), titel,
-        text: `Heute schreibt ${k.bank} die Zinsen gut – neuen Stand in der App eintragen (Tagesgeld-Konten).` });
+        text: `Heute schreibt ${k.bank} die Zinsen gut${zinsen ? ` (≈ ${zinsen})` : ''} – neuen Stand in der App eintragen.` });
+      liste.push({ datum: frei, titel,
+        text: `Dein Geld ist frei: ${eurGanz.format(k.stand)} plus Zinsen. Alternative ausgesucht? In der App: Tagesgeld → Bankwechsel.` });
     } else {
+      vorwarnung(k.termin, (tage) => `${k.zins ? `${zahl(k.zins, 2)} % enden` : 'Aktion endet'} am ${deDatum(k.termin).slice(0, 6)} (in ${tage} Tagen), ${danach}.${kosten} Neue Bank schon ausgesucht?`);
       liste.push({ datum: k.termin, titel,
         text: `Heute kommen die Zinsen – ${eur.format(k.stand)} zur neuen Bank umziehen. In der App: Tagesgeld → Wechsel.` });
     }
@@ -3144,11 +3160,12 @@ function sparplaeneAnzeigen() {
   }
   termine.push({ datum: naechsterCheck(), name: 'Monats-Check', info: 'Käufe und Kontostände bestätigen', betrag: null, typ: 'check' });
   // Tagesgeld: Ende des Aktionszinses = Zinsen kommen, Geld zieht um
-  for (const k of tgAktiv().filter((x) => x.termin && x.termin >= isoDatum(h))) {
+  for (const k of tgAktiv().filter((x) => x.termin && tgZahltag(x) >= isoDatum(h))) {
     const zinsen = k.auszahlung === 'termin' && k.aufgelaufen ? tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00')) : null;
     if (tgZahltagSpaeter(k)) {
-      termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: `Aktionszins endet · danach ${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}`, betrag: k.stand, typ: 'tagesgeld' });
+      if (k.termin >= isoDatum(h)) termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: `Aktionszins endet · danach ${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}`, betrag: k.stand, typ: 'tagesgeld' });
       termine.push({ datum: new Date(tgZahltag(k) + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? `Zinsgutschrift ≈ ${geld(zinsen)}` : 'Zinsgutschrift', betrag: zinsen, typ: 'tagesgeld' });
+      termine.push({ datum: new Date(tgFreiAb(k) + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: 'Geld frei · Alternative suchen', betrag: k.stand + (zinsen || 0), typ: 'tagesgeld' });
     } else {
       termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? `Zinsen ≈ ${geld(zinsen)} · Bankwechsel` : 'Aktionszins endet · Bankwechsel', betrag: k.stand, typ: 'tagesgeld' });
     }
