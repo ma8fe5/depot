@@ -741,7 +741,7 @@
     </div>
 
     <div class="karte liste-karte tippbar tops-karte" data-aktion="tops" role="button" tabindex="0" style="padding-top: 12px">
-      <div class="etikett" style="padding: 0 16px; margin-bottom: 0">Tops & Lows <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div class="etikett" style="padding: 0 16px; margin-bottom: 0">Tops & Lows<span id="tops-zeitraum"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <ul id="tops-kurz" class="liste"></ul>
     </div>
 
@@ -1309,7 +1309,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1712'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1715'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4523,6 +4523,37 @@ let detailPosId = null;
 
 // ---------- Anzeige ----------
 
+// Tops & Lows folgen der Auswahl oben (Vortag, WTD, MTD, Seit Eröffnung, Jahre) und dem Positionsfilter
+function topsEintraege() {
+  return gefiltert(() => {
+    if (entwicklungZeitraum === 'vortag') return bewertung().zeilen.slice().sort((x, y) => y.aend - x.aend);
+    return entwAuswertung().zeilen
+      .map((z) => ({ id: z.id, name: z.name, euro: z.gewinn, aend: z.basis ? (z.gewinn / z.basis) * 100 : 0 }))
+      .sort((x, y) => y.aend - x.aend);
+  });
+}
+
+function topsZeichnen() {
+  const sortiert = topsEintraege();
+  const zeitraum = ZEITRAEUME_ENTW[entwicklungZeitraum] || entwJahre().join(', ').replace(/, (?=d+$)/, ' & ');
+  document.getElementById('tops-zeitraum').textContent = ` · ${zeitraum}`;
+  const titel = gefiltert(() => entwGrenzen().titel).replace(/^Gewinn/, 'Veränderung');
+  const kursDaten = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
+  document.getElementById('tops-datum').textContent =
+    entwicklungZeitraum === 'vortag' && kursDaten.length ? `${titel} · Schlusskurse vom ${deDatum(kursDaten[0])}` : titel;
+  rangliste(document.getElementById('top'), sortiert); // alle Positionen, absteigend nach Veränderung
+  // Kurzfassung auf der Depot-Seite: Bester und Schwächster – ein Tipp auf die Karte öffnet die ganze Rangliste
+  const kurz = document.getElementById('tops-kurz');
+  kurz.innerHTML = '';
+  for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="name"></span>
+      <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
+    li.querySelector('.name').textContent = e.name;
+    kurz.appendChild(li);
+  }
+}
+
 function rangliste(el, eintraege) {
   el.innerHTML = '';
   eintraege.forEach((e, i) => {
@@ -4626,7 +4657,8 @@ function entwicklungGewinn() {
 
 function entwicklungAnzeigen() {
   document.getElementById('entw-pos').textContent = `${posAuswahlText()} ▾`;
-  return gefiltert(entwicklungZeichnen);
+  gefiltert(entwicklungZeichnen);
+  if (kurse) topsZeichnen(); // Tops & Lows wechseln mit der Auswahl
 }
 
 function entwicklungZeichnen() {
@@ -4821,25 +4853,8 @@ function hauptRendern() {
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
-  const sortiert = b.zeilen.slice().sort((x, y) => y.aend - x.aend);
-  rangliste(document.getElementById('top'), sortiert); // alle Positionen, absteigend nach Veränderung
-  // Kurzfassung auf der Aktien-Seite: Bester und Schwächster
-  const kurz = document.getElementById('tops-kurz');
-  kurz.innerHTML = '';
-  // nur Vorschau: ein Tipp irgendwo auf die Karte öffnet die ganze Rangliste (dort geht es zu den Details)
-  for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="name"></span>
-      <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
-    li.querySelector('.name').textContent = e.name;
-    kurz.appendChild(li);
-  }
-
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
-  const schluss = daten_.length ? ` · Schlusskurse vom ${deDatum(daten_[0])}` : '';
-  document.getElementById('tops-datum').textContent = daten_.length
-    ? `Schlusskurse vom ${deDatum(daten_[0])}` : 'Veränderung zum letzten Handelstag';
   status.innerHTML = ''; // Depot-Seite: nur noch Fehlermeldungen (siehe unten)
   // Startseite: Aktualisiert und Schlusskurse in zwei Zeilen
   const startStatus = document.getElementById('start-status');
