@@ -148,25 +148,12 @@
   .ranglisten .karte { padding: 14px 0 4px; }
   .rang-wert { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
   .rang-wert small { font-size: 13px; font-weight: 600; padding-right: 2px; }
-  .ranglisten .etikett { padding: 0 18px; margin-bottom: 2px; }
-  /* Alle Positionen ohne Scrollen: einzeilig, Prozent und Euro nebeneinander */
-  #top li { min-height: 0; padding: 7px 18px; gap: 10px; }
   /* Depot → Wert: kompakte Zeilen, damit alles ohne Scrollen passt */
   #ansicht-vermoegen .titel { margin-bottom: 10px; }
   #ansicht-vermoegen .karte { margin-bottom: 10px; }
   #vermoegen-positionen li, #vermoegen-tagesgeld li { min-height: 0; padding: 8px 18px; }
   #vermoegen-positionen .name, #vermoegen-tagesgeld .name { font-size: 15px; }
   #vermoegen-positionen .wert, #vermoegen-tagesgeld .wert { font-size: 15px; }
-  #top li.mit-rang + li::before { left: 56px; }
-  #top .rang { width: 24px; height: 24px; font-size: 12px; }
-  #top .name { font-size: 15px; }
-  #top .rang-wert { flex-direction: row-reverse; align-items: center; gap: 8px; }
-  #top .rang-wert small { font-size: 12px; }
-  #ansicht-tops .titel { margin-bottom: 10px; }
-  @media (min-width: 768px) {
-    #top { column-count: 2; column-gap: 0; }
-    #top li { break-inside: avoid; -webkit-column-break-inside: avoid; }
-  }
 
   /* ---------- Hinweise ---------- */
   .hinweis { display: flex; gap: 12px; align-items: flex-start; background: var(--hinweis); color: var(--hinweis-text);
@@ -374,6 +361,9 @@
   .tg-legende i { width: 8px; height: 8px; border-radius: 50%; }
   .tg-legende b { font-weight: 600; color: var(--text); }
   .zinsuhr { font-variant-numeric: tabular-nums; }
+  .zahlen-raster { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 14px; font-size: 13px; color: var(--text-2); }
+  .zahlen-raster b { display: block; font-size: 16px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+  .zahlen-raster b.pos { color: var(--pos); } .zahlen-raster b.neg { color: var(--neg); }
   .tg-held .betrag { font-size: 34px; font-weight: 750; letter-spacing: -0.03em; margin: 2px 0 12px; }
   .tg-uhrzeile { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; font-size: 15px; color: var(--text-2); }
   .tg-uhrzeile .zinsuhr { font-size: 22px; font-weight: 750; color: var(--text); }
@@ -772,15 +762,6 @@
     <p id="status" class="fuss"></p>
   </section>
 
-  <!-- Tops & Lows (zweiter Reiter) -->
-  <section id="ansicht-tops" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Depot</button></div>
-    <div class="titel"><h1>Tops & Lows</h1><div class="unterzeile" id="tops-datum">Veränderung zum letzten Handelstag</div></div>
-    <div class="ranglisten">
-      <div class="karte"><div class="etikett">Alle Positionen · beste zuerst</div><ul id="top" class="liste"></ul></div>
-    </div>
-    <p class="fuss">Prozent und Euro beziehen sich auf deine Position. Zum Aktualisieren nach unten ziehen.</p>
-  </section>
 
   <!-- Vermögen je Position -->
   <section id="ansicht-vermoegen" class="ansicht" hidden>
@@ -1058,10 +1039,12 @@
   <section id="ansicht-detail" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="detail-zurueck"><svg><use href="#i-zurueck"/></svg> <span id="detail-zurueck-text">Zurück</span></button></div>
     <div class="titel"><h1 id="detail-name"></h1><div class="unterzeile" id="detail-depot"></div></div>
+    <!-- oben das Wichtigste: Wert, Gewinn und vier Kennzahlen; Käufe und Angaben eine Ebene tiefer -->
     <div class="karte held">
       <div class="etikett">Wert</div>
       <div id="detail-wert" class="betrag"></div>
       <span id="detail-gewinn" class="pill"></span>
+      <div class="zahlen-raster" id="detail-werte"></div>
     </div>
     <div class="karte">
       <div class="etikett" id="detail-chart-titel">Kursentwicklung</div>
@@ -1069,16 +1052,16 @@
       <div id="detail-chart" class="chart"></div>
       <div class="legende"><span>Kurs in €</span><span class="lk">Deine Käufe</span></div>
     </div>
-    <div class="abschnitt">Kennzahlen</div>
-    <div class="karte liste-karte"><dl class="zeilen" id="detail-werte"></dl></div>
-    <div class="knoepfe"><button class="knopf zweit breit" data-aktion="detail-pflegen">Käufe & Angaben</button></div>
+    <div class="karte liste-karte"><ul class="liste"><li class="tippbar" data-aktion="detail-pflegen">
+      <span class="name"><span class="n">Käufe & Angaben</span><small id="detail-kaeufe-info"></small></span>
+    </li></ul></div>
     <p id="detail-hinweis" class="fuss"></p>
   </section>
 
   <!-- Gewinn je Position und Zeitraum -->
   <section id="ansicht-gewinn" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
-    <div class="titel"><h1>Gewinn</h1></div>
+    <div class="titel"><h1>Gewinn · Tops & Lows</h1></div>
     <!-- gleiche Auswahl wie die Entwicklung auf der Depot-Seite (geteilt) -->
     <div class="chips entw-zeile" id="gw-chips"></div>
     <div class="chips entw-zeile" id="gw-jahre"></div>
@@ -1089,7 +1072,7 @@
       <span id="gewinn-gesamt-pct" class="pill"></span>
       <div class="unter" id="gw-zahlen" style="margin-top: 8px; font-size: 12px"></div>
     </div>
-    <div class="abschnitt">Positionen</div>
+    <div class="abschnitt">Positionen · beste zuerst</div>
     <div class="karte liste-karte"><ul id="gewinn-positionen" class="liste"></ul></div>
     <p id="gewinn-meldung" class="fuss"></p>
   </section>
@@ -1333,7 +1316,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1721'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1727'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2234,13 +2217,13 @@ function gewinnZeichnen() {
   zaehle(gesamt, a.gewinn, true);
   setzePill(document.getElementById('gewinn-gesamt-pct'), a.gewinn, pct(a.basis ? (a.gewinn / a.basis) * 100 : 0));
   document.getElementById('gw-zahlen').textContent = a.zahlen;
-  for (const z of a.zeilen) {
+  // Rangliste (Tops & Lows): beste Veränderung in Prozent zuerst
+  for (const e of topsEintraege()) {
     const li = document.createElement('li');
     li.className = 'tippbar';
-    li.dataset.pos = z.id;
-    const p = z.basis ? (z.gewinn / z.basis) * 100 : 0;
-    li.innerHTML = `<span class="name"></span><span class="wert ${klasse(z.gewinn)}">${mitVorzeichen(z.gewinn)}<small>${pct(p)}</small></span>`;
-    li.querySelector('.name').textContent = z.name;
+    li.dataset.pos = e.id;
+    li.innerHTML = `<span class="name"></span><span class="wert ${klasse(e.euro)}">${mitVorzeichen(e.euro)}<small>${pct(e.aend)}</small></span>`;
+    li.querySelector('.name').textContent = e.name;
     liste.appendChild(li);
   }
 }
@@ -4432,7 +4415,6 @@ const DETAIL_HERKUNFT = {
   'ansicht-vermoegen': { name: 'Vermögen', zurueck: () => vermoegenAnzeigen() },
   'ansicht-gewinn': { name: 'Gewinn', zurueck: () => gewinnAnzeigen() },
   'ansicht-haupt': { name: 'Depot', zurueck: () => reiterZeigen('ansicht-haupt') },
-  'ansicht-tops': { name: 'Tops & Lows', zurueck: () => { zeige('ansicht-tops'); hauptRendern(); } },
   'ansicht-arten': { name: 'Anlagearten', zurueck: () => artenAnzeigen() },
   'ansicht-kosten': { name: 'Kosten', zurueck: () => kostenAnzeigen() },
   'ansicht-positionen': { name: 'Positionen', zurueck: () => positionenAnzeigen() },
@@ -4447,30 +4429,34 @@ function detailAnzeigen(posId) {
   const wert = stueck * k.eur;
   const gewinn = wert - inv;
   document.getElementById('detail-name').textContent = p.name;
-  document.getElementById('detail-depot').textContent = p.depot;
   document.getElementById('detail-zurueck-text').textContent = (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).name;
   document.getElementById('detail-wert').innerHTML = betragHTML(wert);
   setzePill(document.getElementById('detail-gewinn'), gewinn,
     `${mitVorzeichen(gewinn)} · ${pct(inv ? (gewinn / inv) * 100 : 0)} seit Eröffnung`);
 
+  // Anteil am ganzen Depot (ohne Positionsfilter)
+  const depotWert = bewertung().wert;
+  document.getElementById('detail-depot').textContent =
+    `${p.depot}${depotWert ? ` · ${zahl((wert / depotWert) * 100, 1)} % deines Depots` : ''}`;
   const zeilen = [
-    ['Kurs', k.eur < 1 ? `${zahl(k.eur, 4)} €` : eur.format(k.eur)], // Pennystock: mehr Nachkommastellen
-    ['Kursdatum', k.datum ? deDatum(k.datum) : '–'],
+    [`Kurs${k.datum ? ` · ${deDatum(k.datum).slice(0, 6)}` : ''}`, k.eur < 1 ? `${zahl(k.eur, 4)} €` : eur.format(k.eur)], // Pennystock: mehr Nachkommastellen
     ['Zum Vortag', k.vorherEur ? pct((k.eur / k.vorherEur - 1) * 100) : '–', k.vorherEur ? k.eur - k.vorherEur : 0],
-    ['Stück', istPrivat() ? '••••' : zahl(stueck, p.quelle === 'coingecko' ? 8 : 6)],
+    ['Stück', istPrivat() ? '••••' : stueckText(stueck, p.quelle === 'coingecko' ? 8 : 4)],
     ['Investiert', geld(inv)],
-    ['Sparplan', p.sparplan ? `${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}.` : '–'],
   ];
-  const dl = document.getElementById('detail-werte');
-  dl.innerHTML = '';
+  const raster = document.getElementById('detail-werte');
+  raster.innerHTML = '';
   for (const [a, b, farbe] of zeilen) {
-    const reihe = document.createElement('div');
-    const dt = document.createElement('dt'); dt.textContent = a;
-    const dd = document.createElement('dd'); dd.textContent = b;
-    if (farbe) dd.className = klasse(farbe);
-    reihe.append(dt, dd);
-    dl.append(reihe);
+    const el = document.createElement('div');
+    el.append(a);
+    const wertEl = document.createElement('b');
+    wertEl.textContent = b;
+    if (farbe) wertEl.className = klasse(farbe);
+    el.append(wertEl);
+    raster.append(el);
   }
+  document.getElementById('detail-kaeufe-info').textContent =
+    p.sparplan ? `Sparplan ${eur.format(p.sparplan.betrag)} am ${p.sparplan.tag}. des Monats` : 'Käufe erfassen, Angaben pflegen';
 
   const chartEl = document.getElementById('detail-chart');
   const hinweis = document.getElementById('detail-hinweis');
@@ -4536,10 +4522,17 @@ function detailAnzeigen(posId) {
   const achseX = spanneTage > 730
     ? (t, i) => (i > 0 && t.slice(0, 4) !== reihe[i - 1][0].slice(0, 4) ? t.slice(0, 4) : null)
     : spanneTage > 120 ? (t, i) => (i > 0 && t.slice(5, 7) !== reihe[i - 1][0].slice(5, 7) && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null)
-      : (t, i) => (i === 0 || i === reihe.length - 1 || (spanneTage > 10 && i % 5 === 0) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
-  linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], {
-    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0, rot: aend < 0, enden: true,
+      // höchstens etwa fünf Datumsmarken, sonst überlappen sie
+      : (t, i) => (i === 0 || i === reihe.length - 1 || (spanneTage > 10 && i % Math.ceil(reihe.length / 5) === 0 && reihe.length - i > reihe.length / 8) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
+  const zeichnen = (hoeheFix) => linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], {
+    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0, rot: aend < 0, enden: true, hoeheFix,
   });
+  zeichnen();
+  // wie auf der Depot-Seite: Graph so hoch, dass die Seite ohne Scrollen passt (nicht flacher als 110)
+  const seitenEnde = document.querySelector('main').getBoundingClientRect().bottom + scrollY;
+  const frei = Math.floor(innerHeight - seitenEnde) - 2;
+  const svg = chartEl.querySelector('svg');
+  if (svg && frei < 0) zeichnen(Math.max(90, Math.round(svg.getBoundingClientRect().height) + frei));
   if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = `Käufe vor ${schaetzGrenze()} sind aus dem Sparplan geschätzt.`;
 }
 let detailZeitraum = 'vortag';
@@ -4561,12 +4554,7 @@ function topsZeichnen() {
   const sortiert = topsEintraege();
   const zeitraum = ZEITRAEUME_ENTW[entwicklungZeitraum] || entwJahre().join(', ').replace(/, (?=d+$)/, ' & ');
   document.getElementById('tops-zeitraum').textContent = ` · ${zeitraum}`;
-  const titel = gefiltert(() => entwGrenzen().titel).replace(/^Gewinn/, 'Veränderung');
-  const kursDaten = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
-  document.getElementById('tops-datum').textContent =
-    entwicklungZeitraum === 'vortag' && kursDaten.length ? `${titel} · Schlusskurse vom ${deDatum(kursDaten[0])}` : titel;
-  rangliste(document.getElementById('top'), sortiert); // alle Positionen, absteigend nach Veränderung
-  // Kurzfassung auf der Depot-Seite: Bester und Schwächster – ein Tipp auf die Karte öffnet die ganze Rangliste
+  // Kurzfassung auf der Depot-Seite: Bester und Schwächster – ein Tipp auf die Karte öffnet die Rangliste (Gewinn-Seite)
   const kurz = document.getElementById('tops-kurz');
   kurz.innerHTML = '';
   for (const e of sortiert.length > 1 ? [sortiert[0], sortiert[sortiert.length - 1]] : sortiert) {
@@ -4576,19 +4564,6 @@ function topsZeichnen() {
     li.querySelector('.name').textContent = e.name;
     kurz.appendChild(li);
   }
-}
-
-function rangliste(el, eintraege) {
-  el.innerHTML = '';
-  eintraege.forEach((e, i) => {
-    const li = document.createElement('li');
-    li.className = 'mit-rang tippbar';
-    if (e.id) li.dataset.pos = e.id;
-    li.innerHTML = `<span class="rang ${klasse(e.aend)}">${i + 1}</span><span class="name"></span>
-      <span class="rang-wert"><span class="pill ${klasse(e.aend)}">${pfeil(e.aend)}${pct(e.aend)}</span><small class="${klasse(e.euro)}">${mitVorzeichen(e.euro)}</small></span>`;
-    li.querySelector('.name').textContent = e.name;
-    el.appendChild(li);
-  });
 }
 
 // ---------- Entwicklung auf der Startseite: „Seit Eröffnung“ oder ein einzelnes Jahr ----------
@@ -4800,9 +4775,11 @@ if (sprungZiel) history.replaceState(null, '', location.pathname);
 
 function hauptAnzeigen() {
   if (sprungZiel === 'tops') {
+    // Tagesbilanz angetippt: Rangliste zum Vortag
     sprungZiel = null;
-    zeige('ansicht-tops');
-    hauptRendern();
+    entwicklungZeitraum = 'vortag';
+    zeige('ansicht-gewinn');
+    gewinnAnzeigen();
     return;
   }
   if (sprungZiel === 'tagesgeld') {
@@ -5864,7 +5841,7 @@ document.addEventListener('click', (e) => {
     tagesgeld: tagesgeldAnzeigen,
     'tg-konten': tgKontenAnzeigen,
     positionen: positionenAnzeigen,
-    tops: () => { zeige('ansicht-tops'); hauptRendern(); },
+    tops: () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); }, // Tops & Lows = Gewinn-Seite (Rangliste)
     'tg-speichern': tgSpeichern,
     'tg-neu': tgNeu,
     'tg-wechsel': () => tgWechsel(e),
@@ -6026,7 +6003,7 @@ try { localStorage.removeItem('depot-privat'); } catch { /* nur Komfort */ }
     if (!document.getElementById('menue').hidden) { modus = 'menue'; ansicht = document.querySelector('.menue-panel'); return; }
     if (!ansicht) return;
     if (t.clientX < 28 && ansicht.querySelector('.navi .zurueck')) modus = 'zurueck';
-    else if ((REITER.includes(ansicht.id) || ansicht.id === 'ansicht-tops') && window.scrollY <= 0) modus = 'ziehen';
+    else if ((REITER.includes(ansicht.id) || ansicht.id === 'ansicht-gewinn') && window.scrollY <= 0) modus = 'ziehen';
   }, { passive: true });
 
   document.addEventListener('touchmove', (e) => {
