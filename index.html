@@ -168,7 +168,7 @@
   .hinweis { position: relative; }
   .hinweis-weg { border: 0; background: none; color: inherit; font: inherit; font-size: 22px; line-height: 1; padding: 0 2px; margin: -2px -4px 0 4px; opacity: 0.7; cursor: pointer; }
   .hinweis > .hinweis-weg { position: absolute; top: 10px; right: 12px; margin: 0; }
-  #check-hinweis { padding-right: 40px; }
+  #check-hinweis, #steuer-hinweis { padding-right: 40px; }
   .hinweis-zeile .chevron { width: 8px; height: 13px; }
   .hinweis .knopf { margin-top: 10px; padding: 8px 14px; font-size: 15px; background: var(--hinweis-text); color: var(--hinweis); }
 
@@ -694,6 +694,13 @@
       <button class="hinweis-weg" data-aktion="check-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
     </div>
 
+    <div id="steuer-hinweis" class="hinweis" hidden>
+      <svg><use href="#i-kalender"/></svg>
+      <div><b>Steuer</b> · <span id="steuer-hinweis-text"></span><br>
+        <button class="knopf" data-aktion="steuer">Jetzt bestätigen</button></div>
+      <button class="hinweis-weg" data-aktion="steuer-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
+    </div>
+
     <div id="backup-hinweis" class="hinweis" hidden>
       <svg><use href="#i-wolke"/></svg>
       <div><b>Backup</b> · <span id="backup-text"></span><br>
@@ -1103,6 +1110,22 @@
   </section>
 
   <!-- Kosten je Fonds: abgezogene Gebühren + laufende Fondskosten (geschätzt) -->
+  <!-- Steuer: Kapitalerträge eines Jahres, erst geschätzt, dann mit den Jahressteuerbescheinigungen bestätigt -->
+  <section id="ansicht-steuer" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Kapitalerträge</h1><div class="unterzeile">Für die Steuererklärung (Anlage KAP). Geschätzte Beträge bestätigst du mit der Jahressteuerbescheinigung.</div></div>
+    <div class="chips entw-zeile" id="st-jahre"></div>
+    <div class="karte held">
+      <div class="etikett" id="st-titel"></div>
+      <div id="st-summe" class="betrag"></div>
+      <div class="rt-zielbalken" id="st-balken"><i></i></div>
+      <div class="unter" id="st-unter"></div>
+    </div>
+    <div class="abschnitt">Erträge</div>
+    <div class="karte liste-karte"><ul class="liste" id="st-liste"></ul></div>
+    <p class="fuss" id="st-fuss"></p>
+  </section>
+
   <section id="ansicht-kosten" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Kosten</h1><div class="unterzeile">Was dich deine Fonds seit dem ersten Kauf gekostet haben.</div></div>
@@ -1293,6 +1316,7 @@
       <ul class="liste menue">
         <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>seit Eröffnung, Vortag, WTD, MTD, Jahre</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
+        <li class="tippbar" data-aktion="steuer"><span class="kachel kg-heute"><svg><use href="#i-kosten"/></svg></span><span class="name">Steuer & Kapitalerträge<small id="mehr-steuer"></small></span></li>
         <li class="tippbar" data-aktion="kosten"><span class="kachel kg-zurueck"><svg><use href="#i-kosten"/></svg></span><span class="name">Kosten<small id="mehr-kosten"></small></span></li>
         <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Prognose bis zur Rente<small id="mehr-rente"></small></span></li>
       </ul>
@@ -1330,7 +1354,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1811'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1818'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4913,6 +4937,9 @@ function hauptRendern() {
   document.getElementById('mehr-zinseszins').textContent = zz.zins > 0 ? `${mitVorzeichen(zz.zins)} bisher` : '';
   const kostenJahr = kurse ? kostenJeFonds().reduce((s, f) => s + kostenProJahr(f), 0) : 0;
   document.getElementById('mehr-kosten').textContent = kostenJahr > 0 ? `ca. ${geld(kostenJahr)} pro Jahr` : '';
+  const st = steuerUebersicht(heute().getFullYear());
+  document.getElementById('mehr-steuer').textContent = `${heute().getFullYear()}: ${zahl((st.pflichtig / st.freibetrag) * 100, 0)} % vom Freibetrag`;
+  steuerHinweis();
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
@@ -4943,6 +4970,150 @@ function hauptRendern() {
   startEinpassen();
 }
 
+// ---------- Steuer: Kapitalerträge je Kalenderjahr ----------
+// Zinsen (Tagesgeld), Dividenden und Vorabpauschale. Die App schätzt; bestätigte Beträge aus den Jahressteuer-
+// bescheinigungen liegen in daten.steuer[jahr][schlüssel] = { betrag, datum } und ersetzen die Schätzung.
+// Vorabpauschale: fließt am 2.1. zu – in „Steuer Y“ steht daher die Vorabpauschale für Y−1.
+const BASISZINS = { 2023: 2.55, 2024: 2.29, 2025: 2.53, 2026: 3.20 }; // BMF-Schreiben, jeweils Januar des Jahres (%)
+const ABGELTUNG = 0.25 * 1.055;
+let steuerAnsichtJahr = null;
+let steuerHinweisWeg = false;
+
+function stueckAm(p, k, iso) {
+  return Math.max(0, aktuellerBestand(p).stueck - kaeufeNach(p, k, iso).reduce((s, c) => s + c.stueck, 0));
+}
+
+// Vorabpauschale einer thesaurierenden Position für das Kalenderjahr vj (geschätzt aus den Kursen)
+function vorabpauschale(p, k, vj) {
+  const bz = BASISZINS[vj];
+  if (bz == null) return { betrag: null, grund: `Basiszins ${vj} noch nicht bekannt` };
+  const reihe = langeReihe(p, k);
+  const anfang = kursAm(reihe, `${vj - 1}-12-31`, 'bis'), ende = kursAm(reihe, `${vj}-12-31`, 'bis');
+  if (anfang == null || ende == null || reihe[0][0] > `${vj - 1}-12-31`) return { betrag: null, grund: 'Kurse für das Jahr fehlen' };
+  const jeAnteil = Math.min(anfang * (bz / 100) * 0.7, Math.max(0, ende - anfang));
+  let anteile = stueckAm(p, k, `${vj - 1}-12-31`); // Bestand zu Jahresbeginn (Verkäufe im Jahr gibt es bisher nicht)
+  // im Jahr gekaufte Anteile: je vollem Monat vor dem Kauf ein Zwölftel weniger
+  for (const c of kaeufeNach(p, k, `${vj - 1}-12-31`)) {
+    if (c.datum > `${vj}-12-31` || !(c.stueck > 0)) continue;
+    anteile += c.stueck * (12 - (Number(c.datum.slice(5, 7)) - 1)) / 12;
+  }
+  return { betrag: anteile * jeAnteil };
+}
+
+// Alle Posten eines Jahres: { schluessel, name, art, schaetzung, bestaetigt, steuerpflichtig (Anteil), hinweis }
+function steuerPosten(jahr) {
+  const posten = [];
+  const heuteIso = isoDatum(heute());
+  const bestaetigt = (daten.steuer && daten.steuer[jahr]) || {};
+  const jahrEnde = `${jahr}-12-31`;
+  // Tagesgeld-Zinsen: gebuchte Zinsen des Jahres + erwartete Gutschrift / Hochrechnung bis Jahresende
+  for (const k of tgKonten()) {
+    let schaetzung = (k.zinsen || []).filter((z) => (z.datum || '').startsWith(String(jahr))).reduce((s, z) => s + z.betrag, 0);
+    if (!k.geschlossen) {
+      if (tgTaeglich(k) && jahrEnde >= heuteIso) {
+        schaetzung += Math.max(0, tgStand(k) - k.stand); // seit dem letzten Eintrag aufgelaufen
+        schaetzung += tgTagesZins(k) * Math.max(0, tageZwischen(heuteIso, jahrEnde)); // bis Jahresende
+      } else if (k.auszahlung === 'termin' && k.aufgelaufen && tgZahltag(k) && tgZahltag(k).startsWith(String(jahr))) {
+        schaetzung += tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00'));
+      }
+    }
+    if (schaetzung < 0.005 && !bestaetigt[`tg:${k.id}`]) continue;
+    posten.push({ schluessel: `tg:${k.id}`, name: `Zinsen ${k.bank}`, art: k.steuer ? 'Zinsen · Steuer zieht die Bank ab' : 'Zinsen · ohne Steuerabzug', schaetzung, anteil: 1 });
+  }
+  // Dividenden: Stück × Dividende je Aktie (Angabe der Position)
+  for (const p of daten.positionen) {
+    if (!(p.dividende > 0) || legtWiederAn(p)) continue;
+    const k = kurse && kurse.preise[p.id];
+    if (!k) continue;
+    posten.push({ schluessel: `div:${p.id}`, name: `Dividende ${p.name}`, art: `${zahl(p.dividende, 2)} € je Aktie`, schaetzung: stueckAm(p, k, `${jahr}-06-30`) * p.dividende, anteil: 1 });
+  }
+  // Vorabpauschale für das Vorjahr (Zufluss 2.1.), Teilfreistellung 30 % bei Aktienfonds
+  for (const p of daten.positionen) {
+    if (!legtWiederAn(p) || !['ETF', 'Fonds'].includes(anlageart(p))) continue;
+    const k = kurse && kurse.preise[p.id];
+    if (!k) continue;
+    const v = vorabpauschale(p, k, jahr - 1);
+    if (v.betrag != null && v.betrag < 0.005 && !bestaetigt[`vap:${p.id}`]) continue;
+    posten.push({ schluessel: `vap:${p.id}`, name: `Vorabpauschale ${p.name}`, art: `für ${jahr - 1} · 30 % steuerfrei`, schaetzung: v.betrag, hinweis: v.grund, anteil: 0.7 });
+  }
+  for (const x of posten) {
+    const b = bestaetigt[x.schluessel];
+    x.bestaetigt = b ? b.betrag : null;
+    x.betrag = b ? b.betrag : x.schaetzung;
+  }
+  return posten;
+}
+
+function steuerUebersicht(jahr) {
+  const posten = steuerPosten(jahr);
+  const pflichtig = posten.reduce((s, x) => s + (x.betrag || 0) * x.anteil, 0);
+  const n = daten.rente && daten.rente.netto;
+  const freibetrag = n && n.veranlagung === 'einzeln' ? 1000 : 2000; // Sparerpauschbetrag (zusammen veranlagt: 2.000 €)
+  const offen = posten.filter((x) => x.bestaetigt == null);
+  return { posten, pflichtig, freibetrag, steuer: Math.max(0, pflichtig - freibetrag) * ABGELTUNG, offen };
+}
+
+function steuerAnzeigen() {
+  const h = heute();
+  // Bis Ende April zuerst das Vorjahr (dann kommen die Bescheinigungen), danach das laufende Jahr
+  if (!steuerAnsichtJahr) steuerAnsichtJahr = h.getMonth() <= 3 && steuerUebersicht(h.getFullYear() - 1).offen.length ? h.getFullYear() - 1 : h.getFullYear();
+  zeige('ansicht-steuer');
+  const jahre = [h.getFullYear() - 1, h.getFullYear()];
+  document.getElementById('st-jahre').innerHTML = jahre.map((j) => `<button class="chip${j === steuerAnsichtJahr ? ' aktiv' : ''}" data-steuer-jahr="${j}">${j}</button>`).join('');
+  const u = steuerUebersicht(steuerAnsichtJahr);
+  document.getElementById('st-titel').textContent = `Steuerpflichtig ${steuerAnsichtJahr}${u.offen.length ? ' · geschätzt' : ''}`;
+  document.getElementById('st-summe').innerHTML = betragHTML(u.pflichtig);
+  document.getElementById('st-balken').querySelector('i').style.width = `${Math.min(100, (u.pflichtig / u.freibetrag) * 100)}%`;
+  document.getElementById('st-unter').textContent = u.pflichtig <= u.freibetrag
+    ? `${zahl((u.pflichtig / u.freibetrag) * 100, 0)} % vom gemeinsamen Sparerpauschbetrag (${geld(u.freibetrag)}) – keine Abgeltungsteuer`
+    : `${geld(u.pflichtig - u.freibetrag)} über dem Sparerpauschbetrag (${geld(u.freibetrag)}) – ≈ ${geld(u.steuer)} Abgeltungsteuer + Soli`;
+  const liste = document.getElementById('st-liste');
+  liste.innerHTML = '';
+  for (const x of u.posten) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.steuerPosten = x.schluessel;
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span>
+      <span class="wert">${x.betrag != null ? geld(x.betrag) : '–'}<small class="${x.bestaetigt != null ? 'pos' : x.betrag == null ? 'neg' : ''}">${x.bestaetigt != null ? '✓ bestätigt' : x.betrag == null ? 'eintragen' : 'geschätzt'}</small></span>`;
+    li.querySelector('.n').textContent = x.name;
+    li.querySelector('small').textContent = x.hinweis ? `${x.art} · ${x.hinweis}` : x.art;
+    liste.appendChild(li);
+  }
+  if (!u.posten.length) liste.innerHTML = '<li><span class="name unter">Keine Kapitalerträge für dieses Jahr.</span></li>';
+  document.getElementById('st-fuss').textContent =
+    `Tippe auf einen Betrag, um ihn mit der Jahressteuerbescheinigung zu bestätigen. Vorabpauschale mit Basiszins ${BASISZINS[steuerAnsichtJahr - 1] != null ? zahl(BASISZINS[steuerAnsichtJahr - 1], 2) + ' %' : '–'} (BMF). ` +
+    'Verkäufe und Ausschüttungen von Fonds sind noch nicht enthalten. Keine Steuerberatung.';
+}
+
+function steuerPostenBestaetigen(schluessel) {
+  const x = steuerPosten(steuerAnsichtJahr).find((p) => p.schluessel === schluessel);
+  if (!x) return;
+  const vorschlag = x.betrag != null ? zahl(x.betrag, 2) : '';
+  const text = prompt(`${x.name} ${steuerAnsichtJahr}: Betrag laut Jahressteuerbescheinigung (€)${x.bestaetigt != null ? '\nLeer lassen = wieder schätzen' : ''}`, vorschlag);
+  if (text == null) return;
+  daten.steuer = daten.steuer || {};
+  const jahr = (daten.steuer[steuerAnsichtJahr] = daten.steuer[steuerAnsichtJahr] || {});
+  if (!text.trim()) delete jahr[schluessel];
+  else {
+    const betrag = parseZahl(text);
+    if (!(betrag >= 0)) { alert('Bitte einen Betrag in Euro eintragen, z. B. 123,45.'); return; }
+    jahr[schluessel] = { betrag, datum: isoDatum(heute()) };
+  }
+  speichern();
+  steuerAnzeigen();
+}
+
+// Ab 15. Januar: Hinweis, die Beträge des Vorjahres zu bestätigen (bis alle bestätigt sind)
+function steuerHinweis() {
+  const h = heute();
+  const jahr = h.getFullYear() - 1;
+  const faellig = h >= new Date(h.getFullYear(), 0, 15) && h.getMonth() <= 5;
+  const offen = faellig && kurse ? steuerUebersicht(jahr).offen.length : 0;
+  document.getElementById('steuer-hinweis').hidden = steuerHinweisWeg || !offen;
+  document.getElementById('steuer-hinweis-text').textContent =
+    `${offen} geschätzte${offen === 1 ? 'r' : ''} Betrag${offen === 1 ? '' : 'e'} für ${jahr} – bitte mit den Jahressteuerbescheinigungen bestätigen.`;
+}
+
 // ---------- Monats-Check ----------
 
 // Weggeklickt gilt nur bis zum nächsten Öffnen der App (Neustart oder länger als 5 Minuten im Hintergrund)
@@ -4950,7 +5121,7 @@ let checkHinweisWeg = false;
 let checkHinweisVerlassen = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { checkHinweisVerlassen = Date.now(); return; }
-  if (checkHinweisWeg && Date.now() - checkHinweisVerlassen > 5 * 60 * 1000) { checkHinweisWeg = false; if (daten && kurse) hauptRendern(); }
+  if ((checkHinweisWeg || steuerHinweisWeg) && Date.now() - checkHinweisVerlassen > 5 * 60 * 1000) { checkHinweisWeg = false; steuerHinweisWeg = false; if (daten && kurse) hauptRendern(); }
 });
 
 // „6 Sparraten · 1 Gebühr“
@@ -5852,6 +6023,10 @@ document.addEventListener('click', (e) => {
   }
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
+  const sj = e.target.closest('[data-steuer-jahr]')?.dataset.steuerJahr;
+  if (sj) { steuerAnsichtJahr = Number(sj); steuerAnzeigen(); return; }
+  const sp = e.target.closest('[data-steuer-posten]')?.dataset.steuerPosten;
+  if (sp) { steuerPostenBestaetigen(sp); return; }
   const tgk = e.target.closest('[data-tg-konto]')?.dataset.tgKonto;
   if (tgk) { tgKontoAnzeigen(tgk); return; }
   const posZeile = e.target.closest('[data-pos]');
@@ -5911,6 +6086,8 @@ document.addEventListener('click', (e) => {
     'tg-loeschen': () => tgLoeschen(e),
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
+    steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
+    'steuer-hinweis-weg': () => { steuerHinweisWeg = true; hauptRendern(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'rt-einkommen': () => rtUnterseite('ansicht-rt-einkommen'),
     'rt-depot': () => rtUnterseite('ansicht-rt-depot'),
