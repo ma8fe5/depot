@@ -465,6 +465,14 @@
   .liste.einkommen li.offen .wert { color: var(--text-3); font-weight: 500; }
   .annahmen { margin: 12px 0 0; font-size: 13px; line-height: 1.45; }
   /* aufklappbare Erklärungen (Prognose) */
+  .rt-luecke .betrag { font-size: 26px; margin: 0; }
+  .rt-luecke .etikett { margin-bottom: 2px; }
+  .rt-kacheln .karte { padding: 14px 16px; }
+  .rt-kacheln .wert { margin: 2px 0 2px; }
+  .rt-kacheln .unter { font-size: 12px; }
+  .rt-zielbalken { height: 8px; border-radius: 99px; background: var(--flaeche-2); overflow: hidden; margin: 0 0 8px; }
+  .rt-zielbalken i { display: block; height: 100%; border-radius: 99px; background: var(--akzent); }
+  #rt-saeulen { margin: 0; }
   details.aufklapp { margin: 10px 0 0; border-top: 1px solid var(--linie); }
   details.aufklapp summary { list-style: none; cursor: pointer; padding: 11px 0 1px; font-size: 14px; font-weight: 600; color: var(--akzent, var(--text-2)); }
   details.aufklapp summary::-webkit-details-marker { display: none; }
@@ -904,7 +912,7 @@
   <!-- Prognose bis zur Rente -->
   <section id="ansicht-rente" class="ansicht" hidden>
     <div class="kopf">
-      <div><div class="datum">bis zur Rente</div><h1>Prognose</h1></div>
+      <div><h1>Prognose</h1></div>
       <div class="kopf-knoepfe"><button class="rund" data-aktion="menue" aria-label="Menü öffnen"><svg><use href="#i-burger"/></svg></button></div>
     </div>
     <div class="unterzeile" id="rt-unterzeile" style="margin: -8px 2px 14px; color: var(--text-2); font-size: 15px"></div>
@@ -912,27 +920,61 @@
       <button data-rendite="moderat">Moderat<small>5 % pro Jahr</small></button>
       <button data-rendite="realistisch">Realistisch<small>7 % pro Jahr</small></button>
     </div>
-    <!-- Einkommen aus allen Säulen (Daten per Import, Stand der Unterlagen) -->
-    <div class="karte held" id="rt-einkommen-karte" hidden>
-      <div class="etikett" id="rt-einkommen-titel"></div>
+    <!-- Ebene 2: Ergebnis auf einen Blick – Einkommen, Abstand zum Ziel, woraus es sich zusammensetzt -->
+    <div class="karte held tippbar" id="rt-einkommen-karte" data-aktion="rt-einkommen" hidden>
+      <div class="etikett"><span id="rt-einkommen-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-einkommen"></div>
+      <div class="rt-zielbalken" id="rt-zielbalken" hidden><i></i></div>
       <div class="unter" id="rt-einkommen-unter"></div>
-      <ul class="liste einkommen" id="rt-saeulen"></ul>
-      <details class="aufklapp" id="rt-netto-block" hidden><summary>Von brutto zu netto</summary><dl class="zeilen netto" id="rt-netto"></dl></details>
-      <details class="aufklapp"><summary>So wird gerechnet</summary><p class="unter annahmen" id="rt-einkommen-hinweis"></p></details>
+      <div class="unter" style="margin-top: 8px; font-size: 12px">Zusammensetzung brutto</div>
+      <div class="vstapel" id="rt-mix" style="margin-top: 6px"></div>
+      <div class="tg-legende" id="rt-mix-legende"></div>
     </div>
-    <!-- Ziel: wie viel monatlich zusätzlich, damit das Einkommen oben das Ziel erreicht -->
-    <div class="karte szenario ziel">
-      <div class="etikett" id="rt-c-titel"></div>
+    <!-- Was zum Ziel fehlt (Tippen → Sparraten durchspielen) -->
+    <div class="karte szenario ziel tippbar rt-luecke" data-aktion="rt-sim">
+      <div class="etikett"><span id="rt-c-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-c"></div>
       <div class="unter" id="rt-c-unter"></div>
     </div>
-    <div class="abschnitt">Depot</div>
-    <div class="karte szenario">
-      <div class="etikett">1a · Ab sofort nichts mehr einzahlen</div>
-      <div class="betrag mittel-gross" id="rt-a"></div>
-      <div class="unter" id="rt-a-unter"></div>
-      <span class="pill" id="rt-a-pill"></span>
+    <!-- Unterseiten als Kacheln, damit die Übersicht auf einen Bildschirm passt -->
+    <div class="paar rt-kacheln">
+      <div class="karte tippbar" data-aktion="rt-depot" role="button" tabindex="0">
+        <div class="etikett">Depot zur Rente <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div class="wert" id="rt-nav-depot"></div><span class="unter">heutige Kaufkraft</span>
+      </div>
+      <div class="karte tippbar" data-aktion="rt-sim" role="button" tabindex="0">
+        <div class="etikett">Sparraten <svg class="chevron"><use href="#i-weiter"/></svg></div>
+        <div class="wert" id="rt-nav-sim"></div><span class="unter" id="rt-nav-sim-unter"></span>
+      </div>
+    </div>
+    <!-- Einkommen im Detail: über die große Karte oben; Annahmen als schmale Zeile -->
+    <div class="karte liste-karte"><ul class="liste"><li class="tippbar" data-aktion="rt-annahmen">
+      <span class="name"><span class="n">Annahmen</span><small id="rt-nav-annahmen"></small></span>
+    </li></ul></div>
+  </section>
+
+  <!-- Ebene 3: Einkommen – Bausteine, brutto → netto, Rechenweg -->
+  <section id="ansicht-rt-einkommen" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
+    <div class="titel"><h1>Einkommen</h1><div class="unterzeile" id="rt-einkommen-nominal">pro Monat ab Rentenbeginn, in heutiger Kaufkraft</div></div>
+    <div class="abschnitt">Bausteine (brutto)</div>
+    <div class="karte liste-karte"><ul class="liste einkommen" id="rt-saeulen"></ul></div>
+    <div id="rt-netto-block" hidden>
+      <div class="abschnitt">Von brutto zu netto</div>
+      <div class="karte"><dl class="zeilen netto" id="rt-netto"></dl></div>
+    </div>
+    <div class="abschnitt">So wird gerechnet</div>
+    <div class="karte"><p class="unter annahmen" id="rt-einkommen-hinweis" style="margin: 0"></p></div>
+  </section>
+
+  <!-- Ebene 3: Depot bis zur Rente -->
+  <section id="ansicht-rt-depot" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
+    <div class="titel"><h1>Depot bis zur Rente</h1><div class="unterzeile">Wert bei Rentenbeginn, darunter in heutiger Kaufkraft</div></div>
+    <div class="karte">
+      <div class="etikett">Depotwert bis Rentenbeginn</div>
+      <div id="rt-chart" class="chart"></div>
+      <div class="legende"><span class="l1">nichts mehr einzahlen</span><span>wie bisher</span><span class="l2">mit Ziel-Sparrate</span></div>
     </div>
     <div class="karte szenario">
       <div class="etikett" id="rt-b-titel"></div>
@@ -940,10 +982,11 @@
       <div class="unter" id="rt-b-unter"></div>
       <span class="pill" id="rt-b-pill"></span>
     </div>
-    <div class="karte">
-      <div class="etikett">Depotwert bis Rentenbeginn</div>
-      <div id="rt-chart" class="chart"></div>
-      <div class="legende"><span class="l1">1a nichts mehr</span><span>1b wie bisher</span><span class="l2">1c Ziel</span></div>
+    <div class="karte szenario">
+      <div class="etikett">Ab sofort nichts mehr einzahlen</div>
+      <div class="betrag mittel-gross" id="rt-a"></div>
+      <div class="unter" id="rt-a-unter"></div>
+      <span class="pill" id="rt-a-pill"></span>
     </div>
     <p class="fuss fehler" id="rt-warnung"></p>
     <div class="abschnitt">Unterwegs</div>
@@ -953,27 +996,38 @@
       <div class="unter" id="pg-unter"></div>
       <div class="regler" style="margin-top: 14px"><label for="pg-jahre">In <b id="pg-jahre-w"></b></label><input type="range" id="pg-jahre" min="1" max="40" step="1"></div>
     </div>
-    <div class="abschnitt">Simulation je Position</div>
-    <p class="unter" style="margin: -2px 18px 10px">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = Wert aus dem gewählten Szenario. Nur zum Durchspielen – deine echten Sparpläne bleiben unverändert.</p>
+  </section>
+
+  <!-- Ebene 3: Sparraten je Position durchspielen -->
+  <section id="ansicht-rt-sim" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
+    <div class="titel"><h1>Sparraten durchspielen</h1><div class="unterzeile">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = gewähltes Szenario. Deine echten Sparpläne bleiben unverändert.</div></div>
     <div class="karte liste-karte"><ul id="rt-sim" class="liste sim"></ul></div>
     <div class="karte">
-      <label class="feldname" for="rt-ziel-pos">Mehrbetrag für das Ziel (1c) in</label>
+      <label class="feldname" for="rt-ziel-pos">Zusätzliche Sparrate für das Ziel in</label>
       <select id="rt-ziel-pos"></select>
       <div class="knoepfe"><button class="knopf zweit breit" data-aktion="sim-reset">Auf echte Sparpläne zurücksetzen</button></div>
     </div>
-    <div class="abschnitt">Deine Annahmen</div>
+  </section>
+
+  <!-- Ebene 3: Annahmen -->
+  <section id="ansicht-rt-annahmen" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
+    <div class="titel"><h1>Annahmen</h1></div>
+    <div class="karte">
+      <div class="raster">
+        <div><label class="feldname">Geburtsdatum</label><input type="date" id="rt-geburt"></div>
+        <div><label class="feldname">Rentenalter</label><input type="text" inputmode="numeric" id="rt-alter"></div>
+      </div>
+    </div>
     <div class="karte">
       <div class="regler"><label for="rt-wunsch">Entnahme pro Monat in der Rente (heutige Kaufkraft) <b id="rt-wunsch-w"></b></label><input type="range" id="rt-wunsch" min="0" max="5000" step="50"></div>
       <div class="regler"><label for="rt-dauer">Entnahme über <b id="rt-dauer-w"></b></label><input type="range" id="rt-dauer" min="10" max="40" step="1"></div>
       <div class="regler"><label for="rt-entnahme-rendite">Rendite während der Rente <b id="rt-entnahme-rendite-w"></b></label><input type="range" id="rt-entnahme-rendite" min="0" max="8" step="0.5"></div>
       <div class="regler"><label for="rt-inflation">Inflation <b id="rt-inflation-w"></b></label><input type="range" id="rt-inflation" min="0" max="5" step="0.25"></div>
       <div class="regler"><label for="rt-tg-zins">Tagesgeld-Zins bis zur Rente <b id="rt-tg-zins-w"></b></label><input type="range" id="rt-tg-zins" min="0" max="4" step="0.25"></div>
-      <div class="raster" style="margin-top: 6px">
-        <div><label class="feldname">Geburtsdatum</label><input type="date" id="rt-geburt"></div>
-        <div><label class="feldname">Rentenalter</label><input type="text" inputmode="numeric" id="rt-alter"></div>
-      </div>
     </div>
-    <p class="fuss">Werte nominal, darunter in heutiger Kaufkraft. Ohne Steuern (bei Entnahme fällt Abgeltungsteuer auf Gewinne an) und ohne Kosten. Keine Garantie und keine Anlageberatung.</p>
+    <p class="fuss">Werte nominal, darunter in heutiger Kaufkraft. Keine Garantie und keine Anlageberatung.</p>
   </section>
 
   <!-- Detail einer Position -->
@@ -1255,7 +1309,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1700'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1708'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1806,22 +1860,10 @@ function offeneBuchungen() {
   return daten.buchungen.filter((b) => b.status === 'offen');
 }
 
-// Wirkung einer offenen Buchung zum aktuellen Kurs: Sparrate = Kauf, Gebühr = Anteilsverkauf ohne Einzahlung
-function wirkung(b, k) {
-  if (b.art === 'gebuehr') return { stueck: -b.gebuehrEur / k.eur, betrag: 0 };
-  return { stueck: b.betrag / k.eur, betrag: b.betrag };
-}
-
-// Bestand inklusive offener (noch nicht bestätigter) Buchungen
-function aktuellerBestand(p, k) {
-  let stueck = p.stueck, inv = p.investiert;
-  for (const b of offeneBuchungen()) {
-    if (b.posId !== p.id) continue;
-    const w = wirkung(b, k);
-    stueck += w.stueck;
-    inv += w.betrag;
-  }
-  return { stueck, inv };
+// Bestand nur aus bestätigten Angaben: offene Sparraten/Gebühren zählen erst nach dem Monats-Check
+// (Tag und Kurs der Ausführung kennt die App vorher nicht – User-Wunsch, nichts automatisch einrechnen)
+function aktuellerBestand(p) {
+  return { stueck: p.stueck, inv: p.investiert };
 }
 
 function checkFaellig() {
@@ -2062,9 +2104,6 @@ function kaeufeNach(p, k, stichtagIso) {
   const kaeufe = [];
   const bestaetigt = daten.buchungen.filter((b) => b.posId === p.id && b.status === 'bestaetigt');
   for (const b of bestaetigt) if (b.datum > stichtagIso) kaeufe.push({ datum: b.datum, betrag: b.betrag, stueck: b.stueck });
-  for (const b of offeneBuchungen()) {
-    if (b.posId === p.id && b.geplant > stichtagIso) kaeufe.push({ datum: b.geplant, ...wirkung(b, k) });
-  }
   // echte Umsätze aus der Depot-Historie (z. B. FNZ): Sparraten, Gebühren (Betrag 0, Stück negativ), Umschichtungen
   for (const b of daten.buchungen) {
     if (b.posId === p.id && b.status === 'historie' && b.datum > stichtagIso) kaeufe.push({ datum: b.datum, betrag: b.betrag, stueck: b.stueck });
@@ -3475,8 +3514,15 @@ function rentenfaktor(a) {
 }
 const kaufkraft = (a, jahre) => Math.pow(1 + a.inflation / 100, jahre);
 
+// Ebene 3 der Prognose; renteAnzeigen rechnet alles neu, wechselt aber nicht von einer Unterseite weg
+const RT_SEITEN = ['ansicht-rt-einkommen', 'ansicht-rt-depot', 'ansicht-rt-sim', 'ansicht-rt-annahmen'];
+function rtUnterseite(id) {
+  zeige(id);
+  renteAnzeigen(); // Diagramm erst zeichnen, wenn die Seite sichtbar ist (echte Breite)
+}
+
 function renteAnzeigen() {
-  if (document.getElementById('ansicht-rente').hidden) zeige('ansicht-rente');
+  if (document.getElementById('ansicht-rente').hidden && RT_SEITEN.every((id) => document.getElementById(id).hidden)) zeige('ansicht-rente');
   const a = renteAnnahmen();
   const beginn = rentenbeginn();
 
@@ -3504,8 +3550,7 @@ function renteAnzeigen() {
   const monate = monateBis(beginn);
   const jahre = monate / 12;
   document.getElementById('rt-unterzeile').textContent =
-    `Rentenbeginn ${new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn)} · noch ${Math.floor(jahre)} Jahre, ${monate % 12} Monate` +
-    (a.gesetzlicheRenteBrutto ? ` · dazu gesetzliche Rente ca. ${geldRund(a.gesetzlicheRenteBrutto)} brutto` : '');
+    `Rente ab ${new Intl.DateTimeFormat('de-DE', { month: 'short', year: 'numeric' }).format(beginn)} · in ${Math.round(jahre)} Jahren`;
 
   const faktor = rentenfaktor(a);
   const inflation = kaufkraft(a, jahre);
@@ -3523,14 +3568,14 @@ function renteAnzeigen() {
   };
   zeigeSzenario('a', ohne);
   document.getElementById('rt-b-titel').textContent =
-    `1b · Weiter ${simAngepasst() ? 'wie simuliert' : 'wie bisher'} · ${geld(sparplanSumme)} pro Monat`;
+    `Weiter ${simAngepasst() ? 'wie durchgespielt' : 'wie bisher'} · ${geld(sparplanSumme)} pro Monat`;
   zeigeSzenario('b', bisher);
 
   // 1c Ziel: Mehrbetrag pro Monat in der gewählten Position
   const zp = zielPosition();
   const jeEuro = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: 1 }).ende - bisher.ende;
   const cWert = document.getElementById('rt-c'), cUnter = document.getElementById('rt-c-unter');
-  const mehrText = (mehr) => `zusätzlich pro Monat in ${zp.name} – dort dann ${geldRund(simRate(zp) + mehr)} statt ${geldRund(simRate(zp))}.`;
+  const mehrText = (mehr) => `pro Monat zusätzlich in ${zp.name} (dann ${geldRund(simRate(zp) + mehr)} statt ${geldRund(simRate(zp))})`;
   let zielReihe = null;
   if (nettoZielDa()) {
     // Ein Ziel für die ganze Seite: das Einkommen oben (nach Steuern). Steuern machen es nichtlinear -> Intervallhalbierung.
@@ -3538,8 +3583,7 @@ function renteAnzeigen() {
     const rechne = (mehr) => einkommenRechnen(a, beginn, inflation, faktor,
       mehr ? projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: mehr }) : bisher);
     const e0 = rechne(0);
-    document.getElementById('rt-c-titel').textContent =
-      `1c · Ziel ${n.zielRentenbeginn ? `${geldRund(n.zielRentenbeginn)} (${beginn.getFullYear()})` : `${geldRund(e0.ziel)} heute`} · ${e0.vorPkv ? 'nach Steuern, vor PKV' : 'netto'}`;
+    document.getElementById('rt-c-titel').textContent = e0.luecke > 0 ? 'So schließt du die Lücke' : 'Ziel erreicht';
     if (e0.luecke <= 0) {
       cWert.innerHTML = betragHTML(0, false, true);
       cUnter.textContent = `Schon erreicht – ${geldRund(-e0.luecke)} pro Monat über dem Ziel (heutige Kaufkraft).`;
@@ -3556,14 +3600,14 @@ function renteAnzeigen() {
       } else {
         while (hi - lo > 1) { const m = (lo + hi) / 2; if (rechne(m).luecke > 0) lo = m; else hi = m; }
         zaehle(cWert, hi, false, true);
-        cUnter.textContent = `${mehrText(hi)} Damit schließt sich die Lücke von ${geldRund(e0.luecke)} pro Monat (heutige Kaufkraft).`;
+        cUnter.textContent = mehrText(hi);
         zielReihe = projektion(renditeSzenario, 1, monate, false, { posId: zp.id, betrag: hi }).reihe;
       }
     }
   } else {
     // ohne Netto-Daten: Ziel = gewünschte Entnahme aus dem Depot. Der Endwert ist linear im Mehrbetrag -> direkt auflösbar.
     const zielKapital = a.wunschEntnahme * faktor * inflation;
-    document.getElementById('rt-c-titel').textContent = `1c · Ziel: ${geldRund(a.wunschEntnahme)} pro Monat (heutige Kaufkraft)`;
+    document.getElementById('rt-c-titel').textContent = `Ziel: ${geldRund(a.wunschEntnahme)} pro Monat aus dem Depot`;
     if (bisher.ende >= zielKapital) {
       cWert.innerHTML = betragHTML(0, false, true);
       cUnter.textContent = `Mit deinen Sparraten schon erreicht – ${geldRund(bisher.ende - zielKapital)} über dem Zielkapital von ${geldRund(zielKapital)}.`;
@@ -3579,6 +3623,11 @@ function renteAnzeigen() {
     }
   }
   einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
+  document.getElementById('rt-nav-depot').textContent = geldRund(bisher.ende / inflation);
+  document.getElementById('rt-nav-sim').textContent = `${geldRund(sparplanSumme)} / Monat`;
+  document.getElementById('rt-nav-sim-unter').textContent = simAngepasst() ? 'durchgespielt' : 'deine Sparpläne';
+  document.getElementById('rt-nav-annahmen').textContent =
+    `Rente mit ${a.rentenalter} · Inflation ${zahl(a.inflation, 1)} % · ${a.entnahmeJahre} Jahre Entnahme`;
   simListeAnzeigen(bisher.jePosition, sparplanSumme, bisher.ende);
   unterwegsRechnen();
 
@@ -3802,12 +3851,10 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   karte.hidden = !vorsorge.length;
   if (!vorsorge.length) return;
   const { zeilen, summe, topfTeile, hochgerechnet, n, x, wert, ziel, luecke, vorPkv } = einkommenRechnen(a, beginn, inflation, faktor, bisher);
-  const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
   const dl = document.getElementById('rt-netto');
   document.getElementById('rt-netto-block').hidden = !n;
   if (n) {
-    document.getElementById('rt-einkommen-titel').textContent =
-      `Dein Einkommen ab ${bis} · ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat`;
+    document.getElementById('rt-einkommen-titel').textContent = `Einkommen pro Monat · ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'}`;
     zaehle(document.getElementById('rt-einkommen'), wert, false, true);
     // Zeile 1: was zum Ziel fehlt (heutige Kaufkraft), Zeile 2: dieselbe Rechnung in Euro des Rentenbeginns
     const unter = document.getElementById('rt-einkommen-unter');
@@ -3816,10 +3863,10 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       const z1 = document.createElement('b');
       z1.className = luecke > 0 ? '' : 'pos'; // eine Lücke ist kein Fehler: nicht rot
       z1.textContent = luecke > 0 ? `Es fehlen ${geldRund(luecke)} pro Monat (Ziel ${geldRund(ziel)})` : `Ziel ${geldRund(ziel)} erreicht (+${geldRund(-luecke)})`;
-      unter.append(z1, document.createElement('br'));
+      unter.append(z1);
     }
-    unter.append(n.zielRentenbeginn
-      ? `In Euro von ${beginn.getFullYear()}: ${geldRund(wert * inflation)} von ${geldRund(n.zielRentenbeginn)}`
+    document.getElementById('rt-einkommen-nominal').textContent = `${geldRund(wert)} ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat in heutiger Kaufkraft – ` + (n.zielRentenbeginn
+      ? `in Euro von ${beginn.getFullYear()}: ${geldRund(wert * inflation)} von ${geldRund(n.zielRentenbeginn)} Ziel`
       : `≈ ${geldRund(wert * inflation)} in Euro von ${beginn.getFullYear()}`);
     dl.innerHTML = '';
     for (const [name, betrag, klasseWert] of [
@@ -3840,10 +3887,34 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
       dl.appendChild(reihe);
     }
   } else {
-    document.getElementById('rt-einkommen-titel').textContent = `Dein Einkommen ab ${bis} · pro Monat`;
+    document.getElementById('rt-einkommen-titel').textContent = 'Einkommen pro Monat · brutto';
     zaehle(document.getElementById('rt-einkommen'), summe, false, true);
     document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
   }
+  // Zielbalken: wie weit das Einkommen das Ziel schon trägt
+  const balken = document.getElementById('rt-zielbalken');
+  balken.hidden = !(n && ziel);
+  if (n && ziel) balken.querySelector('i').style.width = `${Math.min(100, (wert / ziel) * 100)}%`;
+  // Zusammensetzung (brutto): Renten einzeln, Depot-Entnahmen zusammengefasst
+  const gruppen = [];
+  for (const z of zeilen) {
+    if (!(z.wert > 0)) continue;
+    const name = /^Entnahme /.test(z.name) && z.name !== 'Entnahme Tagesgeld' ? 'Depot' : z.name.replace(/^Entnahme /, '').replace(/ \(.*\)$/, '');
+    const g = gruppen.find((x) => x.name === name);
+    if (g) g.wert += z.wert; else gruppen.push({ name, wert: z.wert });
+  }
+  gruppen.sort((x, y) => y.wert - x.wert);
+  const farbe = (i) => (i < 5 ? `var(--kat-${i + 1})` : 'var(--text-3)');
+  document.getElementById('rt-mix').innerHTML = gruppen.map((g, i) => `<i style="flex: ${g.wert}; background: ${farbe(i)}"></i>`).join('');
+  const legende = document.getElementById('rt-mix-legende');
+  legende.innerHTML = '';
+  gruppen.forEach((g, i) => {
+    const el = document.createElement('span');
+    el.innerHTML = `<i style="background: ${farbe(i)}"></i><b></b> ${geldRund(g.wert)}`;
+    el.querySelector('b').textContent = g.name;
+    legende.appendChild(el);
+  });
+
   const ul = document.getElementById('rt-saeulen');
   ul.innerHTML = '';
   for (const z of zeilen) {
@@ -5736,6 +5807,11 @@ document.addEventListener('click', (e) => {
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
+    'rt-einkommen': () => rtUnterseite('ansicht-rt-einkommen'),
+    'rt-depot': () => rtUnterseite('ansicht-rt-depot'),
+    'rt-sim': () => rtUnterseite('ansicht-rt-sim'),
+    'rt-annahmen': () => rtUnterseite('ansicht-rt-annahmen'),
+    'rt-zurueck': () => reiterZeigen('ansicht-rente'),
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
     'push-an': pushEinschalten,
     'push-test': pushTest,
