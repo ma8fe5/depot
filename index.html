@@ -366,6 +366,7 @@
   .tg-legende i { width: 8px; height: 8px; border-radius: 50%; }
   .tg-legende b { font-weight: 600; color: var(--text); }
   .zinsuhr { font-variant-numeric: tabular-nums; }
+  #detail-name.lang { font-size: 26px; }
   .zahlen-raster { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 14px; font-size: 13px; color: var(--text-2); }
   .zahlen-raster b { display: block; font-size: 16px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
   .zahlen-raster b.pos { color: var(--pos); } .zahlen-raster b.neg { color: var(--neg); }
@@ -1329,7 +1330,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1801'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1811'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3653,8 +3654,8 @@ function renteAnzeigen() {
   }
   einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
   document.getElementById('rt-annahme-text').textContent = simAngepasst()
-    ? `Angenommen: durchgespielte Sparraten, ${geldRund(sparplanSumme)} pro Monat`
-    : `Angenommen: deine heutigen Sparraten, ${geldRund(sparplanSumme)} pro Monat`;
+    ? `Mit durchgespielten Sparraten: ${geldRund(sparplanSumme)} / Monat`
+    : `Mit deinen heutigen Sparraten: ${geldRund(sparplanSumme)} / Monat`;
   document.querySelector('.rt-annahme').classList.toggle('durchgespielt', simAngepasst());
   document.getElementById('rt-nav-depot').textContent = geldRund(bisher.ende / inflation);
   document.getElementById('rt-nav-depot-unter').textContent = `in heutiger Kaufkraft · ${geldRund(bisher.ende)} in Euro von ${beginn.getFullYear()}`;
@@ -4463,6 +4464,7 @@ function detailAnzeigen(posId) {
   const wert = stueck * k.eur;
   const gewinn = wert - inv;
   document.getElementById('detail-name').textContent = p.name;
+  document.getElementById('detail-name').classList.toggle('lang', p.name.length > 16); // lange Namen kleiner, damit die Seite passt
   document.getElementById('detail-zurueck-text').textContent = (DETAIL_HERKUNFT[detailHerkunft] || DETAIL_HERKUNFT['ansicht-vermoegen']).name;
   document.getElementById('detail-wert').innerHTML = betragHTML(wert);
   setzePill(document.getElementById('detail-gewinn'), gewinn,
