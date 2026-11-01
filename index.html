@@ -467,6 +467,7 @@
   .annahmen { margin: 12px 0 0; font-size: 13px; line-height: 1.45; }
   /* aufklappbare Erklärungen (Prognose) */
   .rt-luecke .betrag { font-size: 30px; margin: 0; }
+  .rt-2052 { font-size: 13px; color: var(--text-2); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
   .rt-schliessen { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 14px; color: var(--text-2); }
   .rt-schliessen b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
   .rt-annahme { display: flex; align-items: center; gap: 8px; margin: -4px 4px 12px; font-size: 13px; color: var(--text-2); cursor: pointer; }
@@ -944,6 +945,7 @@
     <div class="karte held tippbar" id="rt-einkommen-karte" data-aktion="rt-einkommen" hidden>
       <div class="etikett"><span id="rt-einkommen-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-einkommen"></div>
+      <div class="rt-2052" id="rt-einkommen-2052"></div>
       <div class="rt-zielbalken" id="rt-zielbalken" hidden><i></i></div>
       <div class="unter" id="rt-einkommen-unter"></div>
       <div class="unter" style="margin-top: 8px; font-size: 12px">Zusammensetzung brutto</div>
@@ -954,6 +956,7 @@
     <div class="karte szenario ziel tippbar rt-luecke" data-aktion="rt-sim">
       <div class="etikett"><span id="rt-c-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-c"></div>
+      <div class="rt-2052" id="rt-c-2052"></div>
       <div class="rt-schliessen" id="rt-schliessen" hidden><b>So schließt du die Lücke</b><span id="rt-c-unter"></span></div>
     </div>
   </section>
@@ -1326,7 +1329,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1742'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1748'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3605,6 +3608,7 @@ function renteAnzeigen() {
     schliessen.hidden = e0.luecke <= 0;
     document.getElementById('rt-c-titel').textContent = e0.luecke > 0 ? `Lücke zum Ziel von ${geldRund(e0.ziel)} pro Monat` : `Ziel von ${geldRund(e0.ziel)} pro Monat erreicht`;
     zaehle(cWert, Math.abs(e0.luecke), false, true);
+    document.getElementById('rt-c-2052').textContent = `heute · ≈ ${geldRund(Math.abs(e0.luecke) * inflation)} in ${beginn.getFullYear()}`;
     cWert.classList.toggle('pos', e0.luecke <= 0);
     if (e0.luecke <= 0) {
       zielReihe = bisher.reihe;
@@ -3626,6 +3630,7 @@ function renteAnzeigen() {
     const zielKapital = a.wunschEntnahme * faktor * inflation;
     document.getElementById('rt-c-titel').textContent = `Ziel: ${geldRund(a.wunschEntnahme)} pro Monat aus dem Depot`;
     document.getElementById('rt-schliessen').hidden = false;
+    document.getElementById('rt-c-2052').textContent = '';
     if (bisher.ende >= zielKapital) {
       cWert.innerHTML = betragHTML(0, false, true);
       cUnter.textContent = `Mit deinen Sparraten schon erreicht – ${geldRund(bisher.ende - zielKapital)} über dem Zielkapital von ${geldRund(zielKapital)}.`;
@@ -3890,9 +3895,10 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     if (ziel) {
       const z1 = document.createElement('b');
       z1.className = luecke > 0 ? '' : 'pos';
-      z1.textContent = `von ${geldRund(ziel)} Bedarf (heutige Kaufkraft)`;
+      z1.textContent = `Bedarf ${geldRund(ziel)} heute · ≈ ${geldRund(ziel * inflation)} in ${beginn.getFullYear()}`;
       unter.append(z1);
     }
+    document.getElementById('rt-einkommen-2052').textContent = `heute · ≈ ${geldRund(wert * inflation)} in ${beginn.getFullYear()}`;
     document.getElementById('rt-einkommen-nominal').textContent = `${geldRund(wert)} ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat in heutiger Kaufkraft – ` + (n.zielRentenbeginn
       ? `in Euro von ${beginn.getFullYear()}: ${geldRund(wert * inflation)} von ${geldRund(n.zielRentenbeginn)} Ziel`
       : `≈ ${geldRund(wert * inflation)} in Euro von ${beginn.getFullYear()}`);
@@ -3916,6 +3922,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     }
   } else {
     document.getElementById('rt-einkommen-titel').textContent = 'Einkommen pro Monat · brutto';
+    document.getElementById('rt-einkommen-2052').textContent = '';
     zaehle(document.getElementById('rt-einkommen'), summe, false, true);
     document.getElementById('rt-einkommen-unter').textContent = 'in heutiger Kaufkraft, brutto';
   }
