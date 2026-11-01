@@ -1309,7 +1309,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1708'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1712'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4696,7 +4696,15 @@ function entwicklungZeichnen() {
 
   // Zeiträume: Einzahlungen herausrechnen, damit Linie und Gewinn dieselbe Richtung zeigen; „Seit Eröffnung“ zeigt den echten Wert
   const bereinigt = entwicklungZeitraum !== 'gesamt';
-  const verlauf = vermoegensVerlauf(start, bis, bereinigt);
+  let verlauf = vermoegensVerlauf(start, bis, bereinigt);
+  if (entwicklungZeitraum === 'vortag') {
+    // Vortag: genau die beiden Werte, aus denen der Gewinn entsteht – je Position letzter Schlusskurs gegen den davor
+    // (Aktien am Wochenende Fr gegen Do, Bitcoin heute gegen gestern). Ein Kalender-Verlauf würde sonst etwas anderes zeigen.
+    const b = bewertung();
+    const gestern = new Date(h); gestern.setDate(gestern.getDate() - 1);
+    verlauf = { depot: [[isoDatum(gestern), b.vorherWert], [isoDatum(h), b.vorherWert + b.tagAend]], einzahlungen: 0 };
+    achseX = (t, i) => (i === 0 ? 'Vortag' : 'aktuell');
+  }
   if (verlauf && entwicklungZeitraum === 'mtd') {
     // bei vielen Handelstagen nicht jeden Tag beschriften
     const n = verlauf.depot.length;
