@@ -259,9 +259,8 @@
   .chart .tip i.b { background: var(--text-3); }
   .chart .tip[hidden] { display: none; }
   .chart .start { fill: var(--text-3); }
-  .chart-enden { display: flex; justify-content: space-between; margin: 2px 4px 0; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .chart-enden span:last-child { text-align: right; }
-  .chart-enden small { display: block; font-size: 11px; font-weight: 500; color: var(--text-2); }
+  .chart .endwert { font-size: 11.5px; font-weight: 700; fill: var(--text); font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--flaeche); stroke-width: 4px; stroke-linejoin: round; }
   .legende { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--text-2); }
   .legende span { display: inline-flex; align-items: center; gap: 7px; }
   .legende span::before { content: ''; width: 16px; border-top: 2.2px solid var(--akzent); border-radius: 2px; }
@@ -1256,7 +1255,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1331'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1656'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2421,8 +2420,7 @@ function linienChart(el, serien, opt) {
   tage.forEach((t, i) => {
     const marke = opt.achseX ? opt.achseX(t, i)
       : (i > 0 && t.slice(5, 7) !== tage[i - 1].slice(5, 7) ? MONATE[Number(t.slice(5, 7)) - 1] : null);
-    // Anfang und Ende stehen bei opt.enden ohnehin darunter
-    if (marke && !(opt.enden && (i === 0 || i === tage.length - 1))) svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${marke}</text>`;
+    if (marke) svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${marke}</text>`;
   });
   // zuerst die Vergleichslinie, darüber die Hauptlinie mit Fläche
   [...serien.keys()].reverse().forEach((si) => {
@@ -2436,18 +2434,21 @@ function linienChart(el, serien, opt) {
     if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`;
   }
   const letzter = serien[0].punkte[tage.length - 1][1];
-  if (opt.enden) svg += `<circle class="start" cx="${x(0)}" cy="${y(serien[0].punkte[0][1])}" r="3"/>`;
+  if (opt.enden && !istPrivat()) {
+    // Anfangs- und Endwert der Betrachtung direkt im Graphen: über dem Punkt, bei wenig Platz darunter
+    const erster = serien[0].punkte[0][1];
+    const wertText = (v, px, anker) => {
+      const py = y(v) < T + 18 ? y(v) + 17 : y(v) - 9;
+      return `<text class="endwert" x="${px}" y="${py}" text-anchor="${anker}">${opt.format(v)}</text>`;
+    };
+    svg += `<circle class="start" cx="${x(0)}" cy="${y(erster)}" r="3"/>`;
+    svg += wertText(erster, x(0) + 2, 'start') + wertText(letzter, x(tage.length - 1) - 2, 'end');
+  }
   svg += `<circle class="halo${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
   svg += `<circle class="ende${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
   svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
   serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4.5" visibility="hidden"/>`; });
   svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
-  if (opt.enden) {
-    // Anfang und Ende der Betrachtung dauerhaft unter dem Graphen (nicht nur beim Antippen)
-    const erster = serien[0].punkte[0][1];
-    const tagText = (t) => (t === isoDatum(heute()) ? 'heute' : deDatum(t).slice(0, 6) + deDatum(t).slice(8));
-    svg += `<div class="chart-enden"><span><small>${tagText(tage[0])}</small>${opt.format(erster)}</span><span><small>${tagText(tage[tage.length - 1])}</small>${opt.format(letzter)}</span></div>`;
-  }
   el.innerHTML = svg;
 
   const svgEl = el.querySelector('svg');
