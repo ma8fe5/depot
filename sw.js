@@ -79,7 +79,12 @@ async function tagesbilanz() {
   const zeilen = [];
   for (const p of b.positionen) {
     let eur, vorher = null;
-    if (p.quelle === 'coingecko') {
+    const krypto = p.eodSymbol && kurse[p.eodSymbol];
+    if (krypto && !krypto.fehler && krypto.schluss != null) {
+      // Krypto über den Vermittler (wie in der App); CoinGecko nur als Ersatz
+      eur = krypto.schluss;
+      if (krypto.vorher != null) vorher = krypto.vorher;
+    } else if (p.quelle === 'coingecko') {
       try {
         const j = (await (await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${p.symbol}&vs_currencies=eur&include_24hr_change=true`)).json())[p.symbol];
         eur = j.eur;

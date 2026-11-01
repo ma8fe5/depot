@@ -401,6 +401,7 @@
   #ansicht-haupt .wert-karte .zeile-wert { align-items: baseline; }
   #ansicht-haupt .wert-karte .wert-gross { font-size: 30px; }
   #ansicht-haupt .unter.klein { font-size: 12px; text-align: right; }
+  #ansicht-haupt #entw-zahlen { text-align: left; margin-top: 4px; }
   #ansicht-haupt .wert-gross { font-size: 26px; }
   #ansicht-haupt .etikett { margin-bottom: 4px; }
   #ansicht-haupt .chips { margin-bottom: 4px; }
@@ -433,6 +434,8 @@
   .wert-gross { font-size: 30px; font-weight: 750; letter-spacing: -0.03em; white-space: nowrap; }
   .chart .s0.gruen { stroke: var(--pos); }
   .chart .ende.gruen, .chart .halo.gruen { fill: var(--pos); }
+  .chart .s0.rot { stroke: var(--neg); }
+  .chart .ende.rot, .chart .halo.rot { fill: var(--neg); }
   .betrag.mittel-gross { font-size: 34px; margin: 2px 0 6px; }
   .karte.szenario .pill { margin-top: 10px; }
   .karte.ziel { background: radial-gradient(120% 120% at 100% 0%, var(--pos-weich), transparent 60%), var(--flaeche); }
@@ -694,7 +697,6 @@
   <section id="ansicht-haupt" class="ansicht" hidden>
     <div class="kopf">
       <div>
-        <div class="datum">Wertpapiere, ETFs, Fonds & Bitcoin</div>
         <h1>Depot</h1>
       </div>
       <div class="kopf-knoepfe">
@@ -720,6 +722,7 @@
         </div>
         <span id="tag-pct" class="pill">–</span>
       </div>
+      <div class="unter klein" id="entw-zahlen"></div>
       <div class="chips" id="entw-chips" style="margin-top: 10px"></div>
       <div class="chips" id="entw-jahre"></div>
       <div class="pos-wahl-zeile"><button class="pos-wahl-knopf" data-aktion="pos-wahl" id="entw-pos">Alle Positionen ▾</button></div>
@@ -1250,7 +1253,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1256'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1324'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1828,10 +1831,16 @@ function checkFaellig() {
 // ---------- Kurse ----------
 
 // Symbole für /quotes – dieselbe Liste nutzt die Morgen-Mitteilung, damit der Vermittler aus seinem Speicher antwortet
+// Krypto kommt wie Aktien über den Vermittler (EODHD, dort zwischengespeichert). Die öffentliche CoinGecko-Schnittstelle
+// drosselt Aufrufe ohne Schlüssel und lieferte deshalb immer wieder keine Kurse – sie springt nur noch ein, wenn der Vermittler nichts hat.
+const KRYPTO_EOD = { bitcoin: 'BTC-EUR.CC', ethereum: 'ETH-EUR.CC', solana: 'SOL-EUR.CC' };
+const kryptoSymbol = (p) => (p.quelle === 'coingecko' ? p.eodSymbol || KRYPTO_EOD[p.symbol] || null : null);
+
 function kursSymbole() {
   const eodPos = daten.positionen.filter((p) => p.quelle === 'eodhd');
   return [...new Set(eodPos.map((p) => p.symbol)
-    .concat(eodPos.map(fxSymbol).filter(Boolean)))];
+    .concat(eodPos.map(fxSymbol).filter(Boolean))
+    .concat(daten.positionen.map(kryptoSymbol).filter(Boolean)))];
 }
 
 async function kurseHolen() {
@@ -1878,13 +1887,18 @@ async function kurseHolen() {
       }
       preise[p.id] = { eur: k.schluss * faktor, vorherEur: k.vorher != null ? k.vorher * faktor : null, datum: k.datum, reihe };
     }
+    for (const p of daten.positionen.filter(kryptoSymbol)) {
+      const k = j.kurse[kryptoSymbol(p)];
+      if (!k || k.fehler || k.schluss == null) continue; // dann versucht es CoinGecko
+      preise[p.id] = { eur: k.schluss, vorherEur: k.vorher != null ? k.vorher : null, datum: k.datum, reihe: Array.isArray(k.reihe) ? k.reihe : null };
+    }
   } catch (e) {
     // Vermittler nicht erreichbar: alte Kurse bleiben stehen, ein Satz genügt statt einer Namensliste
     if (!hinweise.length) veraltet = true;
     console.error(e);
   }
 
-  for (const p of daten.positionen.filter((p) => p.quelle === 'coingecko')) {
+  for (const p of daten.positionen.filter((p) => p.quelle === 'coingecko' && !preise[p.id])) {
     try {
       const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${p.symbol}&vs_currencies=eur&include_24hr_change=true&include_last_updated_at=true`);
       const j = (await r.json())[p.symbol];
@@ -1902,7 +1916,7 @@ async function kurseHolen() {
         eur: j.eur,
         vorherEur: aend != null ? j.eur / (1 + aend / 100) : null,
         datum: isoDatum(new Date(j.last_updated_at * 1000)),
-        reihe,
+        reihe: reihe || (kurse && kurse.preise[p.id] && kurse.preise[p.id].reihe) || null, // Verlauf nicht verlieren
       };
     } catch (e) {
       fehler.push(p.name);
@@ -2376,19 +2390,26 @@ function linienChart(el, serien, opt) {
   const rand = (max - min) * 0.1 || max * 0.05 || 1;
   min = min >= 0 ? Math.max(0, min - rand) : min - rand; // nicht ins Negative, wenn alle Werte positiv sind
   max += rand;
+  // runde Gitterlinien: Schrittweite 1, 2, 2,5 oder 5 × 10^n, Achse auf ganze Schritte erweitert (z. B. 45k, 50k, 55k)
+  const roh = (max - min) / 3, zehner = Math.pow(10, Math.floor(Math.log10(roh)));
+  const schritt = [1, 2, 2.5, 5, 10].map((f) => f * zehner).find((s) => s >= roh);
+  min = Math.floor(min / schritt) * schritt;
+  max = Math.ceil(max / schritt) * schritt;
+  const stellenK = schritt >= 1000 ? (schritt % 1000 ? 1 : 0) : schritt >= 100 ? 1 : 2;
   const x = (i) => L + (i / Math.max(1, tage.length - 1)) * (W - L - R);
   const y = (v) => T + (1 - (v - min) / (max - min)) * (H - T - B);
   const kurz = (v) => opt.formatKurz ? opt.formatKurz(v)
-    : istPrivat() ? '' : v === 0 ? '0 €' : (Math.abs(v) >= 1000 ? zahl(v / 1000, 1) + ' T€' : zahl(v, 2) + ' €');
+    : istPrivat() ? '' : v === 0 ? '0 €' : (Math.abs(v) >= 1000 && schritt >= 1000 ? zahl(v / 1000, stellenK) + 'k €' : zahl(v, schritt >= 1 ? 0 : 2) + ' €');
   const gid = `verlauf-${++chartNr}`;
+  const farbe = opt.rot ? '--neg' : opt.gruen ? '--pos' : '--akzent';
+  const farbKlasse = opt.rot ? ' rot' : opt.gruen ? ' gruen' : '';
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="var(${opt.gruen ? '--pos' : '--akzent'})" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="var(${opt.gruen ? '--pos' : '--akzent'})" stop-opacity="0"/>
+      <stop offset="0" stop-color="var(${farbe})" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="var(${farbe})" stop-opacity="0"/>
     </linearGradient></defs>`;
-  for (let g = 0; g <= 3; g++) {
-    const v = min + ((max - min) * g) / 3;
+  for (let v = min; v <= max + schritt / 2; v += schritt) {
     svg += `<line class="gitter" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
     svg += `<text class="achse" x="${W - R + 6}" y="${y(v) + 3}">${kurz(v)}</text>`;
   }
@@ -2404,15 +2425,15 @@ function linienChart(el, serien, opt) {
     const s = serien[si];
     const d = s.punkte.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join('');
     if (si === 0) svg += `<path class="flaeche" fill="url(#${gid})" d="${d}L${x(tage.length - 1).toFixed(1)},${H - B}L${x(0).toFixed(1)},${H - B}Z"/>`;
-    svg += `<path class="linie s${si}${si === 0 && opt.gruen ? ' gruen' : ''}" d="${d}"/>`;
+    svg += `<path class="linie s${si}${si === 0 ? farbKlasse : ''}" d="${d}"/>`;
   });
   for (const [t, v] of opt.marker || []) {
     const i = tage.indexOf(t);
     if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`;
   }
   const letzter = serien[0].punkte[tage.length - 1][1];
-  svg += `<circle class="halo${opt.gruen ? ' gruen' : ''}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
-  svg += `<circle class="ende${opt.gruen ? ' gruen' : ''}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
+  svg += `<circle class="halo${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
+  svg += `<circle class="ende${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
   svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
   serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4.5" visibility="hidden"/>`; });
   svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
@@ -4302,6 +4323,7 @@ const DETAIL_HERKUNFT = {
 };
 
 function detailAnzeigen(posId) {
+  if (posId !== detailPosId) detailZeitraum = 'vortag'; // neue Position: wieder mit dem Vortag beginnen
   const p = daten.positionen.find((x) => x.id === posId);
   const k = kurse && kurse.preise[posId];
   if (!p || !k) return;
@@ -4349,7 +4371,7 @@ function detailAnzeigen(posId) {
   const jahre = [];
   for (let j = h.getFullYear() - 1; j >= startJahr; j--) jahre.push(String(j));
   const wahl = ['eroeffnung', 'vortag', 'wtd', 'mtd', 'ytd', ...jahre];
-  if (!wahl.includes(detailZeitraum)) detailZeitraum = 'ytd';
+  if (!wahl.includes(detailZeitraum)) detailZeitraum = 'vortag';
   const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
   document.getElementById('detail-chips').innerHTML = wahl.map((z) =>
     `<button class="chip${z === detailZeitraum ? ' aktiv' : ''}" data-detail-zeit="${z}">${NAMEN[z] || z}</button>`).join('');
@@ -4400,11 +4422,11 @@ function detailAnzeigen(posId) {
     : spanneTage > 120 ? (t, i) => (i > 0 && t.slice(5, 7) !== reihe[i - 1][0].slice(5, 7) && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null)
       : (t, i) => (i === 0 || i === reihe.length - 1 || (spanneTage > 10 && i % 5 === 0) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
   linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], {
-    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0,
+    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0, rot: aend < 0,
   });
   if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = `Käufe vor ${schaetzGrenze()} sind aus dem Sparplan geschätzt.`;
 }
-let detailZeitraum = 'ytd';
+let detailZeitraum = 'vortag';
 let detailPosId = null;
 
 // ---------- Anzeige ----------
@@ -4424,8 +4446,7 @@ function rangliste(el, eintraege) {
 
 // ---------- Entwicklung auf der Startseite: „Seit Eröffnung“ oder ein einzelnes Jahr ----------
 
-let entwicklungZeitraum = 'gesamt';
-try { entwicklungZeitraum = localStorage.getItem('depot-entw') || 'gesamt'; } catch { /* nur Komfort */ }
+let entwicklungZeitraum = 'vortag'; // Vorgabe bei jedem Start: Veränderung zum Vortag
 // gewählte Jahre (Mehrfachauswahl), z. B. „2021,2022“ – sonst ein einzelner Zeitraum (gesamt, wtd, mtd)
 const entwJahre = () => (/^\d{4}(,\d{4})*$/.test(entwicklungZeitraum) ? entwicklungZeitraum.split(',').map(Number).sort((a, b) => a - b) : []);
 
@@ -4480,19 +4501,23 @@ function entwGrenzen() {
 function entwAuswertung() {
   const g = entwGrenzen();
   const b = bewertung();
+  // Anfang und Ende der Betrachtung (Wert), dazu Einzahlungen dazwischen
+  const spanne = (anfang, ende, rest = '') => `${anfang[0]} ${geld(anfang[1])} → ${ende[0]} ${geld(ende[1])}${rest}`;
   if (g.art === 'gesamt') {
     const l = gewinnListe('eroeffnung');
-    return { ...g, gewinn: b.wert - b.investiert, basis: b.investiert, zeilen: l.zeilen, zahlen: `Investiert ${geld(b.investiert)} · Wert heute ${geld(b.wert)}` };
+    return { ...g, gewinn: b.wert - b.investiert, basis: b.investiert, zeilen: l.zeilen, zahlen: spanne(['Investiert', b.investiert], ['Wert heute', b.wert]) };
   }
   if (g.art === 'vortag') {
     const l = gewinnListe('gestern');
-    return { ...g, gewinn: b.tagAend, basis: b.vorherWert, zeilen: l.zeilen, zahlen: `Wert am Vortag ${geld(b.vorherWert)} · heute ${geld(b.vorherWert + b.tagAend)}` };
+    return { ...g, gewinn: b.tagAend, basis: b.vorherWert, zeilen: l.zeilen, zahlen: spanne(['Vortag', b.vorherWert], ['heute', b.vorherWert + b.tagAend]) };
   }
   const a = auswertung(g.start, g.ende);
+  const kurz = (iso) => (iso === isoDatum(heute()) ? 'heute' : deDatum(iso));
   return {
     ...g, gewinn: a.gewinn, basis: a.zeilen.reduce((s, z) => s + z.basis, 0), geschaetzt: a.geschaetzt,
     zeilen: a.zeilen.slice().sort((x, y) => y.gewinn - x.gewinn),
-    zahlen: `Anfang ${geld(a.wertStart)} · Einzahlungen ${geld(a.einz)}${a.gebuehren ? ` · Gebühren ${geld(a.gebuehren)}` : ''} · Ende ${geld(a.wertEnde)}`,
+    zahlen: spanne([kurz(g.start), a.wertStart], [kurz(g.ende), a.wertEnde],
+      `${a.einz ? ` · Einzahlungen ${geld(a.einz)}` : ''}${a.gebuehren ? ` · Gebühren ${geld(a.gebuehren)}` : ''}`),
   };
 }
 
@@ -4505,6 +4530,7 @@ function entwicklungGewinn() {
   el.className = 'wert-gross ' + klasse(gv);
   el.innerHTML = betragHTML(gv, true);
   setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
+  document.getElementById('entw-zahlen').textContent = a.zahlen;
 }
 
 function entwicklungAnzeigen() {
@@ -4586,11 +4612,11 @@ function entwicklungZeichnen() {
   if (verlauf && verlauf.depot.length < 2) {
     chartEl.innerHTML = '<p class="unter">Diese Woche gibt es noch keinen neuen Schlusskurs.</p>';
   } else if (verlauf) {
+    const fallend = entwAuswertung().gewinn < 0;
     const zeichnen = (hoeheFix) => linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
-      gruen: true, hoeheFix,
+      gruen: !fallend, rot: fallend, hoeheFix,
       format: (v) => geld(v),
       // kurze Zeiträume schwanken wenig: dort auf ganze Euro, sonst auf 100 € gerundet
-      formatKurz: (v) => (['wtd', 'mtd', 'vortag'].includes(entwicklungZeitraum) ? `${zahl(Math.round(v), 0)} €` : `${zahl(Math.round(v / 100) * 100, 0)} €`),
       achseX,
     });
     zeichnen(110);
@@ -5266,7 +5292,7 @@ async function bestandskopieSchreiben() {
     }
     const positionen = daten.positionen.map((p) => {
       const k = kurse.preise[p.id];
-      return { name: p.name, quelle: p.quelle, symbol: p.symbol, waehrung: p.waehrung, stueck: k ? aktuellerBestand(p, k).stueck : p.stueck };
+      return { name: p.name, quelle: p.quelle, symbol: p.symbol, eodSymbol: kryptoSymbol(p), waehrung: p.waehrung, stueck: k ? aktuellerBestand(p, k).stueck : p.stueck };
     }).filter((p) => p.stueck > 0);
     const inhalt = JSON.stringify({
       vermittler: daten.vermittler, token: daten.vermittlerToken || null,
@@ -5579,7 +5605,6 @@ document.addEventListener('click', (e) => {
     } else {
       entwicklungZeitraum = entw;
     }
-    try { localStorage.setItem('depot-entw', entwicklungZeitraum); } catch { /* nur Komfort */ }
     if (!document.getElementById('ansicht-gewinn').hidden) gewinnAnzeigen(); else entwicklungAnzeigen();
     return;
   }
