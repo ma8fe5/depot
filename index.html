@@ -1232,7 +1232,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1203'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1210'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2797,6 +2797,10 @@ function tagesgeldAnzeigen() {
         <label class="feldname">Anschlusszins bekannt? Sonst rechnet die App mit 0 %.</label>
         <div class="zeile"><input type="text" inputmode="decimal" class="tg-anschluss" placeholder="% p. a."><button class="knopf" data-aktion="tg-anschluss">Speichern</button></div>
       </div>` : ''}
+      ${k.auszahlung === 'termin' && !spaeter && rest >= 0 ? `<div class="anschluss">
+        <label class="feldname">Zahlt die Bank die Zinsen erst später aus (z. B. am 31.12.)?</label>
+        <div class="zeile"><input type="date" class="tg-zahltag-feld" min="${k.termin}"><button class="knopf" data-aktion="tg-zahltag">Speichern</button></div>
+      </div>` : ''}
       ${rest <= 14 ? `<div class="warnung">${spaeter
         ? (rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} ist dein Geld frei – Alternative schon ausgesucht?` : 'Dein Geld ist frei – jetzt umziehen.')
         : (rest > 0 ? `In ${rest} ${rest === 1 ? 'Tag' : 'Tagen'} endet der Aktionszins – neue Bank schon ausgesucht?` : 'Aktionszins vorbei – jetzt umziehen.')}</div>
@@ -3057,6 +3061,18 @@ function tgTerminListe() {
     }
   }
   return liste.sort((x, y) => x.datum.localeCompare(y.datum)).slice(0, 20); // Vermittler nimmt höchstens 20
+}
+
+// Späteren Tag der Zinsgutschrift direkt auf der Klippen-Karte nachtragen
+function tgZahltagSpeichern(e) {
+  const k = tgKontoAus(e);
+  if (!k) return;
+  const wert = e.target.closest('.karte').querySelector('.tg-zahltag-feld').value;
+  if (!wert || wert <= k.termin) { alert(`Bitte ein Datum nach dem Aktionsende (${deDatum(k.termin)}) wählen.`); return; }
+  k.zinsZahlung = wert;
+  speichern();
+  tagesgeldAnzeigen();
+  tgTermineSenden(); // Erinnerungen richten sich jetzt nach dem Tag, an dem das Geld frei wird
 }
 
 // Anschlusszins direkt auf der Klippen-Karte nachtragen
@@ -5556,6 +5572,7 @@ document.addEventListener('click', (e) => {
     'tg-neu': tgNeu,
     'tg-wechsel': () => tgWechsel(e),
     'tg-anschluss': () => tgAnschlussSpeichern(e),
+    'tg-zahltag': () => tgZahltagSpeichern(e),
     'tg-loeschen': () => tgLoeschen(e),
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
