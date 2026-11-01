@@ -168,7 +168,7 @@
   .hinweis { position: relative; }
   .hinweis-weg { border: 0; background: none; color: inherit; font: inherit; font-size: 22px; line-height: 1; padding: 0 2px; margin: -2px -4px 0 4px; opacity: 0.7; cursor: pointer; }
   .hinweis > .hinweis-weg { position: absolute; top: 10px; right: 12px; margin: 0; }
-  #check-hinweis, #steuer-hinweis { padding-right: 40px; }
+  #check-hinweis, #steuer-hinweis, #angaben-hinweis { padding-right: 40px; }
   .hinweis-zeile .chevron { width: 8px; height: 13px; }
   .hinweis .knopf { margin-top: 10px; padding: 8px 14px; font-size: 15px; background: var(--hinweis-text); color: var(--hinweis); }
 
@@ -695,6 +695,13 @@
       <div><b>Monats-Check</b> · <span id="check-anzahl"></span><br>
         <button class="knopf" data-aktion="check">Jetzt prüfen</button></div>
       <button class="hinweis-weg" data-aktion="check-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
+    </div>
+
+    <div id="angaben-hinweis" class="hinweis" hidden>
+      <svg><use href="#i-kalender"/></svg>
+      <div><b>Angaben fehlen</b> · <span id="angaben-hinweis-text"></span><br>
+        <button class="knopf" data-aktion="angaben-eintragen">Jetzt eintragen</button></div>
+      <button class="hinweis-weg" data-aktion="angaben-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
     </div>
 
     <div id="steuer-hinweis" class="hinweis" hidden>
@@ -1367,7 +1374,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.2003'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.2009'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3935,6 +3942,24 @@ function hebelAnzeigen() {
   }
 }
 
+// Angaben, die die Hebel-Rechnung noch braucht (Start-Hinweis bis alles eingetragen ist)
+let angabenHinweisWeg = false;
+function fehlendeAngaben() {
+  const a = hebelAngaben();
+  const fehlt = [];
+  if (!a.zve) fehlt.push('zu versteuerndes Einkommen');
+  for (const v of ((daten.rente && daten.rente.vorsorge) || []).filter((x) => x.dynamik)) {
+    if (!a[`frei:${v.id}`]) fehlt.push(`${v.name.replace(/ (.*)$/, '')} beitragsfrei`);
+  }
+  return fehlt;
+}
+function angabenHinweis() {
+  const fehlt = fehlendeAngaben();
+  document.getElementById('angaben-hinweis').hidden = angabenHinweisWeg || !fehlt.length;
+  document.getElementById('angaben-hinweis-text').textContent =
+    `Für die Hebel-Rechnung fehlen noch: ${fehlt.join(', ')}.`;
+}
+
 function hebelAngabeErfassen(id) {
   daten.rente = daten.rente || {};
   const h = (daten.rente.hebel = daten.rente.hebel || {});
@@ -5153,6 +5178,7 @@ function hauptRendern() {
   const st = steuerUebersicht(heute().getFullYear());
   document.getElementById('mehr-steuer').textContent = `${heute().getFullYear()}: ${zahl((st.pflichtig / st.freibetrag) * 100, 0)} % vom Freibetrag`;
   steuerHinweis();
+  angabenHinweis();
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
@@ -5334,7 +5360,10 @@ let checkHinweisWeg = false;
 let checkHinweisVerlassen = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { checkHinweisVerlassen = Date.now(); return; }
-  if ((checkHinweisWeg || steuerHinweisWeg) && Date.now() - checkHinweisVerlassen > 5 * 60 * 1000) { checkHinweisWeg = false; steuerHinweisWeg = false; if (daten && kurse) hauptRendern(); }
+  if ((checkHinweisWeg || steuerHinweisWeg || angabenHinweisWeg) && Date.now() - checkHinweisVerlassen > 5 * 60 * 1000) {
+    checkHinweisWeg = false; steuerHinweisWeg = false; angabenHinweisWeg = false;
+    if (daten && kurse) hauptRendern();
+  }
 });
 
 // „6 Sparraten · 1 Gebühr“
@@ -6302,6 +6331,12 @@ document.addEventListener('click', (e) => {
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
     steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
+    'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
+    'angaben-eintragen': () => {
+      reiterZeigen('ansicht-rente');
+      rtUnterseite('ansicht-rt-hebel');
+      document.getElementById('hb-angaben').scrollIntoView({ block: 'center' });
+    },
     'steuer-hinweis-weg': () => { steuerHinweisWeg = true; hauptRendern(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'rt-einkommen': () => rtUnterseite('ansicht-rt-einkommen'),
