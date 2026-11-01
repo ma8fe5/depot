@@ -112,6 +112,7 @@
     background: radial-gradient(120% 120% at 100% 0%, var(--akzent-glanz), transparent 55%), var(--flaeche); }
   .held .betrag { font-size: 46px; font-weight: 750; letter-spacing: -0.04em; line-height: 1.05; margin: 4px 0 10px; }
   .betrag .cent { font-size: 0.55em; font-weight: 650; color: var(--text-2); letter-spacing: -0.02em; margin-left: 1px; }
+  .betrag.pos .cent, .betrag.neg .cent, .wert-gross.pos .cent, .wert-gross.neg .cent { color: inherit; }
   .unter { color: var(--text-2); font-size: 15px; }
 
   .paar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 14px; }
@@ -164,6 +165,10 @@
     border-radius: 14px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
   .hinweis-zeile > svg:first-child { width: 18px; height: 18px; flex-shrink: 0; }
   .hinweis-zeile span { flex: 1; }
+  .hinweis { position: relative; }
+  .hinweis-weg { border: 0; background: none; color: inherit; font: inherit; font-size: 22px; line-height: 1; padding: 0 2px; margin: -2px -4px 0 4px; opacity: 0.7; cursor: pointer; }
+  .hinweis > .hinweis-weg { position: absolute; top: 10px; right: 12px; margin: 0; }
+  #check-hinweis { padding-right: 40px; }
   .hinweis-zeile .chevron { width: 8px; height: 13px; }
   .hinweis .knopf { margin-top: 10px; padding: 8px 14px; font-size: 15px; background: var(--hinweis-text); color: var(--hinweis); }
 
@@ -683,6 +688,7 @@
       <svg><use href="#i-kalender"/></svg>
       <div><b>Monats-Check</b> · <span id="check-anzahl"></span><br>
         <button class="knopf" data-aktion="check">Jetzt prüfen</button></div>
+      <button class="hinweis-weg" data-aktion="check-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
     </div>
 
     <div id="backup-hinweis" class="hinweis" hidden>
@@ -728,6 +734,7 @@
 
     <div id="check-hinweis-depot" class="hinweis-zeile tippbar" data-aktion="check" role="button" tabindex="0" hidden>
       <svg><use href="#i-kalender"/></svg><span></span><svg class="chevron"><use href="#i-weiter"/></svg>
+      <button class="hinweis-weg" data-aktion="check-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
     </div>
     <!-- kompakt: alles auf einen iPhone-Bildschirm (nur die Fußzeile darf darunter liegen) -->
     <div class="karte tippbar wert-karte" data-aktion="vermoegen-liste" role="button" tabindex="0">
@@ -1316,7 +1323,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1727'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1733'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1805,6 +1812,7 @@ function zeige(id) {
   document.getElementById('tabbar').hidden = !mitTabs;
   document.body.classList.toggle('mit-tabs', mitTabs);
   document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('aktiv', b.dataset.tab === id));
+  document.querySelector('main').style.paddingBottom = ''; // Einpassen der Startseite gilt nur dort
   window.scrollTo(0, 0);
 }
 
@@ -4798,6 +4806,21 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('mess
   setTimeout(() => { if (sprungZiel && daten && !(schutzAktiv() && !schluessel)) hauptAnzeigen(); }, 400);
 });
 
+// Startseite: Abstand unten nur so groß, dass die Seite genau den Bildschirm füllt – passt der Inhalt über die Leiste,
+// lässt sich nichts mehr scrollen (sonst bleibt der normale Abstand für die Leiste)
+function startEinpassen() {
+  const main = document.querySelector('main');
+  main.style.paddingBottom = '';
+  if (document.getElementById('ansicht-start').hidden || !document.body.classList.contains('mit-tabs')) return;
+  const leiste = document.getElementById('tabbar').getBoundingClientRect();
+  if (leiste.left > 0 || leiste.width < innerWidth / 2) return; // Leiste links (iPad/Laptop): nichts zu tun
+  main.style.paddingBottom = '0px';
+  const hoehe = document.documentElement.scrollHeight;
+  if (hoehe <= innerHeight - leiste.height) main.style.paddingBottom = `${innerHeight - hoehe}px`;
+  else main.style.paddingBottom = '';
+}
+addEventListener('resize', () => { if (daten && !document.getElementById('ansicht-start').hidden) startEinpassen(); });
+
 function hauptRendern() {
   document.getElementById('heute-datum').textContent =
     new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
@@ -4805,12 +4828,12 @@ function hauptRendern() {
   // Offene Sparraten/Gebühren zählen erst nach Bestätigung – deshalb gut sichtbar auf Start- und Depot-Seite
   const offen = offeneBuchungen();
   const wartet = offenText(offen);
-  document.getElementById('check-hinweis').hidden = !(offen.length || checkFaellig());
+  document.getElementById('check-hinweis').hidden = checkHinweisWeg || !(offen.length || checkFaellig());
   document.getElementById('check-anzahl').textContent = offen.length
     ? `${wartet} warten auf deine Bestätigung – erst dann zählen sie im Depot.`
     : 'Kontostände fürs Tagesgeld prüfen.';
   const depotHinweis = document.getElementById('check-hinweis-depot');
-  depotHinweis.hidden = !offen.length;
+  depotHinweis.hidden = checkHinweisWeg || !offen.length;
   depotHinweis.querySelector('span').textContent = `${wartet} warten auf Bestätigung`;
 
   const tageSeitBackup = daten.letztesBackup ? (Date.now() - new Date(daten.letztesBackup)) / 864e5 : Infinity;
@@ -4889,9 +4912,18 @@ function hauptRendern() {
     status.append(f);
   }
   status.hidden = !meldungen.length && !kurse.veraltet; // leer: kein Platz belegen (Depot-Seite soll ohne Scrollen passen)
+  startEinpassen();
 }
 
 // ---------- Monats-Check ----------
+
+// Weggeklickt gilt nur bis zum nächsten Öffnen der App (Neustart oder länger als 5 Minuten im Hintergrund)
+let checkHinweisWeg = false;
+let checkHinweisVerlassen = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { checkHinweisVerlassen = Date.now(); return; }
+  if (checkHinweisWeg && Date.now() - checkHinweisVerlassen > 5 * 60 * 1000) { checkHinweisWeg = false; if (daten && kurse) hauptRendern(); }
+});
 
 // „6 Sparraten · 1 Gebühr“
 function offenText(offen) {
@@ -5828,6 +5860,7 @@ document.addEventListener('click', (e) => {
     'gv-details': () => { zeige('ansicht-gewinn'); gewinnAnzeigen(); }, // gleiche Auswahl wie die Entwicklung
     'zinsbuch-zurueck': () => (zinsbuchVon === 'ansicht-tg-konto' ? tgKontoAnzeigen(zinsbuchId) : zinsbuchVon === 'ansicht-tg-hopping' ? tgHoppingAnzeigen() : tagesgeldAnzeigen()),
     'tg-zurueck': () => tagesgeldAnzeigen(),
+    'check-hinweis-weg': () => { checkHinweisWeg = true; hauptRendern(); },
     'tg-hopping': () => tgHoppingAnzeigen(),
     'position-zurueck': () => (kurse && kurse.preise[positionId] ? detailAnzeigen(positionId) : positionenAnzeigen()),
     'gebuehr-neu': gebuehrHinzufuegen,
