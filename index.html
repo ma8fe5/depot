@@ -136,6 +136,7 @@
   .kosten-abzuege { border-top: 1px solid var(--linie); }
   .kosten-abzuege summary { padding: 13px 18px; color: var(--akzent, inherit); font-size: 15px; cursor: pointer; }
   .liste .wert { text-align: right; font-weight: 600; font-size: 16px; flex-shrink: 0; }
+  .liste .wert, .betrag, .klippe .zahlen b, .zeilen dd, .tg-legende { font-variant-numeric: tabular-nums; }
   .liste .wert small { display: block; font-weight: 500; font-size: 13px; margin-top: 1px; }
   .liste li.tippbar::after { content: ''; width: 7px; height: 7px; border-right: 2px solid var(--text-3); border-top: 2px solid var(--text-3);
     transform: rotate(45deg); margin-left: 2px; flex-shrink: 0; }
@@ -302,9 +303,9 @@
   .spark .punkt-pos { fill: var(--pos); } .spark .punkt-neg { fill: var(--neg); }
 
   /* ---------- Kategorien (validierte Palette, je Modus eigene Stufen) ---------- */
-  :root { --kat-1: #2a78d6; --kat-2: #eb6834; --kat-3: #1baf7a; --kat-4: #eda100; --kat-5: #e87ba4; }
+  :root { --kat-1: #2a78d6; --kat-2: #eb6834; --kat-3: #1baf7a; --kat-4: #eda100; --kat-5: #8b6ce8; }
   @media (prefers-color-scheme: dark) {
-    :root { --kat-1: #3987e5; --kat-2: #d95926; --kat-3: #199e70; --kat-4: #c98500; --kat-5: #d55181; }
+    :root { --kat-1: #3987e5; --kat-2: #d95926; --kat-3: #199e70; --kat-4: #c98500; --kat-5: #9b7cf0; }
   }
 
   /* ---------- Menü „Mehr“ ---------- */
@@ -410,6 +411,8 @@
   #entw-chips > :last-child, #entw-jahre > :last-child, .entw-zeile > :last-child { margin-right: auto; }
   .entw-zeile { margin-bottom: 6px; }
   .entw-zeile .chip { padding: 5px 10px; }
+  #detail-chips { flex-wrap: wrap; justify-content: center; gap: 5px; overflow: visible; }
+  #detail-chips .chip { padding: 5px 9px; font-size: 13px; }
   @media (max-width: 380px) { #entw-jahre .chip, #gw-jahre .chip { padding: 5px 8px; } }
   /* Gewinn-Seite ohne Scrollen: kompakte Zeilen, Prozent neben dem Betrag */
   #ansicht-gewinn .titel { margin-bottom: 10px; }
@@ -417,7 +420,9 @@
   #ansicht-gewinn .held .betrag { font-size: 38px; margin: 2px 0 6px; }
   #gewinn-positionen li { min-height: 0; padding: 7px 18px; }
   #gewinn-positionen .name { font-size: 15px; }
-  #gewinn-positionen .wert { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+  #gewinn-positionen .wert { display: flex; align-items: baseline; gap: 6px; font-size: 14px; }
+  #gewinn-positionen .wert small { font-size: 12px; }
+  #gewinn-positionen .name { font-size: 15px; }
   #gewinn-positionen .wert small { margin: 0; }
   @media (max-width: 380px) { #gewinn-positionen li { padding-top: 6px; padding-bottom: 6px; } }
   #ansicht-haupt .karte.liste-karte { padding-bottom: 2px; }
@@ -1125,7 +1130,7 @@
     <div class="karte">
       <p class="unter" id="push-info" style="margin: 0"></p>
       <div class="knoepfe">
-        <button class="knopf" id="push-an" data-aktion="push-an">Mitteilungen einschalten</button>
+        <button class="knopf zweit" id="push-an" data-aktion="push-an">Mitteilungen einschalten</button>
         <button class="knopf zweit" id="push-test" data-aktion="push-test">Test senden</button>
         <button class="knopf zweit" id="push-aus" data-aktion="push-aus">Ausschalten</button>
       </div>
@@ -1135,7 +1140,7 @@
     <div class="karte">
       <p class="unter" id="schutz-info" style="margin: 0"></p>
       <div class="knoepfe">
-        <button class="knopf" id="schutz-an" data-aktion="schutz-einrichten">Face ID einrichten</button>
+        <button class="knopf zweit" id="schutz-an" data-aktion="schutz-einrichten">Face ID einrichten</button>
         <button class="knopf zweit" id="schutz-aus" data-aktion="schutz-entfernen">Schutz entfernen</button>
       </div>
     </div>
@@ -1144,7 +1149,7 @@
     <div class="karte">
       <p class="unter" id="abgleich-info" style="margin: 0"></p>
       <div class="knoepfe" style="flex-direction: column">
-        <button class="knopf" id="abgleich-an" data-aktion="abgleich-an">Abgleich einschalten</button>
+        <button class="knopf zweit" id="abgleich-an" data-aktion="abgleich-an">Abgleich einschalten</button>
         <button class="knopf zweit" id="abgleich-aus" data-aktion="abgleich-aus">Abgleich ausschalten</button>
       </div>
     </div>
@@ -1245,7 +1250,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1250'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1256'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1258,6 +1263,8 @@ let kurse = null; // { abgerufen, preise: { posId: { eur, vorherEur, datum, reih
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const zahl = (n, stellen) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen }).format(n);
 const pct = (n) => (n > 0 ? '+' : '') + zahl(n, 2) + ' %';
+// Stückzahl: so genau wie nötig (200 statt 200,0000; 4,8940 → 4,894)
+const stueckText = (n, max) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: max }).format(n);
 // Privatsphäre-Modus: Geldbeträge werden als •••• angezeigt, Prozente und Kurse bleiben sichtbar
 const istPrivat = () => document.body.classList.contains('privat');
 const geld = (n) => (istPrivat() ? '•••• €' : eur.format(n));
@@ -3269,8 +3276,8 @@ function sparplaeneAnzeigen() {
   for (const k of tgAktiv().filter((x) => x.termin && tgZahltag(x) >= isoDatum(h))) {
     const zinsen = k.auszahlung === 'termin' && k.aufgelaufen ? tgAufgelaufen(k, new Date(tgZahltag(k) + 'T00:00:00')) : null;
     if (tgZahltagSpaeter(k)) {
-      if (k.termin >= isoDatum(h)) termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: `Aktionszins endet · danach ${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}`, betrag: k.stand, typ: 'tagesgeld' });
-      termine.push({ datum: new Date(tgZahltag(k) + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? `Zinsgutschrift ≈ ${geld(zinsen)}` : 'Zinsgutschrift', betrag: zinsen, typ: 'tagesgeld' });
+      if (k.termin >= isoDatum(h)) termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: `Aktionszins endet · danach ${k.zinsDanach != null ? `${zahl(k.zinsDanach, 2)} %` : 'unbekannt'}`, betrag: null, typ: 'tagesgeld' });
+      termine.push({ datum: new Date(tgZahltag(k) + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? 'Zinsgutschrift (geschätzt)' : 'Zinsgutschrift', betrag: zinsen, typ: 'tagesgeld' });
       termine.push({ datum: new Date(tgFreiAb(k) + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: 'Geld frei · Alternative suchen', betrag: k.stand + (zinsen || 0), typ: 'tagesgeld' });
     } else {
       termine.push({ datum: new Date(k.termin + 'T00:00:00'), name: `Tagesgeld ${k.bank}`, info: zinsen ? `Zinsen ≈ ${geld(zinsen)} · Bankwechsel` : 'Aktionszins endet · Bankwechsel', betrag: k.stand, typ: 'tagesgeld' });
@@ -3585,8 +3592,8 @@ function dynamikFaktor(v, rendite) {
 function dynamikInfo(v) {
   const d = v.dynamik;
   return dynamikAn(v)
-    ? `mit Dynamik ${zahl(d.satz, 0)} %: Beitrag steigt jeden ${d.monat} bis auf ≈ ${geldRund(d.letzterBeitragMit)} · zusammen ${geldRund(d.beitraegeMit)} bis 2052 (ohne: ${geldRund(d.beitraegeOhne)})`
-    : `ohne weitere Dynamik: Beitrag bleibt ${geld(d.beitrag)} · zusammen ${geldRund(d.beitraegeOhne)} bis 2052`;
+    ? `Beitrag steigt jeden ${d.monat} bis ≈ ${geldRund(d.letzterBeitragMit)}`
+    : `Beitrag bleibt ${geld(d.beitrag)}`;
 }
 
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
@@ -3659,6 +3666,7 @@ function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
   const heute = (wert, kk) => (kk === 'heute' ? wert : wert / inflation); // Euro von 2052 → heutige Kaufkraft
   const rendite = renditeFuer({ id: '' }, renditeSzenario);
   const zeilen = [];
+  const hochgerechnet = []; // Modellrechnungen, die über ihre letzte Stützstelle hinaus fortgeschrieben werden
   let topf = bisher.ende / inflation; // Depot (1b) in heutiger Kaufkraft
   const topfTeile = [`Depot ${geldRund(topf)}`];
   for (const v of vorsorge) {
@@ -3669,7 +3677,6 @@ function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
       const info = [];
       if (v.sicher != null) info.push(`heute schon sicher ${geldRund(heute(v.sicher, v.kaufkraft))}`);
       if (v.garantie != null) info.push(`garantiert ${geldRund(heute(v.garantie, v.kaufkraft))}`);
-      if (v.kurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: h, info: info.join(' · '), dynamik: v.dynamik ? v : null });
       teile.renten.push({ brutto: h, gesetzlich: v.id === 'gesetzlich' });
@@ -3683,9 +3690,9 @@ function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
       topf += k;
       topfTeile.push(`${v.name} ${geldRund(k)}`);
       const kurveMax = v.kapitalKurve ? Math.max(...Object.keys(v.kapitalKurve).map(Number)) : null;
-      const info = [`Kapital ${geldRund(k)} in den Entnahme-Topf`];
-      if (vergleich) info.push(`als lebenslange Rente ≈ ${geldRund(heute(vergleich, v.kaufkraft))}`);
-      if (v.kapitalKurve) info.push(`bei ${zahl(rendite, 1)} % Fondsrendite${rendite > kurveMax ? ` (über ${zahl(kurveMax, 0)} % fortgeschrieben)` : ''}`);
+      const info = [`Kapital ${geldRund(k)}`];
+      if (vergleich) info.push(`als Rente ≈ ${geldRund(heute(vergleich, v.kaufkraft))}`);
+      if (v.kapitalKurve && rendite > kurveMax) hochgerechnet.push(`${v.name} über ${zahl(kurveMax, 0)} % fortgeschrieben`);
       if (v.dynamik) info.push(dynamikInfo(v));
       zeilen.push({ name: v.name, wert: k / faktor, info: info.join(' · '), dynamik: v.dynamik ? v : null });
       // Gewinn = Kapital − eingezahlte Beiträge (nur für die halbe Besteuerung privater Rentenversicherungen nötig)
@@ -3744,7 +3751,7 @@ function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
   }
   // Lücke aus den gerundeten Werten, damit die angezeigten Zahlen aufgehen (Ziel − Einkommen = Lücke)
   const r10 = (v) => Math.round(v / 10) * 10;
-  return { zeilen, summe, topfTeile, n, x, wert, ziel, luecke: ziel ? r10(ziel) - r10(wert) : 0, vorPkv };
+  return { zeilen, summe, topfTeile, hochgerechnet, n, x, wert, ziel, luecke: ziel ? r10(ziel) - r10(wert) : 0, vorPkv };
 }
 
 function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
@@ -3752,7 +3759,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   const karte = document.getElementById('rt-einkommen-karte');
   karte.hidden = !vorsorge.length;
   if (!vorsorge.length) return;
-  const { zeilen, summe, topfTeile, n, x, wert, ziel, luecke, vorPkv } = einkommenRechnen(a, beginn, inflation, faktor, bisher);
+  const { zeilen, summe, topfTeile, hochgerechnet, n, x, wert, ziel, luecke, vorPkv } = einkommenRechnen(a, beginn, inflation, faktor, bisher);
   const bis = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(beginn);
   const dl = document.getElementById('rt-netto');
   document.getElementById('rt-netto-block').hidden = !n;
@@ -3760,10 +3767,18 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
     document.getElementById('rt-einkommen-titel').textContent =
       `Dein Einkommen ab ${bis} · ${vorPkv ? 'nach Steuern, vor PKV' : 'netto'} pro Monat`;
     zaehle(document.getElementById('rt-einkommen'), wert, false, true);
-    const zielText = n.zielRentenbeginn ? `Ziel ${geldRund(n.zielRentenbeginn)} (${beginn.getFullYear()}) ≈ ${geldRund(ziel)} heute` : `Ziel ${geldRund(ziel)}`;
-    document.getElementById('rt-einkommen-unter').textContent =
-      `≈ ${geldRund(wert * inflation)} in Euro von ${beginn.getFullYear()}` +
-      (ziel ? ` · ${zielText}: ${luecke > 0 ? `es fehlen ${geldRund(luecke)} pro Monat` : `erreicht (+${geldRund(-luecke)})`}` : '');
+    // Zeile 1: was zum Ziel fehlt (heutige Kaufkraft), Zeile 2: dieselbe Rechnung in Euro des Rentenbeginns
+    const unter = document.getElementById('rt-einkommen-unter');
+    unter.innerHTML = '';
+    if (ziel) {
+      const z1 = document.createElement('b');
+      z1.className = luecke > 0 ? '' : 'pos'; // eine Lücke ist kein Fehler: nicht rot
+      z1.textContent = luecke > 0 ? `Es fehlen ${geldRund(luecke)} pro Monat (Ziel ${geldRund(ziel)})` : `Ziel ${geldRund(ziel)} erreicht (+${geldRund(-luecke)})`;
+      unter.append(z1, document.createElement('br'));
+    }
+    unter.append(n.zielRentenbeginn
+      ? `In Euro von ${beginn.getFullYear()}: ${geldRund(wert * inflation)} von ${geldRund(n.zielRentenbeginn)}`
+      : `≈ ${geldRund(wert * inflation)} in Euro von ${beginn.getFullYear()}`);
     dl.innerHTML = '';
     for (const [name, betrag, klasseWert] of [
       ['Brutto (alle Bausteine)', x.brutto, 'summe-start'],
@@ -3815,6 +3830,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   }
   document.getElementById('rt-einkommen-hinweis').textContent =
     `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet und auf 10 € gerundet. ` +
+    `Fondsrendite bis zur Rente ${zahl(renditeFuer({ id: '' }, renditeSzenario), 1)} %${hochgerechnet.length ? ` (${hochgerechnet.join(', ')})` : ''}. ` +
     `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite. ` +
     (n ? `Netto: Steuertarif 2026 auf heutige Beträge, ${n.veranlagung === 'zusammen' ? `Splitting mit Partnerrente ${geldRund(n.partnerRente || 0)}` : 'Einzelveranlagung'}${n.kirche ? ', mit Kirchensteuer' : ''}, Renten zu 97 % steuerpflichtig, ` +
       `PKV real +${zahl(n.pkvSteigerungReal ?? 1.5, 1)} % pro Jahr. Die Einzelzeilen oben sind brutto.`
@@ -4921,7 +4937,7 @@ function positionenAnzeigen() {
     li.dataset.pos = p.id;
     li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert"></span>';
     li.querySelector('.n').textContent = p.name;
-    li.querySelector('small').textContent = `${p.depot} · ${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : p.stueck < 1000 ? 4 : 2)} Stück`;
+    li.querySelector('small').textContent = `${p.depot} · ${stueckText(p.stueck, p.quelle === 'coingecko' ? 8 : p.stueck < 1000 ? 4 : 2)} Stück`;
     li.querySelector('.wert').textContent = k ? geld(aktuellerBestand(p, k).stueck * k.eur) : '–';
     liste.appendChild(li);
   }
@@ -4934,7 +4950,7 @@ function positionAnzeigen(id) {
   const p = daten.positionen.find((x) => x.id === id);
   if (!p) return positionenAnzeigen();
   document.getElementById('pos-name').textContent = p.name;
-  document.getElementById('pos-unter').textContent = `${p.depot} · ${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 4)} Stück · ${geld(p.investiert)} investiert`;
+  document.getElementById('pos-unter').textContent = `${p.depot} · ${stueckText(p.stueck, p.quelle === 'coingecko' ? 8 : 4)} Stück · ${geld(p.investiert)} investiert`;
   document.getElementById('kauf-formular').hidden = true;
   document.getElementById('kauf-neu-knopf').hidden = false;
 
