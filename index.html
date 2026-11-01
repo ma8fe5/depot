@@ -258,6 +258,10 @@
   .chart .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--akzent); }
   .chart .tip i.b { background: var(--text-3); }
   .chart .tip[hidden] { display: none; }
+  .chart .start { fill: var(--text-3); }
+  .chart-enden { display: flex; justify-content: space-between; margin: 2px 4px 0; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .chart-enden span:last-child { text-align: right; }
+  .chart-enden small { display: block; font-size: 11px; font-weight: 500; color: var(--text-2); }
   .legende { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--text-2); }
   .legende span { display: inline-flex; align-items: center; gap: 7px; }
   .legende span::before { content: ''; width: 16px; border-top: 2.2px solid var(--akzent); border-radius: 2px; }
@@ -401,7 +405,6 @@
   #ansicht-haupt .wert-karte .zeile-wert { align-items: baseline; }
   #ansicht-haupt .wert-karte .wert-gross { font-size: 30px; }
   #ansicht-haupt .unter.klein { font-size: 12px; text-align: right; }
-  #ansicht-haupt #entw-zahlen { text-align: left; margin-top: 4px; }
   #ansicht-haupt .wert-gross { font-size: 26px; }
   #ansicht-haupt .etikett { margin-bottom: 4px; }
   #ansicht-haupt .chips { margin-bottom: 4px; }
@@ -414,6 +417,7 @@
   .entw-zeile .chip { padding: 5px 10px; }
   #detail-chips { flex-wrap: wrap; justify-content: center; gap: 5px; overflow: visible; }
   #detail-chips .chip { padding: 5px 9px; font-size: 13px; }
+  #detail-chips .umbruch { flex-basis: 100%; height: 0; }
   @media (max-width: 380px) { #entw-jahre .chip, #gw-jahre .chip { padding: 5px 8px; } }
   /* Gewinn-Seite ohne Scrollen: kompakte Zeilen, Prozent neben dem Betrag */
   #ansicht-gewinn .titel { margin-bottom: 10px; }
@@ -722,7 +726,6 @@
         </div>
         <span id="tag-pct" class="pill">–</span>
       </div>
-      <div class="unter klein" id="entw-zahlen"></div>
       <div class="chips" id="entw-chips" style="margin-top: 10px"></div>
       <div class="chips" id="entw-jahre"></div>
       <div class="pos-wahl-zeile"><button class="pos-wahl-knopf" data-aktion="pos-wahl" id="entw-pos">Alle Positionen ▾</button></div>
@@ -1253,7 +1256,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1324'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1331'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2418,7 +2421,8 @@ function linienChart(el, serien, opt) {
   tage.forEach((t, i) => {
     const marke = opt.achseX ? opt.achseX(t, i)
       : (i > 0 && t.slice(5, 7) !== tage[i - 1].slice(5, 7) ? MONATE[Number(t.slice(5, 7)) - 1] : null);
-    if (marke) svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${marke}</text>`;
+    // Anfang und Ende stehen bei opt.enden ohnehin darunter
+    if (marke && !(opt.enden && (i === 0 || i === tage.length - 1))) svg += `<text class="achse" x="${x(i)}" y="${H - 5}" text-anchor="middle">${marke}</text>`;
   });
   // zuerst die Vergleichslinie, darüber die Hauptlinie mit Fläche
   [...serien.keys()].reverse().forEach((si) => {
@@ -2432,11 +2436,18 @@ function linienChart(el, serien, opt) {
     if (i >= 0) svg += `<circle class="kauf" cx="${x(i)}" cy="${y(v)}" r="3.5"/>`;
   }
   const letzter = serien[0].punkte[tage.length - 1][1];
+  if (opt.enden) svg += `<circle class="start" cx="${x(0)}" cy="${y(serien[0].punkte[0][1])}" r="3"/>`;
   svg += `<circle class="halo${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="7"/>`;
   svg += `<circle class="ende${farbKlasse}" cx="${x(tage.length - 1)}" cy="${y(letzter)}" r="3.5"/>`;
   svg += `<line class="kreuz" y1="${T}" y2="${H - B}" visibility="hidden"/>`;
   serien.forEach((_, si) => { svg += `<circle class="punkt p${si}" r="4.5" visibility="hidden"/>`; });
   svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  if (opt.enden) {
+    // Anfang und Ende der Betrachtung dauerhaft unter dem Graphen (nicht nur beim Antippen)
+    const erster = serien[0].punkte[0][1];
+    const tagText = (t) => (t === isoDatum(heute()) ? 'heute' : deDatum(t).slice(0, 6) + deDatum(t).slice(8));
+    svg += `<div class="chart-enden"><span><small>${tagText(tage[0])}</small>${opt.format(erster)}</span><span><small>${tagText(tage[tage.length - 1])}</small>${opt.format(letzter)}</span></div>`;
+  }
   el.innerHTML = svg;
 
   const svgEl = el.querySelector('svg');
@@ -4363,18 +4374,18 @@ function detailAnzeigen(posId) {
   if (document.getElementById('ansicht-detail').hidden) zeige('ansicht-detail');
   detailPosId = posId;
 
-  // Zeitraum-Auswahl: Seit Eröffnung, dann nach Aktualität absteigend (Vortag, WTD, MTD, YTD, frühere Jahre)
+  // Zeitraum-Auswahl wie auf der Depot-Seite: Vortag, WTD, MTD, Seit Eröffnung – darunter die Jahre aufsteigend (laufendes Jahr = YTD)
   const lang = langeReihe(p, k);
   const erster = ersterKauf(p, k);
   const h = heute();
   const startJahr = Number((erster || isoDatum(h)).slice(0, 4));
   const jahre = [];
-  for (let j = h.getFullYear() - 1; j >= startJahr; j--) jahre.push(String(j));
-  const wahl = ['eroeffnung', 'vortag', 'wtd', 'mtd', 'ytd', ...jahre];
-  if (!wahl.includes(detailZeitraum)) detailZeitraum = 'vortag';
-  const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: 'YTD', mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
-  document.getElementById('detail-chips').innerHTML = wahl.map((z) =>
-    `<button class="chip${z === detailZeitraum ? ' aktiv' : ''}" data-detail-zeit="${z}">${NAMEN[z] || z}</button>`).join('');
+  for (let j = startJahr; j < h.getFullYear(); j++) jahre.push(String(j));
+  const zeile1 = ['vortag', 'wtd', 'mtd', 'eroeffnung'], zeile2 = [...jahre, 'ytd'];
+  if (![...zeile1, ...zeile2].includes(detailZeitraum)) detailZeitraum = 'vortag';
+  const NAMEN = { eroeffnung: 'Seit Eröffnung', ytd: String(h.getFullYear()), mtd: 'MTD', wtd: 'WTD', vortag: 'Vortag' };
+  const knopf = (z) => `<button class="chip${z === detailZeitraum ? ' aktiv' : ''}" data-detail-zeit="${z}">${NAMEN[z] || z}</button>`;
+  document.getElementById('detail-chips').innerHTML = zeile1.map(knopf).join('') + '<span class="umbruch"></span>' + zeile2.map(knopf).join('');
 
   if (!lang.length) {
     chartEl.innerHTML = '<p class="unter">Keine Kursreihe vorhanden.</p>';
@@ -4422,7 +4433,7 @@ function detailAnzeigen(posId) {
     : spanneTage > 120 ? (t, i) => (i > 0 && t.slice(5, 7) !== reihe[i - 1][0].slice(5, 7) && ['01', '04', '07', '10'].includes(t.slice(5, 7)) ? kurzJahr(t) : null)
       : (t, i) => (i === 0 || i === reihe.length - 1 || (spanneTage > 10 && i % 5 === 0) ? `${t.slice(8)}.${t.slice(5, 7)}.` : null);
   linienChart(chartEl, [{ name: 'Kurs', punkte: reihe }], {
-    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0, rot: aend < 0,
+    format: (v) => eur.format(v), formatKurz: (v) => zahl(v, v >= 1000 ? 0 : v < 1 ? 3 : 2), marker, achseX, gruen: aend >= 0, rot: aend < 0, enden: true,
   });
   if (kaeufe.some((c) => c.geschaetzt)) hinweis.textContent = `Käufe vor ${schaetzGrenze()} sind aus dem Sparplan geschätzt.`;
 }
@@ -4451,7 +4462,7 @@ let entwicklungZeitraum = 'vortag'; // Vorgabe bei jedem Start: Veränderung zum
 const entwJahre = () => (/^\d{4}(,\d{4})*$/.test(entwicklungZeitraum) ? entwicklungZeitraum.split(',').map(Number).sort((a, b) => a - b) : []);
 
 // ---------- Auswahl „Entwicklung“ – gilt für die Depot-Seite und die Gewinn-Seite ----------
-const ZEITRAEUME_ENTW = { gesamt: 'Seit Eröffnung', vortag: 'Vortag', wtd: 'WTD', mtd: 'MTD' };
+const ZEITRAEUME_ENTW = { vortag: 'Vortag', wtd: 'WTD', mtd: 'MTD', gesamt: 'Seit Eröffnung' }; // kurz → lang
 
 // Jahre mit Kursdaten (für die zweite Auswahlzeile); ungültige Auswahl -> Seit Eröffnung
 function entwJahreListe() {
@@ -4530,7 +4541,6 @@ function entwicklungGewinn() {
   el.className = 'wert-gross ' + klasse(gv);
   el.innerHTML = betragHTML(gv, true);
   setzePill(document.getElementById('tag-pct'), gv, pct(basis ? (gv / basis) * 100 : 0));
-  document.getElementById('entw-zahlen').textContent = a.zahlen;
 }
 
 function entwicklungAnzeigen() {
@@ -4614,7 +4624,7 @@ function entwicklungZeichnen() {
   } else if (verlauf) {
     const fallend = entwAuswertung().gewinn < 0;
     const zeichnen = (hoeheFix) => linienChart(chartEl, [{ name: 'Vermögen', punkte: verlauf.depot }], {
-      gruen: !fallend, rot: fallend, hoeheFix,
+      gruen: !fallend, rot: fallend, hoeheFix, enden: true,
       format: (v) => geld(v),
       // kurze Zeiträume schwanken wenig: dort auf ganze Euro, sonst auf 100 € gerundet
       achseX,
