@@ -1255,7 +1255,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1656'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1700'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2324,7 +2324,9 @@ function vermoegenZeichnen() {
 
 // Tageswerte ab Stichtag (Standard: 31.12. des Vorjahres) bis zum Ende (Standard: letzter Kurs):
 // Depot = Summe (Stück am Tag × Kurs am Tag). Vor ihrem ersten Kauf zählt eine Position mit 0.
-function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
+// ohneEinzahlungen: Einzahlungen seit dem Start abziehen – dann zeigt die Linie nur die Kursentwicklung und passt zum Gewinn
+// (sonst steigt der Graph z. B. am Sparplantag, obwohl der Gewinn negativ ist)
+function vermoegensVerlauf(start = stichtag('jahr'), bis = null, ohneEinzahlungen = false) {
   const pos = [];
   let ende = start;
   for (const p of daten.positionen) {
@@ -2335,7 +2337,7 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
     if (!reihe.length) continue;
     const kaeufe = kaeufeNach(p, k, start).sort((a, b) => a.datum.localeCompare(b.datum));
     const stueckStart = aktuellerBestand(p, k).stueck - kaeufe.reduce((s, c) => s + c.stueck, 0);
-    pos.push({ k, reihe, kaeufe, stueckStart, erster: ersterKauf(p, k), ik: 0, ir: 0, dazu: 0 });
+    pos.push({ k, reihe, kaeufe, stueckStart, erster: ersterKauf(p, k), ik: 0, ir: 0, dazu: 0, eingezahlt: 0 });
     const letztes = reihe[reihe.length - 1][0];
     if (letztes > ende) ende = letztes;
   }
@@ -2346,10 +2348,15 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
   for (let d = new Date(start + 'T00:00:00'); isoDatum(d) <= ende; d.setDate(d.getDate() + 1)) tage.push(isoDatum(d));
 
   // Tag für Tag mit Zeigern durch Käufe und Kurse (statt jedes Mal neu zu suchen)
+  let einzahlungen = 0;
   const depot = tage.map((t) => {
     let summe = 0;
     for (const x of pos) {
-      while (x.ik < x.kaeufe.length && x.kaeufe[x.ik].datum <= t) x.dazu += x.kaeufe[x.ik++].stueck;
+      while (x.ik < x.kaeufe.length && x.kaeufe[x.ik].datum <= t) {
+        const c = x.kaeufe[x.ik++];
+        x.dazu += c.stueck;
+        x.eingezahlt += c.betrag > 0 ? c.betrag : 0;
+      }
       while (x.ir < x.reihe.length && x.reihe[x.ir][0] <= t) x.ir++;
       if (x.erster && t < x.erster) continue;
       // ab dem Kursdatum der aktuelle Kurs, damit das Chart-Ende zur Kachel passt
@@ -2357,10 +2364,12 @@ function vermoegensVerlauf(start = stichtag('jahr'), bis = null) {
       if (kurs == null) continue;
       summe += Math.max(0, x.stueckStart + x.dazu) * kurs;
     }
-    return [t, summe];
+    const neu = pos.reduce((s, x) => s + x.eingezahlt, 0);
+    einzahlungen = neu;
+    return [t, ohneEinzahlungen ? summe - neu : summe];
   });
 
-  return { depot };
+  return { depot, einzahlungen };
 }
 
 // ---------- Charts ----------
@@ -4614,7 +4623,9 @@ function entwicklungZeichnen() {
 
   entwicklungGewinn();
 
-  const verlauf = vermoegensVerlauf(start, bis);
+  // Zeiträume: Einzahlungen herausrechnen, damit Linie und Gewinn dieselbe Richtung zeigen; „Seit Eröffnung“ zeigt den echten Wert
+  const bereinigt = entwicklungZeitraum !== 'gesamt';
+  const verlauf = vermoegensVerlauf(start, bis, bereinigt);
   if (verlauf && entwicklungZeitraum === 'mtd') {
     // bei vielen Handelstagen nicht jeden Tag beschriften
     const n = verlauf.depot.length;
@@ -4642,8 +4653,10 @@ function entwicklungZeichnen() {
   } else {
     chartEl.innerHTML = '<p class="unter">Für diesen Zeitraum fehlen noch Kursdaten.</p>';
   }
-  hinweis.textContent = vollstaendig ? ''
-    : `Kurse ab ${deDatum(ersterVollerTag)} – ältere Jahre folgen, sobald die Kurshistorie importiert ist.`;
+  hinweis.textContent = [
+    bereinigt && verlauf && verlauf.einzahlungen >= 0.5 ? `Ohne ${geld(verlauf.einzahlungen)} Einzahlungen im Zeitraum – so zeigt die Linie nur die Kursentwicklung.` : '',
+    vollstaendig ? '' : `Kurse ab ${deDatum(ersterVollerTag)} – ältere Jahre folgen, sobald die Kurshistorie importiert ist.`,
+  ].filter(Boolean).join(' ');
 }
 
 // Sprungziel aus einer angetippten Mitteilung; wird nach dem Laden/Entsperren eingelöst
