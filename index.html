@@ -469,6 +469,9 @@
   /* aufklappbare Erklärungen (Prognose) */
   .rt-luecke .betrag { font-size: 30px; margin: 0; }
   .rt-2052 { font-size: 13px; color: var(--text-2); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
+  .liste.hebel li { align-items: flex-start; }
+  .liste.hebel .wert { font-size: 17px; }
+  .liste.hebel .name, .liste.hebel .name small, #hb-angaben .name, #hb-angaben .name small { white-space: normal; }
   .rt-schliessen { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 14px; color: var(--text-2); }
   .rt-schliessen b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
   .rt-annahme { display: flex; align-items: center; gap: 8px; margin: -4px 4px 12px; font-size: 13px; color: var(--text-2); cursor: pointer; }
@@ -961,7 +964,7 @@
       <div class="tg-legende" id="rt-mix-legende"></div>
     </div>
     <!-- Lücke zum Ziel und wie sie sich schließt (Tippen → Sparraten durchspielen) -->
-    <div class="karte szenario ziel tippbar rt-luecke" data-aktion="rt-sim">
+    <div class="karte szenario ziel tippbar rt-luecke" data-aktion="rt-hebel">
       <div class="etikett"><span id="rt-c-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-c"></div>
       <div class="rt-2052" id="rt-c-2052"></div>
@@ -1029,6 +1032,16 @@
       <select id="rt-ziel-pos"></select>
       <div class="knoepfe"><button class="knopf zweit breit" data-aktion="sim-reset">Auf echte Sparpläne zurücksetzen</button></div>
     </div>
+  </section>
+
+  <!-- Ebene 3: Hebel – was die Lücke wie stark verändert (nach Kosten und Steuern, heutige Kaufkraft) -->
+  <section id="ansicht-rt-hebel" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
+    <div class="titel"><h1>Hebel</h1><div class="unterzeile" id="hb-unter"></div></div>
+    <div class="karte liste-karte"><ul class="liste hebel" id="hb-liste"></ul></div>
+    <div class="abschnitt">Angaben für die Rechnung</div>
+    <div class="karte liste-karte"><ul class="liste" id="hb-angaben"></ul></div>
+    <p class="fuss">Vergleich nach Kosten und Steuern bei gleicher Marktrendite. „ETF“ steht für einen breit gestreuten Aktien-ETF mit 0,2 % Kosten pro Jahr – als Gattung, kein bestimmtes Produkt. Keine Anlageberatung: Garantien, lebenslange Zahlung und Risiko wiegen nur in deiner Entscheidung.</p>
   </section>
 
   <!-- Ebene 3: Annahmen -->
@@ -1354,7 +1367,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1818'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.2003'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3567,7 +3580,7 @@ function rentenfaktor(a) {
 const kaufkraft = (a, jahre) => Math.pow(1 + a.inflation / 100, jahre);
 
 // Ebene 3 der Prognose; renteAnzeigen rechnet alles neu, wechselt aber nicht von einer Unterseite weg
-const RT_SEITEN = ['ansicht-rt-einkommen', 'ansicht-rt-depot', 'ansicht-rt-sim', 'ansicht-rt-annahmen'];
+const RT_SEITEN = ['ansicht-rt-einkommen', 'ansicht-rt-depot', 'ansicht-rt-sim', 'ansicht-rt-annahmen', 'ansicht-rt-hebel'];
 function rtUnterseite(id) {
   zeige(id);
   renteAnzeigen(); // Diagramm erst zeichnen, wenn die Seite sichtbar ist (echte Breite)
@@ -3677,6 +3690,7 @@ function renteAnzeigen() {
     }
   }
   einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
+  if (!document.getElementById('ansicht-rt-hebel').hidden) hebelAnzeigen();
   document.getElementById('rt-annahme-text').textContent = simAngepasst()
     ? `Mit durchgespielten Sparraten: ${geldRund(sparplanSumme)} / Monat`
     : `Mit deinen heutigen Sparraten: ${geldRund(sparplanSumme)} / Monat`;
@@ -3751,6 +3765,205 @@ function dynamikInfo(v) {
     : `Beitrag bleibt ${geld(d.beitrag)}`;
 }
 
+// ---------- Hebel: Was verändert die Lücke wie stark? ----------
+// Jeder Hebel liefert die Veränderung des Einkommens in der Rente (pro Monat, heutige Kaufkraft, nach Steuern).
+// Produkte werden fair gegen eine Gattung verglichen: dieselben Beiträge, dieselbe Marktrendite, je nach Kosten
+// und Steuern. Angaben, die nur in Unterlagen stehen, fragt die App ab (daten.rente.hebel).
+const ETF_KOSTEN = 0.2;
+const hebelAngaben = () => (daten.rente && daten.rente.hebel) || {};
+
+function hebelRahmen() {
+  const a = renteAnnahmen(), beginn = rentenbeginn();
+  if (!beginn || !kurse) return null;
+  const monate = monateBis(beginn), jahre = monate / 12;
+  const inflation = kaufkraft(a, jahre), faktor = rentenfaktor(a);
+  const rendite = renditeFuer({ id: '' }, renditeSzenario);
+  const bisher = projektion(renditeSzenario, 1, monate);
+  const basis = einkommenRechnen(a, beginn, inflation, faktor, bisher);
+  const n = daten.rente && daten.rente.netto;
+  // Grenzsteuersatz im Alter (aus der Netto-Rechnung) und heute (aus dem zu versteuernden Einkommen laut Bescheid)
+  const grenz = (zvE) => n ? (steuerJahr(zvE + 1200, n) - steuerJahr(zvE, n)) / 1200 : 0.3;
+  const gAlt = basis.x ? grenz(basis.x.zvE) : 0.3;
+  const zve = hebelAngaben().zve;
+  const gHeute = zve ? grenz(zve) : null;
+  return { a, beginn, monate, jahre, inflation, faktor, rendite, bisher, basis, gAlt, gHeute };
+}
+
+// Sparplan in einen ETF bis Rentenbeginn: Endwert nach Abgeltungsteuer (Teilfreistellung 30 %) → Monatsbetrag heute
+function etfMonat(R, start, startBasis, rate) {
+  const rm = Math.pow(1 + (R.rendite - ETF_KOSTEN) / 100, 1 / 12) - 1;
+  let w = start, einz = startBasis;
+  for (let m = 0; m < R.monate; m++) { const b = rate(m); w = w * (1 + rm) + b; einz += b; }
+  const netto = w - Math.max(0, w - einz) * 0.7 * ABGELTUNG;
+  return netto / R.inflation / R.faktor;
+}
+
+// Beitrag im Monat m mit Dynamik (Erhöhung jedes Jahr im Dynamik-Monat)
+function beitragMitDynamik(v, m) {
+  const d = v.dynamik;
+  if (!d) return 0;
+  if (!dynamikAn(v)) return d.beitrag;
+  const MONATE_LANG = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const h = heute(), dm = MONATE_LANG.indexOf(d.monat);
+  const jetzt = new Date(h.getFullYear(), h.getMonth(), 1), datum = new Date(h.getFullYear(), h.getMonth() + m, 1);
+  let erhoehungen = 0; // Dynamik-Termine nach diesem Monat bis einschließlich Monat m
+  for (let j = jetzt.getFullYear(); j <= datum.getFullYear(); j++) {
+    const termin = new Date(j, dm, 1);
+    if (termin > jetzt && termin <= datum) erhoehungen++;
+  }
+  return d.beitrag * Math.pow(1 + d.satz / 100, erhoehungen);
+}
+
+function hebelListe() {
+  const R = hebelRahmen();
+  if (!R) return { R: null, hebel: [] };
+  const hebel = [];
+  const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
+  const angaben = hebelAngaben();
+  const basisWert = R.basis.wert;
+
+  // 1. Mehr sparen
+  const zp = zielPosition();
+  for (const mehr of [50, 100]) {
+    const e = einkommenRechnen(R.a, R.beginn, R.inflation, R.faktor, projektion(renditeSzenario, 1, R.monate, false, { posId: zp.id, betrag: mehr }));
+    hebel.push({ name: `${mehr} € mehr sparen`, info: `pro Monat in ${zp.name}`, effekt: e.wert - basisWert });
+  }
+
+  // 2. bAV als lebenslange Rente statt Einmalzahlung
+  const bav = vorsorge.find((v) => v.art === 'kapital' && v.vergleichRente && !v.kapitalKurve);
+  if (bav) {
+    const original = daten.rente.vorsorge;
+    try {
+      daten.rente.vorsorge = original.map((v) => (v === bav ? { ...v, art: 'rente', monat: v.vergleichRente } : v));
+      const e = einkommenRechnen(R.a, R.beginn, R.inflation, R.faktor, R.bisher);
+      hebel.push({ name: `${bav.name}: als Rente statt Kapital`, info: `lebenslang ${geldRund(bav.vergleichRente / R.inflation)} brutto statt Entnahme über ${R.a.entnahmeJahre} Jahre`, effekt: e.wert - basisWert });
+    } finally { daten.rente.vorsorge = original; }
+  }
+
+  // 3. Teure Fonds: weiterlaufen lassen oder in einen günstigen ETF umschichten (Steuer beim Verkauf sofort fällig)
+  for (const p of daten.positionen) {
+    const satz = kostenSatz(p);
+    const k = kurse.preise[p.id];
+    if (!(satz > 0.5) || !k) continue;
+    const { stueck, inv } = aktuellerBestand(p);
+    const wert = stueck * k.eur, rate = simRate(p);
+    const plan = gebuehrenPlan(p);
+    const gebuehrJahr = plan ? plan.betrag * plan.monate.length : 0;
+    const rmF = Math.pow(1 + (R.rendite - satz) / 100, 1 / 12) - 1;
+    let w = wert, einz = inv;
+    for (let m = 0; m < R.monate; m++) { w = w * (1 + rmF) + rate - (m % 12 === 11 ? gebuehrJahr : 0); einz += rate; }
+    const bleiben = (w - Math.max(0, w - einz) * 0.7 * ABGELTUNG) / R.inflation / R.faktor;
+    const steuerJetzt = Math.max(0, wert - inv) * 0.7 * ABGELTUNG;
+    const wechsel = etfMonat(R, wert - steuerJetzt, wert - steuerJetzt, () => rate);
+    hebel.push({ name: `${p.name} → ETF`, info: `${zahl(satz, 2)} % Kosten statt ${zahl(ETF_KOSTEN, 1)} %${gebuehrJahr ? ` + ${geld(gebuehrJahr)} Depotgebühr` : ''}${steuerJetzt > 1 ? ` · beim Umschichten ${geld(steuerJetzt)} Steuer` : ''}`, effekt: wechsel - bleiben });
+  }
+
+  // 4. Versicherungen: weiterzahlen oder beitragsfrei stellen und denselben Nettoaufwand in einen ETF
+  const kontrakt = (v, frei, art) => {
+    if (!frei) return { name: `${v.name}: beitragsfrei + ETF`, info: `Angabe fehlt: ${art === 'rente' ? 'Rente' : 'Kapital'} bei Beitragsfreistellung (Jahresmitteilung)`, effekt: null, angabe: v.id };
+    const kurve = art === 'rente' ? v.kurve : v.kapitalKurve;
+    const skal = kurve ? kurveBei(kurve, R.rendite, true) / kurveBei(kurve, frei.rendite, true) : 1;
+    const df = dynamikFaktor(v, R.rendite);
+    const weiter = (kurve ? kurveBei(kurve, R.rendite, true) : 0) * df;
+    const freiWert = frei.wert * skal;
+    let differenz; // was die künftigen Beiträge im Vertrag bringen: pro Monat, heute, nach Steuern
+    if (art === 'rente') {
+      differenz = ((weiter - freiWert) / R.inflation) * (1 - BESTEUERUNGSANTEIL * R.gAlt); // Rürup: Rente voll steuerpflichtig (97 %)
+    } else {
+      const beitraegeKuenftig = dynamikAn(v) ? v.dynamik.beitraegeMit : v.dynamik.beitraegeOhne;
+      const steuer = (K, eingezahlt) => 0.5 * Math.max(0, K - eingezahlt) * R.gAlt; // halber Ertrag (nach 12 Jahren und ab 62)
+      const nettoW = weiter - steuer(weiter, (v.beitraegeBisher || 0) + beitraegeKuenftig);
+      const nettoF = freiWert - steuer(freiWert, v.beitraegeBisher || 0);
+      differenz = (nettoW - nettoF) / R.inflation / R.faktor;
+    }
+    // Rürup-Beiträge senken heute die Steuer: Vergleich mit dem Nettoaufwand (Beitrag minus Erstattung)
+    const anteilSelbst = art === 'rente' ? (R.gHeute != null ? 1 - R.gHeute : null) : 1;
+    if (anteilSelbst == null) return { name: `${v.name}: beitragsfrei + ETF`, info: 'Angabe fehlt: zu versteuerndes Einkommen (Steuerbescheid)', effekt: null, angabe: 'zve' };
+    const etf = etfMonat(R, 0, 0, (m) => beitragMitDynamik(v, m) * anteilSelbst);
+    return {
+      name: `${v.name}: beitragsfrei + ETF`,
+      info: `künftige Beiträge ${art === 'rente' ? `abzgl. ${zahl(R.gHeute * 100, 0)} % Steuererstattung ` : ''}in einen ETF statt in den Vertrag${art === 'rente' ? ' · Vertrag zahlt lebenslang, ETF-Entnahme ' + R.a.entnahmeJahre + ' Jahre' : ''}`,
+      effekt: etf - differenz,
+    };
+  };
+  for (const v of vorsorge) {
+    if (!v.dynamik) continue; // nur Verträge mit laufenden Beiträgen
+    if (v.art === 'rente') hebel.push(kontrakt(v, angaben[`frei:${v.id}`], 'rente'));
+    else if (v.art === 'kapital') hebel.push(kontrakt(v, angaben[`frei:${v.id}`], 'kapital'));
+  }
+
+  hebel.sort((x, y) => (y.effekt ?? -Infinity) - (x.effekt ?? -Infinity));
+  return { R, hebel };
+}
+
+function hebelAnzeigen() {
+  const { R, hebel } = hebelListe();
+  document.getElementById('hb-unter').textContent = R
+    ? `Wie stark sich dein Einkommen in der Rente verändert – pro Monat, heutige Kaufkraft, nach Steuern. Szenario ${RENDITE_SZENARIEN[renditeSzenario].name} (${zahl(R.rendite, 0)} %).`
+    : 'Für die Rechnung fehlen noch Kurse oder dein Geburtsdatum.';
+  const liste = document.getElementById('hb-liste');
+  liste.innerHTML = '';
+  for (const h of hebel) {
+    const li = document.createElement('li');
+    if (h.angabe) { li.className = 'tippbar'; li.dataset.hebelAngabe = h.angabe; }
+    const wert = h.effekt == null ? 'eintragen' : `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')}`;
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert ${h.effekt == null ? 'leise' : klasse(h.effekt)}">${wert}</span>`;
+    li.querySelector('.n').textContent = h.name;
+    li.querySelector('small').textContent = h.info;
+    liste.appendChild(li);
+  }
+  // Angaben, die nur in Unterlagen stehen
+  const angaben = hebelAngaben();
+  const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
+  const zeilen = [{ id: 'zve', name: 'Zu versteuerndes Einkommen', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'letzter Steuerbescheid (für den Steuervorteil bei Rürup)' }];
+  for (const v of vorsorge.filter((x) => x.dynamik)) {
+    const fr = angaben[`frei:${v.id}`];
+    zeilen.push({ id: v.id, name: `${v.name}: beitragsfrei`, wert: fr ? `${geld(fr.wert)} bei ${zahl(fr.rendite, 1)} %` : null,
+      info: `${v.art === 'rente' ? 'Monatsrente' : 'Kapital'} bei Beitragsfreistellung laut Jahresmitteilung` });
+  }
+  const ul = document.getElementById('hb-angaben');
+  ul.innerHTML = '';
+  for (const z of zeilen) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.hebelAngabe = z.id;
+    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert ${z.wert ? '' : 'leise'}"></span>`;
+    li.querySelector('.n').textContent = z.name;
+    li.querySelector('small').textContent = z.info;
+    li.querySelector('.wert').textContent = z.wert || 'eintragen';
+    ul.appendChild(li);
+  }
+}
+
+function hebelAngabeErfassen(id) {
+  daten.rente = daten.rente || {};
+  const h = (daten.rente.hebel = daten.rente.hebel || {});
+  if (id === 'zve') {
+    const t = prompt('Zu versteuerndes Einkommen laut letztem Steuerbescheid (€ pro Jahr, bei Zusammenveranlagung gemeinsam):', h.zve ? zahl(h.zve, 0) : '');
+    if (t == null) return;
+    const w = parseZahl(t);
+    if (t.trim() && !(w > 0)) { alert('Bitte einen Betrag in Euro eintragen.'); return; }
+    if (t.trim()) h.zve = Math.round(w); else delete h.zve;
+  } else {
+    const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => x.id === id);
+    if (!v) return;
+    const alt = h[`frei:${id}`];
+    const t = prompt(`${v.name}: ${v.art === 'rente' ? 'Monatsrente' : 'Kapital zum Rentenbeginn'} bei Beitragsfreistellung laut Jahresmitteilung (€):`, alt ? zahl(alt.wert, 2) : '');
+    if (t == null) return;
+    if (!t.trim()) { delete h[`frei:${id}`]; }
+    else {
+      const wert = parseZahl(t);
+      const rt = prompt('Bei welcher Fondsrendite gilt dieser Wert (in %)? Steht in der Mitteilung neben der Hochrechnung.', alt ? zahl(alt.rendite, 1) : '4');
+      if (rt == null) return;
+      const rendite = parseZahl(rt);
+      if (!(wert > 0) || !(rendite >= 0)) { alert('Bitte Betrag und Rendite als Zahl eintragen.'); return; }
+      h[`frei:${id}`] = { wert, rendite };
+    }
+  }
+  speichern();
+  hebelAnzeigen();
+}
+
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
 // daten.rente.netto (per Import): { ziel (heutige Kaufkraft) oder zielRentenbeginn (Euro bei Rentenbeginn), zielVorPkv,
 //   kv: 'privat', pkvBeitrag, pkvSteigerungReal, veranlagung: 'zusammen' | 'einzeln', kirche, partnerRente }.
@@ -3802,7 +4015,7 @@ function nettoRechnung(n, teile, brutto, faktor, jahre) {
   const depotGewinn = teile.depot.reduce((s, d) => s + 12 * d.e * d.gewinnAnteil * (1 - d.freistellung), 0);
   const steuerDepot = Math.max(0, depotGewinn - 1000) * (0.25 * (1 + 0.055 + (n.kirche ? 0.09 : 0))) / 12;
   const pkv = pkvBeitrag - zuschuss;
-  return { brutto, steuerRenten, steuerKapital, steuerDepot, pkvBeitrag, zuschuss, pkv,
+  return { brutto, steuerRenten, steuerKapital, steuerDepot, pkvBeitrag, zuschuss, pkv, zvE,
     netto: brutto - steuerRenten - steuerKapital - steuerDepot - pkv };
 }
 
@@ -3906,7 +4119,7 @@ function einkommenRechnen(a, beginn, inflation, faktor, bisher) {
   }
   // Lücke aus den gerundeten Werten, damit die angezeigten Zahlen aufgehen (Ziel − Einkommen = Lücke)
   const r10 = (v) => Math.round(v / 10) * 10;
-  return { zeilen, summe, topfTeile, hochgerechnet, n, x, wert, ziel, luecke: ziel ? r10(ziel) - r10(wert) : 0, vorPkv };
+  return { zeilen, summe, topfTeile, hochgerechnet, n, x, wert, ziel, luecke: ziel ? r10(ziel) - r10(wert) : 0, vorPkv, teile };
 }
 
 function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
@@ -6023,6 +6236,8 @@ document.addEventListener('click', (e) => {
   }
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
+  const hba = e.target.closest('[data-hebel-angabe]')?.dataset.hebelAngabe;
+  if (hba) { hebelAngabeErfassen(hba); return; }
   const sj = e.target.closest('[data-steuer-jahr]')?.dataset.steuerJahr;
   if (sj) { steuerAnsichtJahr = Number(sj); steuerAnzeigen(); return; }
   const sp = e.target.closest('[data-steuer-posten]')?.dataset.steuerPosten;
@@ -6093,6 +6308,7 @@ document.addEventListener('click', (e) => {
     'rt-depot': () => rtUnterseite('ansicht-rt-depot'),
     'rt-sim': () => rtUnterseite('ansicht-rt-sim'),
     'rt-annahmen': () => rtUnterseite('ansicht-rt-annahmen'),
+    'rt-hebel': () => rtUnterseite('ansicht-rt-hebel'),
     'rt-zurueck': () => reiterZeigen('ansicht-rente'),
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
     'push-an': pushEinschalten,
