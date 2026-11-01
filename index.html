@@ -359,6 +359,10 @@
   /* Tagesgeld-Cockpit */
   .vstapel { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; margin-bottom: 6px; }
   .vstapel i { display: block; height: 100%; }
+  .tg-legende { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--text-2); margin-top: 8px; }
+  .tg-legende span { display: inline-flex; align-items: center; gap: 6px; }
+  .tg-legende i { width: 8px; height: 8px; border-radius: 50%; }
+  .tg-legende b { font-weight: 600; color: var(--text); }
   .zinsuhr { font-variant-numeric: tabular-nums; }
   .tg-held .betrag { font-size: 34px; font-weight: 750; letter-spacing: -0.03em; margin: 2px 0 12px; }
   .tg-uhrzeile { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; font-size: 15px; color: var(--text-2); }
@@ -769,6 +773,7 @@
       <div class="etikett">Gesamt</div>
       <div class="betrag" id="tg-gesamt"></div>
       <div class="vstapel" id="tg-stapel"></div>
+      <div class="tg-legende" id="tg-legende"></div>
       <div class="tg-uhrzeile"><span>Heute verdient</span><span class="zinsuhr" id="tg-uhr">0,00 €</span></div>
       <div class="unter" id="tg-uhr-unter"></div>
     </div>
@@ -777,9 +782,10 @@
     <div class="karte liste-karte"><ul class="liste tg-kontoliste" id="tg-verteilung"></ul></div>
 
     <div class="karte liste-karte"><ul class="liste"><li class="tippbar" data-aktion="tg-hopping">
-      <span class="name"><span class="n">Zinsen insgesamt</span><small id="tg-zinsen-unter"></small></span>
+      <span class="name"><span class="n" id="tg-zinsen-titel">Zinsen dieses Jahr</span><small id="tg-zinsen-unter"></small></span>
       <span class="wert pos" id="tg-zinsen-summe"></span>
     </li></ul></div>
+    <p class="fuss" id="tg-stand-fuss"></p>
   </section>
 
   <!-- Ebene 3: ein Tagesgeld-Konto mit Zins-Klippe, Zinsbuch und Bearbeiten -->
@@ -1239,7 +1245,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1216'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1250'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2748,7 +2754,8 @@ function tagesgeldAnzeigen() {
   const aktiv = tgAktiv();
   const h = isoDatum(heute());
   const letzterStand = aktiv.map((k) => k.standDatum).filter(Boolean).sort().pop();
-  document.getElementById('tg-kopf').textContent = `${aktiv.length} ${aktiv.length === 1 ? 'Konto' : 'Konten'}${letzterStand ? ` · Stand ${deDatum(letzterStand)}` : ''}`;
+  document.getElementById('tg-kopf').textContent = '';
+  document.getElementById('tg-stand-fuss').textContent = letzterStand ? `Stand ${deDatum(letzterStand)}` : '';
 
   // Summe + Stapelbalken
   const summeTg = tgSumme();
@@ -2756,13 +2763,20 @@ function tagesgeldAnzeigen() {
   document.getElementById('tg-gesamt').innerHTML = betragHTML(summeTg);
   document.getElementById('tg-stapel').innerHTML = sortiert.filter((k) => tgStand(k) > 0)
     .map((k, i) => `<i style="flex: ${tgStand(k)}; background: var(--kat-${(i % 5) + 1})"></i>`).join('');
+  const legende = document.getElementById('tg-legende');
+  legende.innerHTML = '';
+  sortiert.forEach((k, i) => {
+    const el = document.createElement('span');
+    el.innerHTML = `<i style="background: var(--kat-${(i % 5) + 1})"></i><b></b> ${summeTg ? zahl((tgStand(k) / summeTg) * 100, 1) : '0'} %`;
+    el.querySelector('b').textContent = k.bank;
+    legende.appendChild(el);
+  });
 
   // Zins-Uhr und was die Zinsen fürs Depot bedeuten – in einem Satz
   const proJahr = aktiv.reduce((s, k) => s + (k.stand * (k.zins || 0) * tgNetto(k)) / 100, 0);
   const ohneZins = aktiv.filter((k) => !k.zins).map((k) => k.bank);
-  const sparMonat = daten.positionen.reduce((s, p) => s + (p.sparplan ? p.sparplan.betrag : 0), 0);
   document.getElementById('tg-uhr-unter').textContent = proJahr
-    ? `≈ ${geld(proJahr / 12)} pro Monat${sparMonat ? ` – bezahlt ${zahl(((proJahr / 12) / sparMonat) * 100, 0)} % deiner Sparraten` : ''}${ohneZins.length ? ` (ohne ${ohneZins.join(', ')}: Zinssatz fehlt)` : ''}`
+    ? `≈ ${geld(proJahr / 12)} pro Monat bei heutigen Zinsen${ohneZins.length ? ` (ohne ${ohneZins.join(', ')}: Zinssatz fehlt)` : ''}`
     : 'Trag unter Menü → Tagesgeld-Konten die Zinssätze ein, dann läuft die Uhr.';
 
   // Konten: Bank, Zins und das Wichtigste zum Termin in einer Zeile
@@ -2775,15 +2789,18 @@ function tagesgeldAnzeigen() {
     li.dataset.tgKonto = k.id;
     li.innerHTML = `<span class="farbpunkt" style="background: var(--kat-${(i % 5) + 1})"></span>
       <span class="name"><span class="n"></span><small>${k.zins ? `${zahl(k.zins, 2)} %` : 'Zinssatz fehlt'}${st ? ` · <span class="${st.dringend ? 'neg' : ''}">${st.text}</span>` : ''}</small></span>
-      <span class="wert">${geld(tgStand(k))}<small>${summeTg ? zahl((tgStand(k) / summeTg) * 100, 1) : '0'} %</small></span>`;
+      <span class="wert">${geld(tgStand(k))}</span>`; // Anteil steht in der Legende oben
     li.querySelector('.n').textContent = k.bank;
     verteilung.appendChild(li);
   });
 
   // Zinsen insgesamt (Tippen → Hopping-Bilanz)
-  const z = tgZinsenGesamt();
+  // Zinsen im Kalenderjahr (passt zu Sparerpauschbetrag und Steuererklärung); alles seit Beginn steht in der Hopping-Bilanz
+  const jahr = h.slice(0, 4);
+  const z = tgZinsenGesamt(jahr);
+  document.getElementById('tg-zinsen-titel').textContent = `Zinsen ${jahr}`;
   document.getElementById('tg-zinsen-summe').textContent = mitVorzeichen(z.erhalten + z.offen);
-  document.getElementById('tg-zinsen-unter').textContent = z.offen ? `davon ${geld(z.offen)} noch nicht gutgeschrieben` : 'alle gutgeschrieben';
+  document.getElementById('tg-zinsen-unter').textContent = z.offen ? `davon ${geld(z.offen)} aufgelaufen` : 'alles gutgeschrieben';
 
   tgUhrStarten();
 }
@@ -2803,10 +2820,11 @@ function tgStatus(k, h) {
   return tgTaeglich(k) ? { text: 'Zinsen täglich', dringend: false } : null;
 }
 
-function tgZinsenGesamt() {
+// jahr (z. B. '2026'): nur Gutschriften dieses Jahres; noch nicht gutgeschriebene Zinsen kommen erst noch (zählen also ins laufende Jahr)
+function tgZinsenGesamt(jahr = null) {
   let erhalten = 0, offen = 0;
   for (const k of tgKonten()) {
-    erhalten += tgZinsen(k);
+    erhalten += jahr ? (k.zinsen || []).filter((z) => (z.datum || '').startsWith(jahr)).reduce((s, z) => s + z.betrag, 0) : tgZinsen(k);
     offen += k.geschlossen ? 0 : (tgTaeglich(k) ? Math.max(0, tgStand(k) - k.stand) : tgAufgelaufen(k));
   }
   return { erhalten, offen };
