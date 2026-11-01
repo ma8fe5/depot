@@ -1329,7 +1329,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.1748'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.1801'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3525,9 +3525,15 @@ function projektion(szenario, sparFaktor, monate, ungekappt = false, extra = nul
   return { reihe: s.gesamt, ende: s.ende, jePosition: s.jePosition, ausgezahlt: s.ausgezahlt };
 }
 
+// Erträge im Entnahme-Topf werden laufend versteuert: Abgeltungsteuer + Soli (+ Kirchensteuer), vorsichtig ohne
+// Teilfreistellung und ohne Sparerpauschbetrag (der ist bei den Depot-Entnahmen schon verplant; bei diesen Summen klein)
+function entnahmeRenditeNetto(a) {
+  const n = daten.rente && daten.rente.netto;
+  return a.entnahmeRendite * (1 - 0.25 * (1 + 0.055 + (n && n.kirche ? 0.09 : 0)));
+}
 // Kapital, das eine Entnahme in heutiger Kaufkraft über n Jahre trägt (Entnahme wächst mit der Inflation)
 function realerMonatszins(a) {
-  return Math.pow((1 + a.entnahmeRendite / 100) / (1 + a.inflation / 100), 1 / 12) - 1;
+  return Math.pow((1 + entnahmeRenditeNetto(a) / 100) / (1 + a.inflation / 100), 1 / 12) - 1;
 }
 function rentenfaktor(a) {
   const rr = realerMonatszins(a), n = a.entnahmeJahre * 12;
@@ -3553,7 +3559,7 @@ function renteAnzeigen() {
   setze('rt-inflation', a.inflation); setze('rt-geburt', a.geburtsdatum || ''); setze('rt-alter', a.rentenalter);
   document.getElementById('rt-wunsch-w').textContent = geld(a.wunschEntnahme);
   document.getElementById('rt-dauer-w').textContent = `${a.entnahmeJahre} Jahre`;
-  document.getElementById('rt-entnahme-rendite-w').textContent = `${zahl(a.entnahmeRendite, 1)} %`;
+  document.getElementById('rt-entnahme-rendite-w').textContent = `${zahl(a.entnahmeRendite, 1)} % · nach Steuer ${zahl(entnahmeRenditeNetto(a), 1)} %`;
   document.getElementById('rt-inflation-w').textContent = `${zahl(a.inflation, 2)} %`;
   setze('rt-tg-zins', a.tagesgeldZins);
   document.getElementById('rt-tg-zins-w').textContent = `${zahl(a.tagesgeldZins, 2)} %`;
@@ -3979,7 +3985,7 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
   document.getElementById('rt-einkommen-hinweis').textContent =
     `Werte aus deinen Unterlagen, Euro von 2052 mit ${zahl(a.inflation, 1)} % Inflation auf heute umgerechnet und auf 10 € gerundet. ` +
     `Fondsrendite bis zur Rente ${zahl(renditeFuer({ id: '' }, renditeSzenario), 1)} %${hochgerechnet.length ? ` (${hochgerechnet.join(', ')})` : ''}. ` +
-    `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite. ` +
+    `Entnahmen: Topf (${topfTeile.join(' + ')}) über ${a.entnahmeJahre} Jahre mit ${zahl(a.entnahmeRendite, 1)} % Rendite, nach Abgeltungsteuer ${zahl(entnahmeRenditeNetto(a), 1)} % (vorsichtig ohne Teilfreistellung). ` +
     (n ? `Netto: Steuertarif 2026 auf heutige Beträge, ${n.veranlagung === 'zusammen' ? `Splitting mit Partnerrente ${geldRund(n.partnerRente || 0)}` : 'Einzelveranlagung'}${n.kirche ? ', mit Kirchensteuer' : ''}, Renten zu 97 % steuerpflichtig, ` +
       `PKV real +${zahl(n.pkvSteigerungReal ?? 1.5, 1)} % pro Jahr. Die Einzelzeilen oben sind brutto.`
       : 'Noch ohne Steuern und Kranken-/Pflegeversicherung.');
