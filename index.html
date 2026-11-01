@@ -470,6 +470,8 @@
   .rt-luecke .betrag { font-size: 30px; margin: 0; }
   .rt-2052 { font-size: 13px; color: var(--text-2); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
   .liste.hebel li { align-items: flex-start; }
+  .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
+  .liste.befunde .name small { line-height: 1.4; margin-top: 3px; }
   .liste.hebel .wert { font-size: 17px; }
   .liste.hebel .name, .liste.hebel .name small, #hb-angaben .name, #hb-angaben .name small { white-space: normal; }
   .rt-schliessen { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 14px; color: var(--text-2); }
@@ -1130,6 +1132,14 @@
   </section>
 
   <!-- Kosten je Fonds: abgezogene Gebühren + laufende Fondskosten (geschätzt) -->
+  <!-- Check-up: der Ist-Stand an allgemeinen Grundsätzen gemessen (Befunde mit Zahlen, keine Empfehlungen) -->
+  <section id="ansicht-checkup" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Check-up</h1><div class="unterzeile">Dein Ist-Stand, gemessen an allgemeinen Grundsätzen. Tippen öffnet die passende Seite.</div></div>
+    <div class="karte liste-karte"><ul class="liste befunde" id="cu-liste"></ul></div>
+    <p class="fuss">Abgleich mit allgemeinen Grundsätzen, keine Anlageberatung. Ob ein Befund für dich zählt, hängt von Zielen und Lebenslage ab – das entscheidest du.</p>
+  </section>
+
   <!-- Steuer: Kapitalerträge eines Jahres, erst geschätzt, dann mit den Jahressteuerbescheinigungen bestätigt -->
   <section id="ansicht-steuer" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
@@ -1334,6 +1344,7 @@
     <div class="abschnitt">Auswerten</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
+        <li class="tippbar" data-aktion="checkup"><span class="kachel kg-heute"><svg><use href="#i-uhr"/></svg></span><span class="name">Check-up<small id="mehr-checkup"></small></span></li>
         <li class="tippbar" data-aktion="gewinn-liste"><span class="kachel kg-zurueck"><svg><use href="#i-uhr"/></svg></span><span class="name">Gewinn & Rückblick<small>seit Eröffnung, Vortag, WTD, MTD, Jahre</small></span></li>
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
         <li class="tippbar" data-aktion="steuer"><span class="kachel kg-heute"><svg><use href="#i-kosten"/></svg></span><span class="name">Steuer & Kapitalerträge<small id="mehr-steuer"></small></span></li>
@@ -1374,7 +1385,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.2009'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-01.2018'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3922,7 +3933,8 @@ function hebelAnzeigen() {
   // Angaben, die nur in Unterlagen stehen
   const angaben = hebelAngaben();
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
-  const zeilen = [{ id: 'zve', name: 'Zu versteuerndes Einkommen', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'letzter Steuerbescheid (für den Steuervorteil bei Rürup)' }];
+  const zeilen = [{ id: 'zve', name: 'Zu versteuerndes Einkommen', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'letzter Steuerbescheid (für den Steuervorteil bei Rürup)' },
+    { id: 'tgZweck', name: 'Wofür ist das Tagesgeld?', wert: angaben.tgZweck ? TG_ZWECKE[angaben.tgZweck] : null, info: 'Notgroschen, geplante Ausgabe oder Rente (für den Check-up)' }];
   for (const v of vorsorge.filter((x) => x.dynamik)) {
     const fr = angaben[`frei:${v.id}`];
     zeilen.push({ id: v.id, name: `${v.name}: beitragsfrei`, wert: fr ? `${geld(fr.wert)} bei ${zahl(fr.rendite, 1)} %` : null,
@@ -3948,6 +3960,7 @@ function fehlendeAngaben() {
   const a = hebelAngaben();
   const fehlt = [];
   if (!a.zve) fehlt.push('zu versteuerndes Einkommen');
+  if (tgAktiv().length && !a.tgZweck) fehlt.push('Zweck des Tagesgelds');
   for (const v of ((daten.rente && daten.rente.vorsorge) || []).filter((x) => x.dynamik)) {
     if (!a[`frei:${v.id}`]) fehlt.push(`${v.name.replace(/ (.*)$/, '')} beitragsfrei`);
   }
@@ -3963,7 +3976,13 @@ function angabenHinweis() {
 function hebelAngabeErfassen(id) {
   daten.rente = daten.rente || {};
   const h = (daten.rente.hebel = daten.rente.hebel || {});
-  if (id === 'zve') {
+  if (id === 'tgZweck') {
+    const t = prompt('Wofür ist das Tagesgeld gedacht?\n1 = Notgroschen\n2 = geplante Ausgabe (z. B. Auto, Renovierung)\n3 = Rente / langfristig', { notgroschen: '1', ausgabe: '2', rente: '3' }[h.tgZweck] || '');
+    if (t == null) return;
+    const z = { 1: 'notgroschen', 2: 'ausgabe', 3: 'rente' }[t.trim()];
+    if (t.trim() && !z) { alert('Bitte 1, 2 oder 3 eingeben.'); return; }
+    if (z) h.tgZweck = z; else delete h.tgZweck;
+  } else if (id === 'zve') {
     const t = prompt('Zu versteuerndes Einkommen laut letztem Steuerbescheid (€ pro Jahr, bei Zusammenveranlagung gemeinsam):', h.zve ? zahl(h.zve, 0) : '');
     if (t == null) return;
     const w = parseZahl(t);
@@ -5179,6 +5198,8 @@ function hauptRendern() {
   document.getElementById('mehr-steuer').textContent = `${heute().getFullYear()}: ${zahl((st.pflichtig / st.freibetrag) * 100, 0)} % vom Freibetrag`;
   steuerHinweis();
   angabenHinweis();
+  const anzahlBefunde = befunde().length;
+  document.getElementById('mehr-checkup').textContent = anzahlBefunde ? `${anzahlBefunde} Befund${anzahlBefunde === 1 ? '' : 'e'}` : 'keine Auffälligkeiten';
   const beginn = rentenbeginn();
   document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
@@ -5207,6 +5228,117 @@ function hauptRendern() {
   }
   status.hidden = !meldungen.length && !kurse.veraltet; // leer: kein Platz belegen (Depot-Seite soll ohne Scrollen passen)
   startEinpassen();
+}
+
+// ---------- Check-up: Befunde zum Ist-Stand ----------
+// Jeder Befund: Grundsatz + deine Zahlen + wohin man tippt. Keine Handlungsanweisung – nur, wo der Ist-Stand auffällt.
+const TG_ZWECKE = { notgroschen: 'Notgroschen', ausgabe: 'eine geplante Ausgabe', rente: 'die Rente' };
+
+function befunde() {
+  const liste = [];
+  if (!kurse) return liste;
+  const a = renteAnnahmen();
+  const pos = daten.positionen.map((p) => {
+    const k = kurse.preise[p.id];
+    const { stueck, inv } = aktuellerBestand(p);
+    return { p, wert: k ? stueck * k.eur : 0, inv };
+  }).filter((x) => x.wert > 0);
+  const depot = pos.reduce((s, x) => s + x.wert, 0);
+  const tg = tgSumme(), gesamt = depot + tg;
+  const zweck = hebelAngaben().tgZweck;
+
+  // 1. Tagesgeld: Zins nach Steuer gegen Inflation
+  if (tg > 0) {
+    // dauerhafter Zins: nach einer Aktion zählt der Anschlusszins (Aktionen laufen aus)
+    const zinsNetto = tgAktiv().reduce((s, k) => s + tgStand(k) * ((k.termin && k.zinsDanach != null ? k.zinsDanach : k.zins) || 0), 0) / tg * (1 - ABGELTUNG);
+    const real = zinsNetto - a.inflation;
+    if (real < 0) liste.push({
+      titel: `Tagesgeld verliert real ${zahl(-real, 1)} % pro Jahr`,
+      text: `${zahl((tg / gesamt) * 100, 0)} % deines Vermögens (${geldRund(tg)}) bringen dauerhaft (nach Aktionszinsen) nach Steuer ≈ ${zahl(zinsNetto, 2)} %, die Inflation liegt bei ${zahl(a.inflation, 1)} %.` +
+        (zweck ? ` Gedacht für ${TG_ZWECKE[zweck]}.` : ' Wofür ist das Geld gedacht? Unter „Angaben fehlen“ eintragen.') +
+        ' Grundsatz: Geld mit langem Horizont wird meist nicht dauerhaft auf dem Tagesgeld gehalten.',
+      gewicht: tg * -real / 100, aktion: 'tagesgeld',
+    });
+  }
+  // 2. Klumpen: größte Einzelaktie, besonders beim eigenen Arbeitgeber
+  const aktien = pos.filter((x) => anlageart(x.p) === 'Aktie').sort((x, y) => y.wert - x.wert);
+  if (aktien[0] && depot && aktien[0].wert / depot > 0.2) {
+    const x = aktien[0];
+    const wort = x.p.name.split(' ').pop();
+    const arbeitgeber = ((daten.rente && daten.rente.vorsorge) || []).some((v) => v.name.includes(wort));
+    liste.push({
+      titel: `${x.p.name}: ${zahl((x.wert / depot) * 100, 0)} % deines Depots`,
+      text: `${geldRund(x.wert)} in einer einzelnen Aktie${arbeitgeber ? ' – und auch deine bAV läuft über dieses Unternehmen' : ''}.` +
+        ' Grundsatz: Ein großer Anteil an einem Unternehmen (erst recht am Arbeitgeber) bündelt das Risiko.',
+      gewicht: x.wert * 0.02, aktion: 'gewinn-liste',
+    });
+  }
+  // 3. ETF-Überschneidung: mehrere breite Welt-/US-Indizes
+  const breit = pos.filter((x) => /MSCI World|ACWI|S&P 500|All-World|FTSE Developed/i.test(x.p.name));
+  if (breit.length >= 2) liste.push({
+    titel: `${breit.length} breite Index-ETFs mit großer Überschneidung`,
+    text: `${breit.map((x) => x.p.name).join(', ')} enthalten zu einem großen Teil dieselben Unternehmen (vor allem große US-Werte). Grundsatz: Mehr Produkte heißt hier nicht mehr Streuung.`,
+    gewicht: 5, aktion: 'gewinn-liste',
+  });
+  // 4. Teure Fonds (mit Effekt aus der Hebel-Rechnung)
+  const hb = hebelListe().hebel;
+  for (const x of pos.filter((y) => kostenSatz(y.p) > 1)) {
+    const h = hb.find((z) => z.name.startsWith(x.p.name + ' →'));
+    liste.push({
+      titel: `${x.p.name}: ${zahl(kostenSatz(x.p), 2)} % Kosten pro Jahr`,
+      text: `Ein breiter ETF kostet typischerweise ≈ 0,2 %.${h && h.effekt != null ? ` Umschichten wäre laut Hebel-Rechnung ${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (nach Steuer beim Verkauf).` : ''} Grundsatz: Kosten sind sicher, Rendite nicht.`,
+      gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'rt-hebel',
+    });
+  }
+  // 5. Freibetrag: was bis Jahresende verfällt
+  const st = steuerUebersicht(heute().getFullYear());
+  const rest = st.freibetrag - st.pflichtig;
+  if (rest > 100) {
+    const gewinne = pos.filter((x) => anlageart(x.p) !== 'Krypto' && x.wert > x.inv)
+      .reduce((s, x) => s + (x.wert - x.inv) * (['ETF', 'Fonds'].includes(anlageart(x.p)) ? 0.7 : 1), 0);
+    liste.push({
+      titel: `${geldRund(rest)} Sparerpauschbetrag noch frei`,
+      text: `Von ${geld(st.freibetrag)} sind ${heute().getFullYear()} ≈ ${geldRund(st.pflichtig)} genutzt; der Rest verfällt am 31.12. Steuerpflichtige Buchgewinne im Depot: ≈ ${geldRund(gewinne)}. Grundsatz: Gewinne bis zum Freibetrag sind steuerfrei.`,
+      gewicht: Math.min(rest, gewinne) * ABGELTUNG, aktion: 'steuer',
+    });
+  }
+  // 6. Große Verluste bei Einzelaktien (Verlustverrechnung)
+  for (const x of pos.filter((y) => anlageart(y.p) === 'Aktie' && y.inv > 0 && y.wert / y.inv < 0.5)) liste.push({
+    titel: `${x.p.name}: ${zahl((x.wert / x.inv - 1) * 100, 0)} %`,
+    text: `${geld(x.inv)} investiert, heute ${geld(x.wert)}. Grundsatz: Realisierte Aktienverluste (hier ≈ ${geldRund(x.inv - x.wert)}) lassen sich mit Aktiengewinnen verrechnen.`,
+    gewicht: (x.inv - x.wert) * ABGELTUNG * 0.5, aktion: 'positionen',
+  });
+  // 7. Größter Hebel für die Lücke
+  const top = hb.find((h) => h.effekt != null);
+  if (top) liste.push({
+    titel: `Größter Hebel: ${top.name}`,
+    text: `${mitVorzeichen(Math.round(top.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (heutige Kaufkraft, nach Steuern) – ${top.info}.`,
+    gewicht: Math.abs(top.effekt) * 12, aktion: 'rt-hebel',
+  });
+  // 8. Was sich noch nicht bewerten lässt
+  const fehlt = fehlendeAngaben();
+  if (fehlt.length) liste.push({
+    titel: 'Noch nicht bewertbar',
+    text: `Es fehlen: ${fehlt.join(', ')}. Ohne diese Angaben bleibt offen, wie Rürup und Swiss Life im Vergleich dastehen.`,
+    gewicht: 1, aktion: 'angaben-eintragen',
+  });
+  return liste.sort((x, y) => y.gewicht - x.gewicht);
+}
+
+function checkupAnzeigen() {
+  zeige('ansicht-checkup');
+  const ul = document.getElementById('cu-liste');
+  ul.innerHTML = '';
+  for (const b of befunde()) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.aktion = b.aktion;
+    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span>';
+    li.querySelector('.n').textContent = b.titel;
+    li.querySelector('small').textContent = b.text;
+    ul.appendChild(li);
+  }
+  if (!ul.children.length) ul.innerHTML = '<li><span class="name unter">Keine Auffälligkeiten.</span></li>';
 }
 
 // ---------- Steuer: Kapitalerträge je Kalenderjahr ----------
@@ -6331,6 +6463,7 @@ document.addEventListener('click', (e) => {
     zinseszins: () => { zinseszinsSicht = 'heute'; zeige('ansicht-zinseszins'); zinseszinsAnzeigen(); },
     kosten: kostenAnzeigen,
     steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
+    checkup: checkupAnzeigen,
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
       reiterZeigen('ansicht-rente');
