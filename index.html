@@ -194,6 +194,8 @@
   .posname span { font-weight: 650; font-size: 17px; }
   .posname small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
   .karte.aus .raster { opacity: 0.35; pointer-events: none; }
+  .c-wahl { display: flex; gap: 8px; margin: 4px 0 12px; }
+  .c-wahl .chip { flex: 1; padding: 9px 10px; }
 
   .schalter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; font-size: 15px; color: var(--text-2); }
   .schalter input { -webkit-appearance: none; appearance: none; width: 51px; height: 31px; border-radius: 999px; margin: 0;
@@ -1173,12 +1175,18 @@
   <section id="ansicht-check" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Abbrechen</button></div>
     <div class="titel"><h1>Monats-Check</h1>
-      <div class="unterzeile">Vorbelegt mit den geplanten Sparraten und Gebühren – Kurs ist der Schlusskurs am Ausführungstag, solange es den noch nicht gibt der aktuelle. Trage die echten Werte aus deinen Depots ein – die Stückzahl rechnet sich mit.</div></div>
+      <div class="unterzeile">Tippe bei jeder Rate auf „Ausgeführt“ oder „Nicht ausgeführt“ – unbeantwortete bleiben offen. Kurs ist der Schlusskurs am Ausführungstag (sonst der aktuelle); trag die echten Werte aus deinem Depot ein.</div></div>
     <div id="check-liste"></div>
     <div id="check-tg-block" hidden>
       <div class="abschnitt">Tagesgeld</div>
       <p class="unter" style="margin: -2px 18px 12px">Aktueller Kontostand je Konto. Hat er sich geändert, trag ein, wie viel davon Zinsen waren.</p>
       <div id="check-tg"></div>
+    </div>
+    <div class="abschnitt">Anderer Kauf</div>
+    <div class="karte">
+      <p class="unter" style="margin: 0 0 12px">Einmalkauf oder eine Sparrate, die hier (noch) nicht steht.</p>
+      <div class="feld"><select id="kauf-pos-wahl"></select></div>
+      <button class="knopf zweit breit" data-aktion="check-kauf-neu">Kauf erfassen</button>
     </div>
     <div class="abschnitt">Gebühr nachtragen</div>
     <div class="karte">
@@ -1186,7 +1194,7 @@
       <div class="feld"><select id="gebuehr-pos"></select></div>
       <button class="knopf zweit breit" data-aktion="gebuehr-neu">Gebühr hinzufügen</button>
     </div>
-    <div class="knoepfe"><button class="knopf breit" data-aktion="check-bestaetigen">Alles bestätigen</button></div>
+    <div class="knoepfe"><button class="knopf breit" data-aktion="check-bestaetigen">Bestätigen</button></div>
   </section>
 
   <!-- Nach dem Check: Backup -->
@@ -1385,7 +1393,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-01.2018'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-02.1654'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5538,6 +5546,14 @@ function checkAnzeigen() {
   }
   if (!offen.length && tgAktiv().length) liste.innerHTML = '';
 
+  const kaufWahl = document.getElementById('kauf-pos-wahl');
+  kaufWahl.innerHTML = '';
+  for (const p of daten.positionen) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    kaufWahl.appendChild(o);
+  }
   const auswahl = document.getElementById('gebuehr-pos');
   auswahl.innerHTML = '';
   for (const p of daten.positionen) {
@@ -5561,7 +5577,7 @@ function checkKarte(b) {
   card.dataset.id = b.id;
   card.innerHTML = `
     <div class="posname"><span></span><small>${gebuehr ? 'Gebühr · ' : ''}${deDatum(b.geplant)}</small></div>
-    <label class="schalter">${gebuehr ? 'Wurde abgezogen' : 'Wurde ausgeführt'}<input type="checkbox" class="c-aus" checked></label>
+    <div class="c-wahl"><button class="chip" data-c-wahl="ja">${gebuehr ? 'Abgezogen' : 'Ausgeführt'}</button><button class="chip" data-c-wahl="nein">${gebuehr ? 'Nicht abgezogen' : 'Nicht ausgeführt'}</button></div>
     <div class="raster">
       <div><label class="feldname">Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
       <div><label class="feldname">${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
@@ -5576,7 +5592,14 @@ function checkKarte(b) {
   };
   card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
   card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
-  card.querySelector('.c-aus').addEventListener('change', (e) => card.classList.toggle('aus', !e.target.checked));
+  // nichts vorbelegt: erst die eigene Wahl macht die Rate bestätigbar; unbeantwortet bleibt sie offen
+  card.classList.add('aus');
+  card.dataset.wahl = '';
+  card.querySelectorAll('[data-c-wahl]').forEach((knopf) => knopf.addEventListener('click', () => {
+    card.dataset.wahl = knopf.dataset.cWahl;
+    card.querySelectorAll('[data-c-wahl]').forEach((k) => k.classList.toggle('aktiv', k === knopf));
+    card.classList.toggle('aus', knopf.dataset.cWahl !== 'ja');
+  }));
   return card;
 }
 
@@ -5602,7 +5625,8 @@ function checkBestaetigen() {
   const eingaben = [];
   for (const card of karten) {
     const b = daten.buchungen.find((x) => x.id === card.dataset.id);
-    const ausgefuehrt = card.querySelector('.c-aus').checked;
+    if (!card.dataset.wahl) continue; // nicht beantwortet: bleibt offen
+    const ausgefuehrt = card.dataset.wahl === 'ja';
     const betrag = parseZahl(card.querySelector('.c-betrag').value);
     const kurs = parseZahl(card.querySelector('.c-kurs').value);
     const stueck = parseZahl(card.querySelector('.c-stueck').value);
@@ -5651,7 +5675,7 @@ function checkBestaetigen() {
       e.b.status = 'nicht_ausgefuehrt';
     }
   }
-  daten.letzterCheck = monatKey(heute());
+  if (!offeneBuchungen().length) daten.letzterCheck = monatKey(heute()); // erst erledigt, wenn alles beantwortet ist
   speichern();
   zeige('ansicht-backup');
 }
@@ -6425,6 +6449,7 @@ document.addEventListener('click', (e) => {
     zurueck: hauptAnzeigen,
     check: checkAnzeigen,
     'check-bestaetigen': checkBestaetigen,
+    'check-kauf-neu': () => { positionAnzeigen(document.getElementById('kauf-pos-wahl').value); kaufNeu(); },
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
     arten: artenAnzeigen,
