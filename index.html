@@ -1393,7 +1393,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-02.1654'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-02.1704'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5819,7 +5819,13 @@ function positionAnzeigen(id) {
         <div><label class="feldname">Transaktionskosten (% p. a.)</label>
           <input type="text" inputmode="decimal" class="e-transaktion" placeholder="keine" value="${p.kosten && p.kosten.transaktion ? zahl(p.kosten.transaktion, 2) : ''}"></div>
       </div>
-      <p class="unter" style="margin: 8px 0 0">Laut Basisinformationsblatt des Fonds. Fließt in die Seite „Kosten“ ein.</p>`;
+      <p class="unter" style="margin: 8px 0 0">Laut Basisinformationsblatt des Fonds. Fließt in die Seite „Kosten“ ein.</p>
+      <div class="raster" style="margin-top: 12px">
+        <div><label class="feldname">Sparrate (€ pro Monat)</label>
+          <input type="text" inputmode="decimal" class="e-sparrate" placeholder="kein Sparplan" value="${p.sparplan ? zahl(p.sparplan.betrag, 2) : ''}"></div>
+        <div><label class="feldname">Ausführung am (Tag)</label>
+          <input type="text" inputmode="numeric" class="e-spartag" placeholder="1–28" value="${p.sparplan ? p.sparplan.tag : ''}"></div>
+      </div>`;
   card.querySelector('.posname').remove();
   box.appendChild(card);
   document.getElementById('positionen-meldung').textContent = '';
@@ -6014,9 +6020,15 @@ function positionenSpeichern() {
     const prozent = (cls) => { const t = card.querySelector(cls).value.trim(); return t ? parseZahl(t) : 0; };
     const laufend = prozent('.e-laufend'), transaktion = prozent('.e-transaktion');
     if (!(laufend >= 0 && laufend < 20) || !(transaktion >= 0 && transaktion < 20)) { alert(`Ungültige Kosten bei „${p.name}“.`); return; }
-    neu.push([p, stueck, inv, card.querySelector('.e-art').value, card.querySelector('.e-wieder').value === 'ja', dividende, card.querySelector('.e-gratis').value === 'ja', laufend, transaktion]);
+    // Sparplan: Betrag und Ausführungstag (leer = kein Sparplan)
+    const rateText = card.querySelector('.e-sparrate').value.trim();
+    const rate = rateText ? parseZahl(rateText) : 0;
+    const tag = parseInt(card.querySelector('.e-spartag').value, 10);
+    if (rate && (!(rate > 0) || !(tag >= 1 && tag <= 28))) { alert(`Bitte Sparrate und Ausführungstag (1–28) bei „${p.name}“ prüfen.`); return; }
+    neu.push([p, stueck, inv, card.querySelector('.e-art').value, card.querySelector('.e-wieder').value === 'ja', dividende, card.querySelector('.e-gratis').value === 'ja', laufend, transaktion, rate ? { betrag: rate, tag } : null]);
   }
-  for (const [p, stueck, inv, art, wieder, dividende, gratis, laufend, transaktion] of neu) {
+  for (const [p, stueck, inv, art, wieder, dividende, gratis, laufend, transaktion, sparplan] of neu) {
+    if (sparplan) p.sparplan = { ...(p.sparplan || {}), ...sparplan }; else delete p.sparplan;
     // Kostensätze: Quelle/Stand bleiben, solange sich die Zahlen nicht ändern
     const alt = p.kosten || {};
     if (!laufend && !transaktion) delete p.kosten;
@@ -6027,6 +6039,7 @@ function positionenSpeichern() {
     // nur speichern, wenn es vom Standard der Anlageart abweicht – sonst folgt es der Anlageart
     if (wieder === ['ETF', 'Fonds'].includes(art)) delete p.wiederanlage; else p.wiederanlage = wieder;
   }
+  offeneBuchungenErzeugen(); // geänderter Ausführungstag: fällige Rate erscheint gleich im Monats-Check
   speichern();
   if (positionId) positionAnzeigen(positionId);
   document.getElementById('positionen-meldung').textContent = 'Gespeichert.';
