@@ -1393,7 +1393,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-02.1704'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-03.0600'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1963,6 +1963,8 @@ function checkFaellig() {
 // Krypto kommt wie Aktien über den Vermittler (EODHD, dort zwischengespeichert). Die öffentliche CoinGecko-Schnittstelle
 // drosselt Aufrufe ohne Schlüssel und lieferte deshalb immer wieder keine Kurse – sie springt nur noch ein, wenn der Vermittler nichts hat.
 const KRYPTO_EOD = { bitcoin: 'BTC-EUR.CC', ethereum: 'ETH-EUR.CC', solana: 'SOL-EUR.CC' };
+// Stückzahl-Nachkommastellen: Krypto 8 (wie in der Kaufbestätigung), sonst 6
+const stueckStellen = (p) => (p.quelle === 'coingecko' ? 8 : 6);
 const kryptoSymbol = (p) => (p.quelle === 'coingecko' ? p.eodSymbol || KRYPTO_EOD[p.symbol] || null : null);
 
 function kursSymbole() {
@@ -5582,13 +5584,13 @@ function checkKarte(b) {
       <div><label class="feldname">Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
       <div><label class="feldname">${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
       <div><label class="feldname">Kurs (€)${tagKurs != null ? ' · Schluss am Tag' : ' · aktuell'}</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
-      <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, 6) : ''}"></div>
+      <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, stueckStellen(p)) : ''}"></div>
     </div>`;
   card.querySelector('.posname span').textContent = p.name;
   const neuRechnen = () => {
     const betrag = parseZahl(card.querySelector('.c-betrag').value);
     const k = parseZahl(card.querySelector('.c-kurs').value);
-    if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, 6);
+    if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
   };
   card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
   card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
@@ -5798,7 +5800,7 @@ function positionAnzeigen(id) {
     card.innerHTML = `
       <div class="posname"><span></span><small></small></div>
       <div class="raster">
-        <div><label class="feldname">Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, p.quelle === 'coingecko' ? 8 : 6)}"></div>
+        <div><label class="feldname">Stück</label><input type="text" inputmode="decimal" class="e-stueck" value="${zahl(p.stueck, stueckStellen(p))}"></div>
         <div><label class="feldname">Investiert (€)</label><input type="text" inputmode="decimal" class="e-inv" value="${zahl(p.investiert, 2)}"></div>
       </div>
       <div class="raster" style="margin-top: 12px">
@@ -5853,7 +5855,7 @@ function summeKaeufe(id) {
 function angabenAngleichen() {
   const p = daten.positionen.find((x) => x.id === positionId);
   const s = summeKaeufe(p.id);
-  if (!confirm(`Angaben auf ${zahl(s.stueck, 6)} Stück und ${geld(s.betrag)} investiert setzen?`)) return;
+  if (!confirm(`Angaben auf ${zahl(s.stueck, stueckStellen(p))} Stück und ${geld(s.betrag)} investiert setzen?`)) return;
   p.stueck = s.stueck;
   p.investiert = s.betrag;
   speichern();
@@ -5900,7 +5902,7 @@ function kaufBearbeiten(id) {
   document.getElementById('kauf-gebuehren').value = gebuehren ? zahl(gebuehren, 2) : '';
   document.getElementById('kauf-gratis').value = gratis ? zahl(gratis, 4) : '';
   kaufFelderMitGratis(hatGratis(p) || gratis > 0);
-  const stellen = p.quelle === 'coingecko' ? 8 : 6;
+  const stellen = stueckStellen(p);
   const stueckEl = document.getElementById('kauf-stueck');
   stueckEl.value = zahl(b.stueck, stellen);
   stueckEl.dataset.selbst = '1'; // gespeicherte Stückzahl nicht automatisch überschreiben
@@ -5927,18 +5929,19 @@ function kaufRechnen() {
   const wert = (id) => parseZahl(document.getElementById(id).value || '0');
   const betrag = wert('kauf-betrag'), kurs = wert('kauf-kurs'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
   const stueckEl = document.getElementById('kauf-stueck');
+  const stellen = stueckStellen(daten.positionen.find((x) => x.id === positionId) || {});
   const mitGratis = !document.getElementById('kauf-gratis-feld').hidden;
   if (mitGratis) {
     const bezahltEl = document.getElementById('kauf-bezahlt');
-    if (!bezahltEl.dataset.selbst && betrag > 0 && kurs > 0) bezahltEl.value = zahl(betrag / kurs, 6);
+    if (!bezahltEl.dataset.selbst && betrag > 0 && kurs > 0) bezahltEl.value = zahl(betrag / kurs, stellen);
     const bezahlt = parseZahl(bezahltEl.value || '0');
-    stueckEl.value = bezahlt + (gratis || 0) > 0 ? zahl(bezahlt + (gratis || 0), 6) : '';
+    stueckEl.value = bezahlt + (gratis || 0) > 0 ? zahl(bezahlt + (gratis || 0), stellen) : '';
     // Wert der Gratis-Aktien zum Kaufkurs (Kurs = Investment ÷ bezahlte Aktien, sonst eingetragener Kurs)
     const kaufkurs = bezahlt > 0 && betrag > 0 ? betrag / bezahlt : kurs;
     const wertEl = document.getElementById('kauf-gratis-wert'); // Vorschlag, solange nicht selbst eingetragen
     if (!wertEl.dataset.selbst) wertEl.value = gratis > 0 && kaufkurs > 0 ? zahl(gratis * kaufkurs, 2) : '';
   } else if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) {
-    stueckEl.value = zahl(betrag / kurs, 6);
+    stueckEl.value = zahl(betrag / kurs, stellen);
   }
   const info = [];
   if (betrag > 0) info.push(`Investiert steigt um ${geld(betrag + (gebuehren || 0))}${gebuehren ? ' (inkl. Gebühren)' : ''}`);
@@ -6246,8 +6249,8 @@ function historieUebernehmen(paket) {
   for (const b of nachtraege) {
     const name = bekannt(b.posId).name;
     zeilen.push(b.art === 'gebuehr'
-      ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`
-      : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, 6)} Stück)`);
+      ? `${name}: Gebühr ${eur.format(b.gebuehrEur)} am ${deDatum(b.datum)} (${zahl(b.stueck, stueckStellen(bekannt(b.posId)))} Stück)`
+      : `${name}: Kauf ${eur.format(b.betrag)} am ${deDatum(b.datum)} (${zahl(b.stueck, stueckStellen(bekannt(b.posId)))} Stück)`);
   }
   // Korrekturen einzelner Käufe (gefunden über Position + Datum) und anschließendes Angleichen der Angaben
   const korrekturen = (paket.kaufKorrekturen || []).map((kk) => {
