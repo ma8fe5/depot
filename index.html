@@ -342,7 +342,6 @@
   .kachel.k0 { background: linear-gradient(145deg, #a1a1aa, #6b7280); }
   .kachel.kg-heute { background: linear-gradient(145deg, #ff4fa3, #E20074); }
   .kachel.kg-zurueck { background: linear-gradient(145deg, #fbbf24, #e08a00); }
-  .kachel.kg-zukunft { background: linear-gradient(145deg, #34d399, #0f9f6e); }
   .menue-panel .abschnitt { margin: 18px 14px 8px; }
   .menue-panel .abschnitt:first-of-type { margin-top: 0; }
 
@@ -494,7 +493,8 @@
   .rt-2052 { font-size: 13px; color: var(--text-2); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
   .liste.hebel li { align-items: flex-start; }
   .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
-  .liste.befunde .name small { line-height: 1.4; margin-top: 3px; }
+  .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
   .liste.hebel .wert { font-size: 17px; }
   .liste.hebel .name, .liste.hebel .name small, #hb-angaben .name, #hb-angaben .name small { white-space: normal; }
   .rt-schliessen { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 14px; color: var(--text-2); }
@@ -1191,9 +1191,9 @@
   <!-- Kosten je Fonds: abgezogene Gebühren + laufende Fondskosten (geschätzt) -->
   <!-- Check-up: der Ist-Stand an allgemeinen Grundsätzen gemessen (Befunde mit Zahlen, keine Empfehlungen) -->
   <section id="ansicht-checkup" class="ansicht" hidden>
-    <div class="titel"><h1>Consultant</h1><div class="unterzeile">Was mir an deinem Stand auffällt – gemessen an allgemeinen Grundsätzen. Tippen öffnet die passende Seite.</div></div>
+    <div class="titel"><h1>Consultant</h1><div class="unterzeile">Was mir an deinem Stand auffällt. Tippen öffnet die passende Seite.</div></div>
     <div class="karte liste-karte"><ul class="liste befunde" id="cu-liste"></ul></div>
-    <p class="fuss">Abgleich mit allgemeinen Grundsätzen, keine Anlageberatung. Ob ein Befund für dich zählt, hängt von Zielen und Lebenslage ab – das entscheidest du.</p>
+    <p class="fuss">Allgemeine Grundsätze, keine Anlageberatung – entscheiden tust du.</p>
   </section>
 
   <!-- Steuer: Kapitalerträge eines Jahres, erst geschätzt, dann mit den Jahressteuerbescheinigungen bestätigt -->
@@ -1423,18 +1423,12 @@
         <li class="tippbar" data-aktion="zinseszins"><span class="kachel kg-zurueck"><svg><use href="#i-zins"/></svg></span><span class="name">Zinseszins<small id="mehr-zinseszins"></small></span></li>
         <li class="tippbar" data-aktion="steuer"><span class="kachel kg-heute"><svg><use href="#i-kosten"/></svg></span><span class="name">Steuer & Kapitalerträge<small id="mehr-steuer"></small></span></li>
         <li class="tippbar" data-aktion="kosten"><span class="kachel kg-zurueck"><svg><use href="#i-kosten"/></svg></span><span class="name">Kosten<small id="mehr-kosten"></small></span></li>
-        <li class="tippbar" data-aktion="rente"><span class="kachel kg-zukunft"><svg><use href="#i-rente"/></svg></span><span class="name">Prognose bis zur Rente<small id="mehr-rente"></small></span></li>
-      </ul>
-    </div>
-    <div class="abschnitt">Planen</div>
-    <div class="karte liste-karte">
-      <ul class="liste menue">
-        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Termine & Sparpläne<small id="mehr-sparplaene"></small></span></li>
       </ul>
     </div>
     <div class="abschnitt">Pflegen</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
+        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Termine & Sparpläne<small id="mehr-sparplaene"></small></span></li>
         <li class="tippbar" data-aktion="check"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Monats-Check<small id="mehr-check"></small></span></li>
         <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
         <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen<small>Käufe erfassen, Angaben pflegen</small></span></li>
@@ -1459,7 +1453,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1946'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1949'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1948,7 +1942,8 @@ function zeige(id) {
   const mitTabs = REITER.includes(id);
   document.getElementById('tabbar').hidden = !mitTabs;
   document.body.classList.toggle('mit-tabs', mitTabs);
-  document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('aktiv', b.dataset.tab === id));
+  const tab = id === 'ansicht-haupt' || id === 'ansicht-tagesgeld' ? 'ansicht-start' : id;
+  document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('aktiv', b.dataset.tab === tab));
   document.querySelector('main').style.paddingBottom = ''; // Einpassen der Startseite gilt nur dort
   window.scrollTo(0, 0);
 }
@@ -5299,8 +5294,6 @@ function hauptRendern() {
   angabenHinweis();
   const anzahlBefunde = befunde().length;
   befundeZahl(anzahlBefunde);
-  const beginn = rentenbeginn();
-  document.getElementById('mehr-rente').textContent = beginn ? `ab ${beginn.getFullYear()}` : '';
 
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
@@ -5424,6 +5417,9 @@ function befunde() {
   return liste.sort((x, y) => y.gewicht - x.gewicht);
 }
 
+const CONSULTANT_ZEIGEN = 5; // passt ohne Scrollen aufs iPhone
+let consultantAlle = false;
+
 // Zahl der Befunde am Consultant-Reiter
 function befundeZahl(n) {
   const el = document.getElementById('tab-befunde');
@@ -5435,16 +5431,25 @@ function checkupAnzeigen() {
   zeige('ansicht-checkup');
   const ul = document.getElementById('cu-liste');
   ul.innerHTML = '';
-  for (const b of befunde()) {
+  const alle = befunde();
+  for (const [i, b] of alle.entries()) {
     const li = document.createElement('li');
     li.className = 'tippbar';
     li.dataset.aktion = b.aktion;
+    li.hidden = i >= CONSULTANT_ZEIGEN && !consultantAlle;
     li.innerHTML = '<span class="name"><span class="n"></span><small></small></span>';
     li.querySelector('.n').textContent = b.titel;
     li.querySelector('small').textContent = b.text;
     ul.appendChild(li);
   }
-  befundeZahl(ul.children.length);
+  befundeZahl(alle.length);
+  if (alle.length > CONSULTANT_ZEIGEN && !consultantAlle) {
+    const li = document.createElement('li');
+    li.className = 'tippbar mehr-befunde';
+    li.dataset.aktion = 'consultant-alle';
+    li.innerHTML = `<span class="name"><span class="n">${alle.length - CONSULTANT_ZEIGEN} weitere anzeigen</span></span>`;
+    ul.appendChild(li);
+  }
   if (!ul.children.length) ul.innerHTML = '<li><span class="name unter">Keine Auffälligkeiten.</span></li>';
 }
 
@@ -6806,6 +6811,7 @@ document.addEventListener('click', (e) => {
     kosten: kostenAnzeigen,
     steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
     checkup: checkupAnzeigen,
+    'consultant-alle': () => { consultantAlle = true; checkupAnzeigen(); },
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
       angabenVon = document.getElementById('ansicht-rt-hebel').hidden ? null : 'ansicht-rt-hebel';
