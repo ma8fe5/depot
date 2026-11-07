@@ -1077,7 +1077,7 @@
       <input type="file" id="foto-datei" accept="image/*" multiple hidden>
       <div class="knoepfe" style="margin-top: 0">
         <button class="knopf zweit" data-aktion="foto-aufnehmen" id="foto-aufnehmen">Seite fotografieren</button>
-        <button class="knopf" data-aktion="foto-auswerten" id="foto-auswerten" disabled>Auslesen</button>
+        <button class="knopf" data-aktion="foto-auswerten" id="foto-auswerten" disabled>Fertig – Zahl suchen</button>
       </div>
       <p class="unter" id="foto-status" style="margin: 10px 0 0"></p>
     </div>
@@ -1441,7 +1441,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1841'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1845'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5714,8 +5714,11 @@ function fotoZeichnen(status = '') {
   const n = foto.seiten.length;
   document.getElementById('foto-aufnehmen').textContent = n ? 'Weitere Seite' : 'Seite fotografieren';
   document.getElementById('foto-auswerten').disabled = !n;
-  document.getElementById('foto-auswerten').textContent = n > 1 ? `${n} Seiten auslesen` : 'Auslesen';
-  document.getElementById('foto-status').textContent = status;
+  document.getElementById('foto-auswerten').textContent = 'Fertig – Zahl suchen';
+  // ohne eigene Meldung: sagen, was als Nächstes zu tun ist
+  document.getElementById('foto-status').textContent = status || (n
+    ? `${n === 1 ? '1 Seite' : `${n} Seiten`} fotografiert. Fehlt noch eine? Dann „Weitere Seite“. Sonst „Fertig – Zahl suchen“.`
+    : 'Fotografiere die erste Seite. Mehrere Seiten machst du einfach nacheinander.');
   const e = foto.ergebnis;
   document.getElementById('foto-ergebnis').hidden = !e;
   if (e) {
