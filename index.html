@@ -186,6 +186,12 @@
   .foto-seiten img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; display: block; box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35); }
   .foto-seiten button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0;
     background: var(--text); color: var(--flaeche); font-size: 14px; line-height: 22px; padding: 0; cursor: pointer; }
+  .foto-hilfe dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 15px; }
+  .foto-hilfe dt { color: var(--text-2); }
+  .foto-hilfe dd { margin: 0; }
+  .foto-hilfe figure { margin: 14px 0 0; }
+  .foto-hilfe svg { width: 100%; height: auto; display: block; }
+  .foto-hilfe figcaption { font-size: 12px; color: var(--text-2); margin-top: 4px; }
   .textknopf { border: 0; background: none; color: var(--akzent); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px; }
 
   label.feldname { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 5px 2px; }
@@ -1071,7 +1077,8 @@
   <!-- Eine Angabe per Foto: Seiten fotografieren, Claude liest die Zahl heraus, du übernimmst sie -->
   <section id="ansicht-foto" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="foto-zurueck"><svg><use href="#i-zurueck"/></svg> Deine Angaben</button></div>
-    <div class="titel"><h1 id="foto-titel"></h1><div class="unterzeile" id="foto-unter"></div></div>
+    <div class="titel"><h1 id="foto-titel"></h1></div>
+    <div class="karte foto-hilfe" id="foto-hilfe"></div>
     <div class="karte">
       <div id="foto-seiten" class="foto-seiten"></div>
       <input type="file" id="foto-datei" accept="image/*" multiple hidden>
@@ -1441,7 +1448,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1846'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1848'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5688,6 +5695,36 @@ function checkExtra(art) {
 }
 
 // ---------- Angaben per Foto ----------
+// Skizzen (Beispiel, keine echten Briefe): die gesuchte Stelle ist markiert
+const SKIZZE_TEXT = 'fill="var(--text-2)" font-size="13" font-family="system-ui, sans-serif"';
+const SKIZZE_LINIE = (y, b = 150) => `<rect x="16" y="${y}" width="${b}" height="5" rx="2.5" fill="var(--flaeche-2)"/>`;
+const SKIZZE_BESCHEID = `<svg viewBox="0 0 320 168" role="img" aria-label="Skizze eines Steuerbescheids mit markierter Zeile">
+  <rect x="1" y="1" width="318" height="166" rx="8" fill="var(--flaeche)" stroke="var(--flaeche-2)"/>
+  <text x="16" y="24" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">Bescheid für 2025 über Einkommensteuer</text>
+  ${SKIZZE_LINIE(36, 120)}${SKIZZE_LINIE(48, 180)}
+  <text x="16" y="78" ${SKIZZE_TEXT}>Summe der Einkünfte</text><text x="304" y="78" text-anchor="end" ${SKIZZE_TEXT}>…</text>
+  <text x="16" y="96" ${SKIZZE_TEXT}>Einkommen</text><text x="304" y="96" text-anchor="end" ${SKIZZE_TEXT}>…</text>
+  <rect x="8" y="104" width="304" height="22" rx="5" fill="var(--hinweis)" stroke="var(--akzent)" stroke-width="2"/>
+  <text x="16" y="119" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">zu versteuerndes Einkommen</text>
+  <text x="304" y="119" text-anchor="end" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">123.456 €</text>
+  ${SKIZZE_LINIE(140, 200)}${SKIZZE_LINIE(152, 140)}
+</svg>`;
+const SKIZZE_STAND = `<svg viewBox="0 0 320 168" role="img" aria-label="Skizze einer Standmitteilung mit markierter Zeile beitragsfrei">
+  <rect x="1" y="1" width="318" height="166" rx="8" fill="var(--flaeche)" stroke="var(--flaeche-2)"/>
+  <text x="16" y="24" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">Ihre jährliche Standmitteilung</text>
+  ${SKIZZE_LINIE(36, 160)}
+  <text x="16" y="66" ${SKIZZE_TEXT}>Wertentwicklung</text>
+  <text x="216" y="66" text-anchor="end" ${SKIZZE_TEXT}>0 %</text><text x="260" y="66" text-anchor="end" ${SKIZZE_TEXT}>3 %</text><text x="304" y="66" text-anchor="end" ${SKIZZE_TEXT}>6 %</text>
+  <text x="16" y="88" ${SKIZZE_TEXT}>mit Beiträgen</text>
+  <text x="216" y="88" text-anchor="end" ${SKIZZE_TEXT}>…</text><text x="260" y="88" text-anchor="end" ${SKIZZE_TEXT}>…</text><text x="304" y="88" text-anchor="end" ${SKIZZE_TEXT}>…</text>
+  <rect x="8" y="96" width="304" height="22" rx="5" fill="var(--hinweis)" stroke="var(--akzent)" stroke-width="2"/>
+  <text x="16" y="111" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">beitragsfrei</text>
+  <text x="216" y="111" text-anchor="end" ${SKIZZE_TEXT} fill="var(--text)">250 €</text>
+  <text x="260" y="111" text-anchor="end" ${SKIZZE_TEXT} font-weight="700" fill="var(--text)">400 €</text>
+  <text x="304" y="111" text-anchor="end" ${SKIZZE_TEXT} fill="var(--text)">600 €</text>
+  <text x="16" y="140" ${SKIZZE_TEXT}>Mehrere Spalten? Die App nimmt die mittlere.</text>
+  ${SKIZZE_LINIE(150, 120)}
+</svg>`;
 // Mehrere Seiten fotografieren, der Vermittler lässt Claude die eine Zahl heraussuchen; übernommen wird erst nach Bestätigung
 let foto = { id: null, seiten: [], ergebnis: null };
 
@@ -5695,9 +5732,15 @@ function fotoSeite(id) {
   const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => x.id === id);
   foto = { id, seiten: [], ergebnis: null };
   document.getElementById('foto-titel').textContent = id === 'zve' ? 'Steuerbescheid' : v.name.replace(/ \(.*$/, '');
-  document.getElementById('foto-unter').textContent = id === 'zve'
-    ? 'Fotografiere die Seiten eures letzten Steuerbescheids vom Finanzamt. Meist reichen die ersten zwei Seiten.'
-    : `Fotografiere den letzten jährlichen Brief von ${v.name.replace(/^.*\((.*)\).*$/, '$1')} (Standmitteilung). Wichtig ist die Seite, auf der „beitragsfrei“ steht – im Zweifel alle Seiten.`;
+  const firma = v ? v.name.replace(/^.*\((.*)\).*$/, '$1') : '';
+  const zeilen = id === 'zve'
+    ? [['Brief', 'Steuerbescheid vom <b>Finanzamt</b> (nicht die Lohnsteuer­bescheinigung vom Arbeitgeber)'],
+      ['Seiten', 'meist reichen Seite 1 und 2'], ['Gesucht', 'Zeile <b>„zu versteuerndes Einkommen“</b>']]
+    : [['Brief', `jährliche <b>Standmitteilung</b> von ${firma}`],
+      ['Seiten', 'die mit <b>„beitragsfrei“</b>, im Zweifel alle'],
+      ['Gesucht', `${v.art === 'rente' ? 'Monatsrente' : 'Betrag zum Rentenbeginn'}, wenn du <b>nichts mehr einzahlst</b>`]];
+  document.getElementById('foto-hilfe').innerHTML = `<dl>${zeilen.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
+    <figure>${id === 'zve' ? SKIZZE_BESCHEID : SKIZZE_STAND}<figcaption>Beispiel, vereinfacht – so ungefähr sieht die Stelle aus. Dein Brief kann anders aufgebaut sein.</figcaption></figure>`;
   fotoZeichnen();
   zeige('ansicht-foto');
 }
