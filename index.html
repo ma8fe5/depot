@@ -1393,7 +1393,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-03.0600'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1122'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -6206,7 +6206,7 @@ async function exportieren() {
   // Kurshistorie mitsichern (öffentliche Kurse, liegt sonst nur im Browser-Speicher dieses iPhones)
   const datei = new File([JSON.stringify({ ...daten, kurshistorie: historieKurse }, null, 2)], name, { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [datei] })) {
-    try { await navigator.share({ files: [datei] }); } catch (e) { if (e.name !== 'AbortError') alert('Teilen fehlgeschlagen: ' + e.message); }
+    try { await navigator.share({ files: [datei] }); } catch (e) { if (e.name !== 'AbortError') alert('Teilen fehlgeschlagen: ' + e.message); return; }
   } else {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(datei);
@@ -6214,6 +6214,8 @@ async function exportieren() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
+  // Nach dem Monats-Check: Bitte erledigt, zurück zur Startseite
+  if (!document.getElementById('ansicht-backup').hidden) { hauptAnzeigen(); return; }
   if (hauptseiteSichtbar()) hauptRendern();
   document.getElementById('backup-info').textContent = `Letztes Backup am ${new Date(daten.letztesBackup).toLocaleDateString('de-DE')}`;
 }
