@@ -188,6 +188,8 @@
     background: var(--flaeche-2); color: var(--text); outline: 1px solid transparent; transition: outline-color 0.15s;
     -webkit-appearance: none; appearance: none; min-height: 44px; }
   input:focus, select:focus { outline: 2px solid var(--akzent); }
+  input[readonly] { background: transparent; color: var(--text-2); outline: 1px solid var(--flaeche-2); } /* wird ausgerechnet */
+  input[readonly]:focus { outline: 1px solid var(--flaeche-2); }
   .raster { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .feld { margin-bottom: 12px; }
   .posname { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
@@ -1405,7 +1407,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1152'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1310'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -1977,6 +1979,8 @@ function checkFaellig() {
 const KRYPTO_EOD = { bitcoin: 'BTC-EUR.CC', ethereum: 'ETH-EUR.CC', solana: 'SOL-EUR.CC' };
 // Stückzahl-Nachkommastellen: Krypto 8 (wie in der Kaufbestätigung), sonst 6
 const stueckStellen = (p) => (p.quelle === 'coingecko' ? 8 : 6);
+// Fremdwährungsfonds (z. B. Schroder in USD): Abrechnung in USD, also nur Stück eintragen, Kurs in € = Betrag ÷ Stück
+const kursAusStueck = (p) => !!p && !!p.waehrung && p.waehrung !== 'EUR';
 const kryptoSymbol = (p) => (p.quelle === 'coingecko' ? p.eodSymbol || KRYPTO_EOD[p.symbol] || null : null);
 
 function kursSymbole() {
@@ -5584,8 +5588,9 @@ function checkKarte(b) {
   const gebuehr = b.art === 'gebuehr';
   const betrag = gebuehr ? b.gebuehrEur : b.betrag;
   const k = kurse && kurse.preise[p.id];
-  const tagKurs = k ? kursAm(langeReihe(p, k), b.geplant, 'ab') : null;
-  const kurs = tagKurs != null ? tagKurs : k ? k.eur : null;
+  const fremd = kursAusStueck(p);
+  const tagKurs = k && !fremd ? kursAm(langeReihe(p, k), b.geplant, 'ab') : null;
+  const kurs = fremd ? null : tagKurs != null ? tagKurs : k ? k.eur : null;
   const card = document.createElement('div');
   card.className = 'karte';
   card.dataset.id = b.id;
@@ -5595,11 +5600,12 @@ function checkKarte(b) {
     <div class="raster">
       <div><label class="feldname">Datum</label><input type="date" class="c-datum" value="${b.geplant}"></div>
       <div><label class="feldname">${gebuehr ? 'Gebühr' : 'Betrag'} (€)</label><input type="text" inputmode="decimal" class="c-betrag" value="${betrag ? zahl(betrag, 2) : ''}"></div>
-      <div><label class="feldname">Kurs (€)${tagKurs != null ? ' · Schluss am Tag' : ' · aktuell'}</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"></div>
-      <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, stueckStellen(p)) : ''}"></div>
+      <div><label class="feldname">Kurs (€)${fremd ? ' · aus Betrag ÷ Stück' : tagKurs != null ? ' · Schluss am Tag' : ' · aktuell'}</label><input type="text" inputmode="decimal" class="c-kurs" value="${kurs ? zahl(kurs, 4) : ''}"${fremd ? ' readonly tabindex="-1"' : ''}></div>
+      <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, stueckStellen(p)) : ''}"${fremd ? ' placeholder="laut Abrechnung"' : ''}></div>
     </div>`;
   card.querySelector('.posname span').textContent = p.name;
   // Kurs und Stück rechnen sich gegenseitig aus dem Betrag; das zuletzt eingetippte der beiden gilt
+  if (fremd) card.dataset.zuletzt = 'stueck';
   const neuRechnen = (e) => {
     if (e.target.classList.contains('c-kurs')) card.dataset.zuletzt = 'kurs';
     if (e.target.classList.contains('c-stueck')) card.dataset.zuletzt = 'stueck';
@@ -5607,7 +5613,7 @@ function checkKarte(b) {
     const k = parseZahl(card.querySelector('.c-kurs').value);
     const st = parseZahl(card.querySelector('.c-stueck').value);
     if (!(betrag > 0)) return;
-    if (card.dataset.zuletzt === 'stueck') { if (st > 0) card.querySelector('.c-kurs').value = zahl(betrag / st, 4); }
+    if (fremd || card.dataset.zuletzt === 'stueck') { if (st > 0) card.querySelector('.c-kurs').value = zahl(betrag / st, 4); }
     else if (k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
   };
   for (const feld of ['.c-betrag', '.c-kurs', '.c-stueck']) card.querySelector(feld).addEventListener('input', neuRechnen);
@@ -5897,8 +5903,9 @@ function kaufNeu() {
   document.getElementById('kauf-loeschen-knopf').hidden = true;
   document.getElementById('kauf-datum').value = isoDatum(heute());
   for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-bezahlt', 'kauf-stueck']) document.getElementById(id).value = '';
-  document.getElementById('kauf-kurs').value = k ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
+  document.getElementById('kauf-kurs').value = k && !kursAusStueck(p) ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
   kaufFelderMitGratis(hatGratis(p));
+  kaufKursSperren(p);
   document.getElementById('kauf-stueck').dataset.selbst = '';
   document.getElementById('kauf-bezahlt').dataset.selbst = '';
   document.getElementById('kauf-gratis-wert').value = '';
@@ -5927,6 +5934,7 @@ function kaufBearbeiten(id) {
   document.getElementById('kauf-gebuehren').value = gebuehren ? zahl(gebuehren, 2) : '';
   document.getElementById('kauf-gratis').value = gratis ? zahl(gratis, 4) : '';
   kaufFelderMitGratis(hatGratis(p) || gratis > 0);
+  kaufKursSperren(p);
   const stellen = stueckStellen(p);
   const stueckEl = document.getElementById('kauf-stueck');
   stueckEl.value = zahl(b.stueck, stellen);
@@ -5944,6 +5952,13 @@ function kaufBearbeiten(id) {
 }
 
 // Mit Gratis-Aktien: Bezahlte + Gratis = Gesamt (Gesamt wird berechnet). Ohne: nur „Aktien gesamt“.
+// Fremdwährungsfonds: Kurs in € nicht pflegbar, er ergibt sich aus Investment ÷ Stück
+function kaufKursSperren(p) {
+  const kursEl = document.getElementById('kauf-kurs');
+  kursEl.readOnly = kursAusStueck(p);
+  kursEl.placeholder = kursAusStueck(p) ? 'aus Investment ÷ Stück' : '';
+}
+
 function kaufFelderMitGratis(an) {
   document.getElementById('kauf-gratis-feld').hidden = !an;
   document.getElementById('kauf-gratis-wert-feld').hidden = !an;
@@ -5960,6 +5975,7 @@ function kaufRechnen(feldId) {
   const kursEl = document.getElementById('kauf-kurs');
   const gekauftEl = mitGratis ? document.getElementById('kauf-bezahlt') : stueckEl; // gekaufte (bezahlte) Stück
   if (feldId === 'kauf-kurs') gekauftEl.dataset.selbst = '';
+  if (kursEl.readOnly) gekauftEl.dataset.selbst = '1'; // Fremdwährung: Stück zählt, Kurs wird gerechnet
   if (gekauftEl.dataset.selbst) {
     const st = parseZahl(gekauftEl.value || '0');
     if ((feldId === 'kauf-betrag' || feldId === gekauftEl.id) && betrag > 0 && st > 0) kursEl.value = zahl(betrag / st, betrag / st < 1 ? 4 : 2);
