@@ -184,6 +184,10 @@
   .foto-seiten:not(:empty) { margin-bottom: 12px; }
   .foto-seiten div { position: relative; }
   .foto-seiten img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; display: block; box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35); }
+  .foto-seiten .pdf { width: 72px; height: 96px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px;
+    font-size: 11px; color: var(--text-2); text-align: center; word-break: break-all; overflow: hidden; }
+  .foto-seiten .pdf b { color: var(--akzent); font-size: 14px; }
   .foto-seiten button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0;
     background: var(--text); color: var(--flaeche); font-size: 14px; line-height: 22px; padding: 0; cursor: pointer; }
   .foto-hilfe dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 15px; }
@@ -1081,9 +1085,13 @@
     <div class="karte foto-hilfe" id="foto-hilfe"></div>
     <div class="karte">
       <div id="foto-seiten" class="foto-seiten"></div>
-      <input type="file" id="foto-datei" accept="image/*" multiple hidden>
+      <input type="file" id="foto-datei" accept="image/*" capture="environment" hidden>
+      <input type="file" id="foto-dokument" accept="application/pdf,image/*" multiple hidden>
       <div class="knoepfe" style="margin-top: 0">
         <button class="knopf zweit" data-aktion="foto-aufnehmen" id="foto-aufnehmen">Seite fotografieren</button>
+        <button class="knopf zweit" data-aktion="foto-dokument">Datei wählen</button>
+      </div>
+      <div class="knoepfe" style="margin-top: 10px">
         <button class="knopf" data-aktion="foto-auswerten" id="foto-auswerten" disabled>Fertig – Zahl suchen</button>
       </div>
       <p class="unter" id="foto-status" style="margin: 10px 0 0"></p>
@@ -1448,7 +1456,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1848'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1918'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5750,18 +5758,20 @@ function fotoZeichnen(status = '') {
   box.innerHTML = '';
   foto.seiten.forEach((b, i) => {
     const d = document.createElement('div');
-    d.innerHTML = `<img alt="Seite ${i + 1}"><button data-foto-weg="${i}" aria-label="Seite entfernen">×</button>`;
-    d.querySelector('img').src = `data:image/jpeg;base64,${b}`;
+    d.innerHTML = b.typ === 'application/pdf'
+      ? `<div class="pdf"><b>PDF</b><span></span></div><button data-foto-weg="${i}" aria-label="Datei entfernen">×</button>`
+      : `<img alt="Seite ${i + 1}"><button data-foto-weg="${i}" aria-label="Seite entfernen">×</button>`;
+    if (b.typ === 'application/pdf') d.querySelector('span').textContent = b.name;
+    else d.querySelector('img').src = `data:${b.typ};base64,${b.daten}`;
     box.appendChild(d);
   });
   const n = foto.seiten.length;
-  document.getElementById('foto-aufnehmen').textContent = n ? 'Weitere Seite' : 'Seite fotografieren';
   document.getElementById('foto-auswerten').disabled = !n;
   document.getElementById('foto-auswerten').textContent = 'Fertig – Zahl suchen';
   // ohne eigene Meldung: sagen, was als Nächstes zu tun ist
   document.getElementById('foto-status').textContent = status || (n
-    ? `${n === 1 ? '1 Seite' : `${n} Seiten`} fotografiert. Fehlt noch eine? Dann „Weitere Seite“. Sonst „Fertig – Zahl suchen“.`
-    : 'Fotografiere die erste Seite. Mehrere Seiten machst du einfach nacheinander.');
+    ? `${n === 1 ? '1 Seite/Datei' : `${n} Seiten/Dateien`} bereit. Fehlt noch etwas? Dann fotografieren oder Datei wählen. Sonst „Fertig – Zahl suchen“.`
+    : 'Fotografiere die Seiten nacheinander – oder wähle den Brief als PDF oder Bild aus OneDrive („Datei wählen“ → „Durchsuchen“).');
   const e = foto.ergebnis;
   document.getElementById('foto-ergebnis').hidden = !e;
   if (e) {
@@ -5780,7 +5790,18 @@ async function fotoVerkleinern(datei) {
   c.width = Math.round(bild.width * faktor);
   c.height = Math.round(bild.height * faktor);
   c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+  return { typ: 'image/jpeg', daten: c.toDataURL('image/jpeg', 0.85).split(',')[1], name: datei.name };
+}
+
+// PDF (z. B. aus OneDrive) unverändert als Base64 mitschicken
+function pdfLesen(datei) {
+  return new Promise((ok, fehler) => {
+    if (datei.size > 15 * 1024 * 1024) { fehler(new Error('zu gross')); return; }
+    const leser = new FileReader();
+    leser.onload = () => ok({ typ: 'application/pdf', daten: String(leser.result).split(',')[1], name: datei.name });
+    leser.onerror = fehler;
+    leser.readAsDataURL(datei);
+  });
 }
 
 async function fotoAuswerten() {
@@ -5793,7 +5814,7 @@ async function fotoAuswerten() {
     const r = await vermittler('/lesen', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ art: foto.id === 'zve' ? 'zve' : 'frei', vertrag: v ? { name: v.name, art: v.art } : null,
-        bilder: foto.seiten.map((b) => ({ typ: 'image/jpeg', daten: b })) }),
+        bilder: foto.seiten.map((b) => ({ typ: b.typ, daten: b.daten })) }),
     });
     const j = await r.json().catch(() => ({}));
     // 501: Schlüssel fehlt; Antwort ohne „gefunden“: alter Vermittler-Code ohne /lesen
@@ -6765,6 +6786,7 @@ document.addEventListener('click', (e) => {
     },
     'foto-zurueck': () => { angabenListe(); zeige('ansicht-angaben'); },
     'foto-aufnehmen': () => document.getElementById('foto-datei').click(),
+    'foto-dokument': () => document.getElementById('foto-dokument').click(),
     'foto-auswerten': fotoAuswerten,
     'foto-uebernehmen': fotoUebernehmen,
     'foto-tippen': () => { hebelAngabeErfassen(foto.id); angabenListe(); zeige('ansicht-angaben'); },
@@ -6805,16 +6827,19 @@ document.getElementById('kauf-formular').addEventListener('input', (e) => {
   kaufRechnen(e.target.id);
 });
 
-document.getElementById('foto-datei').addEventListener('change', async (e) => {
+// Fotos und Dateien (Bilder werden verkleinert, PDFs gehen unverändert mit)
+async function fotoDateienDazu(e) {
   const dateien = [...e.target.files];
   e.target.value = '';
-  fotoZeichnen('Seiten werden vorbereitet …');
-  try { for (const d of dateien) foto.seiten.push(await fotoVerkleinern(d)); }
-  catch { fotoZeichnen('Das Foto ließ sich nicht öffnen.'); return; }
+  fotoZeichnen('Wird vorbereitet …');
+  try { for (const d of dateien) foto.seiten.push(d.type === 'application/pdf' ? await pdfLesen(d) : await fotoVerkleinern(d)); }
+  catch (err) { fotoZeichnen(err.message === 'zu gross' ? 'Die Datei ist zu groß (höchstens 15 MB).' : 'Die Datei ließ sich nicht öffnen.'); return; }
   foto.seiten = foto.seiten.slice(0, 8);
   foto.ergebnis = null;
-  fotoZeichnen(foto.seiten.length >= 8 ? 'Mehr als 8 Seiten gehen nicht.' : '');
-});
+  fotoZeichnen(foto.seiten.length >= 8 ? 'Mehr als 8 Seiten/Dateien gehen nicht.' : '');
+}
+document.getElementById('foto-datei').addEventListener('change', fotoDateienDazu);
+document.getElementById('foto-dokument').addEventListener('change', fotoDateienDazu);
 
 document.getElementById('datei').addEventListener('change', (e) => {
   if (e.target.files[0]) importieren(e.target.files[0]);
