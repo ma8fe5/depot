@@ -1407,7 +1407,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1310'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1315'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5604,17 +5604,16 @@ function checkKarte(b) {
       <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, stueckStellen(p)) : ''}"${fremd ? ' placeholder="laut Abrechnung"' : ''}></div>
     </div>`;
   card.querySelector('.posname span').textContent = p.name;
-  // Kurs und Stück rechnen sich gegenseitig aus dem Betrag; das zuletzt eingetippte der beiden gilt
-  if (fremd) card.dataset.zuletzt = 'stueck';
+  // Beide selbst eingetippt: keins wird umgerechnet (Abrechnungen runden, z. B. Relai: Betrag ÷ Kurs ≠ Stück)
   const neuRechnen = (e) => {
-    if (e.target.classList.contains('c-kurs')) card.dataset.zuletzt = 'kurs';
-    if (e.target.classList.contains('c-stueck')) card.dataset.zuletzt = 'stueck';
+    if (e.target.classList.contains('c-kurs')) card.dataset.kursSelbst = '1';
+    if (e.target.classList.contains('c-stueck')) card.dataset.stueckSelbst = '1';
     const betrag = parseZahl(card.querySelector('.c-betrag').value);
     const k = parseZahl(card.querySelector('.c-kurs').value);
     const st = parseZahl(card.querySelector('.c-stueck').value);
     if (!(betrag > 0)) return;
-    if (fremd || card.dataset.zuletzt === 'stueck') { if (st > 0) card.querySelector('.c-kurs').value = zahl(betrag / st, 4); }
-    else if (k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
+    if (fremd || (card.dataset.stueckSelbst && !card.dataset.kursSelbst)) { if (st > 0) card.querySelector('.c-kurs').value = zahl(betrag / st, 4); }
+    else if (!card.dataset.stueckSelbst && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
   };
   for (const feld of ['.c-betrag', '.c-kurs', '.c-stueck']) card.querySelector(feld).addEventListener('input', neuRechnen);
   // nichts vorbelegt: erst die eigene Wahl macht die Rate bestätigbar; unbeantwortet bleibt sie offen
@@ -5904,6 +5903,7 @@ function kaufNeu() {
   document.getElementById('kauf-datum').value = isoDatum(heute());
   for (const id of ['kauf-betrag', 'kauf-gebuehren', 'kauf-gratis', 'kauf-bezahlt', 'kauf-stueck']) document.getElementById(id).value = '';
   document.getElementById('kauf-kurs').value = k && !kursAusStueck(p) ? zahl(k.eur, k.eur < 1 ? 4 : 2) : '';
+  document.getElementById('kauf-kurs').dataset.selbst = '';
   kaufFelderMitGratis(hatGratis(p));
   kaufKursSperren(p);
   document.getElementById('kauf-stueck').dataset.selbst = '';
@@ -5931,6 +5931,7 @@ function kaufBearbeiten(id) {
   document.getElementById('kauf-datum').value = b.datum;
   document.getElementById('kauf-betrag').value = zahl(investment, 2);
   document.getElementById('kauf-kurs').value = kurs ? zahl(kurs, kurs < 1 ? 4 : 4) : '';
+  document.getElementById('kauf-kurs').dataset.selbst = b.kurs ? '1' : ''; // gespeicherter Kurs bleibt stehen
   document.getElementById('kauf-gebuehren').value = gebuehren ? zahl(gebuehren, 2) : '';
   document.getElementById('kauf-gratis').value = gratis ? zahl(gratis, 4) : '';
   kaufFelderMitGratis(hatGratis(p) || gratis > 0);
@@ -5965,7 +5966,8 @@ function kaufFelderMitGratis(an) {
   document.getElementById('kauf-stueck').readOnly = an;
 }
 
-// Kurs und Stück rechnen sich gegenseitig aus dem Investment: Stück eingetippt → Kurs, Kurs eingetippt → Stück
+// Kurs und Stück rechnen sich gegenseitig aus dem Investment: Stück eingetippt → Kurs, Kurs eingetippt → Stück;
+// beide eingetippt → keins wird umgerechnet (Abrechnungen runden)
 function kaufRechnen(feldId) {
   const wert = (id) => parseZahl(document.getElementById(id).value || '0');
   const betrag = wert('kauf-betrag'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
@@ -5974,11 +5976,11 @@ function kaufRechnen(feldId) {
   const mitGratis = !document.getElementById('kauf-gratis-feld').hidden;
   const kursEl = document.getElementById('kauf-kurs');
   const gekauftEl = mitGratis ? document.getElementById('kauf-bezahlt') : stueckEl; // gekaufte (bezahlte) Stück
-  if (feldId === 'kauf-kurs') gekauftEl.dataset.selbst = '';
-  if (kursEl.readOnly) gekauftEl.dataset.selbst = '1'; // Fremdwährung: Stück zählt, Kurs wird gerechnet
+  if (feldId === 'kauf-kurs') kursEl.dataset.selbst = '1';
+  if (kursEl.readOnly) { gekauftEl.dataset.selbst = '1'; kursEl.dataset.selbst = ''; } // Fremdwährung: Stück zählt, Kurs wird gerechnet
   if (gekauftEl.dataset.selbst) {
     const st = parseZahl(gekauftEl.value || '0');
-    if ((feldId === 'kauf-betrag' || feldId === gekauftEl.id) && betrag > 0 && st > 0) kursEl.value = zahl(betrag / st, betrag / st < 1 ? 4 : 2);
+    if (!kursEl.dataset.selbst && (feldId === 'kauf-betrag' || feldId === gekauftEl.id) && betrag > 0 && st > 0) kursEl.value = zahl(betrag / st, betrag / st < 1 ? 4 : 2);
   } else if (betrag > 0 && wert('kauf-kurs') > 0) gekauftEl.value = zahl(betrag / wert('kauf-kurs'), stellen);
   const kurs = wert('kauf-kurs');
   if (mitGratis) {
