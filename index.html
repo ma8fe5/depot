@@ -1412,7 +1412,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1829'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1835'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3979,7 +3979,7 @@ let angabenVon = null;
 function angabenListe() {
   const angaben = hebelAngaben();
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
-  const zeilen = [{ id: 'zve', name: 'Euer Einkommen laut Steuerbescheid', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'Steht im letzten Steuerbescheid: Zeile „zu versteuerndes Einkommen“' },
+  const zeilen = [{ id: 'zve', name: 'Euer Einkommen laut Steuerbescheid', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'Brief vom Finanzamt nach der Steuererklärung (nicht die Lohnsteuerbescheinigung vom Arbeitgeber): Zeile „zu versteuerndes Einkommen“' },
     { id: 'tgZweck', name: 'Wofür ist dein Tagesgeld da?', wert: angaben.tgZweck ? TG_ZWECKE[angaben.tgZweck] : null, info: 'Notgroschen, Anschaffung oder Rente?' }];
   for (const v of vorsorge.filter((x) => x.dynamik)) {
     const fr = angaben[`frei:${v.id}`];
@@ -4033,7 +4033,7 @@ function hebelAngabeErfassen(id) {
     if (t.trim() && !z) { alert('Bitte 1, 2 oder 3 eingeben.'); return; }
     if (z) h.tgZweck = z; else delete h.tgZweck;
   } else if (id === 'zve') {
-    const t = prompt('Schau in euren letzten Steuerbescheid. Dort steht eine Zeile „zu versteuerndes Einkommen“. Trag diesen Betrag ein (Euro pro Jahr, für dich und Annika zusammen):', h.zve ? zahl(h.zve, 0) : '');
+    const t = prompt('Schau in euren letzten Steuerbescheid (Brief vom Finanzamt nach der Steuererklärung, oft als Kopie vom Steuerberater). Dort steht eine Zeile „zu versteuerndes Einkommen“. Trag diesen Betrag ein (Euro pro Jahr, für dich und Annika zusammen):', h.zve ? zahl(h.zve, 0) : '');
     if (t == null) return;
     const w = parseZahl(t);
     if (t.trim() && !(w > 0)) { alert('Bitte einen Betrag in Euro eintragen.'); return; }
