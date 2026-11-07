@@ -1441,7 +1441,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1845'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1846'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5753,7 +5753,8 @@ async function fotoAuswerten() {
         bilder: foto.seiten.map((b) => ({ typ: 'image/jpeg', daten: b })) }),
     });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 501) throw new Error('Das Auslesen ist im Vermittler noch nicht eingerichtet.');
+    // 501: Schlüssel fehlt; Antwort ohne „gefunden“: alter Vermittler-Code ohne /lesen
+    if (r.status === 501 || (r.ok && !('gefunden' in j))) throw new Error('Das Auslesen ist im Vermittler noch nicht eingerichtet (API-Schlüssel und neuer Vermittler-Code).');
     if (r.status === 401 || r.status === 403) throw new Error('Der Vermittler hat den Zugang abgelehnt.');
     if (!r.ok) throw new Error(j.fehler || `Fehler ${r.status}`);
     if (!j.gefunden || !(j.wert > 0)) { fotoZeichnen(`Nicht gefunden. ${j.fundstelle || ''} Fotografiere ggf. weitere Seiten oder tippe die Zahl selbst ein.`); return; }
