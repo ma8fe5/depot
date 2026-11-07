@@ -1497,7 +1497,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.2025'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.2031'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5370,10 +5370,6 @@ function hauptRendern() {
 // Jeder Befund: Grundsatz + deine Zahlen + wohin man tippt. Keine Handlungsanweisung – nur, wo der Ist-Stand auffällt.
 const TG_ZWECKE = { notgroschen: 'Notgroschen', ausgabe: 'eine geplante Ausgabe', rente: 'die Rente' };
 
-// Ordergebühren im Wertpapierdepot (Consorsbank, laut eigenen Abrechnungen 2024) und typische Kursspanne je Order in %
-const ORDER = { depot: 'Wertpapierdepot', grund: 4.95, prozent: 0.25, min: 9.95, max: 69, handelsplatz: 0.95, spanneEtf: 0.05, spanneAktie: 0.2 };
-const orderKosten = (betrag) => Math.min(ORDER.max, Math.max(ORDER.min, ORDER.grund + (betrag * ORDER.prozent) / 100)) + ORDER.handelsplatz;
-
 // Detailseite für einen Vertrag aus der Hebel-Rechnung (beitragsfrei + ETF, Rente statt Kapital)
 function vertragDetail(h) {
   const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => h.name.startsWith(x.name));
@@ -5500,50 +5496,63 @@ function befunde() {
       },
     });
   }
-  // 5. Freibetrag: Gewinne bis zum freien Betrag steuerfrei realisieren und sofort wieder kaufen („Tax-Harvesting“).
-  // Nur im Wertpapierdepot (ETFs, Aktien); FNZ-Fonds (Ausgabeaufschlag), Mitarbeiterprogramm und Krypto bleiben außen vor.
-  // Gerechnet mit den echten Ordergebühren; Vorteil = Steuer, die beim späteren Verkauf wegfällt, minus Kosten heute.
+  // 5. Freibetrag: Gewinne bis zum freien Betrag steuerfrei realisieren und wieder anlegen („Tax-Harvesting“).
+  // Jedes Depot mit seinen echten Kosten (rente.hebel.depotKosten, aus den eigenen Abrechnungen): Order-, Verkaufs-
+  // und Kaufkosten (z. B. Ausgabeaufschlag). Wiederanlage gleich oder – wenn günstiger – als breiter ETF im Depot mit
+  // etfDepot. Vorteil = Steuer, die beim späteren Verkauf wegfällt, minus Kosten heute. Krypto folgt eigenen Regeln.
   const st = steuerUebersicht(heute().getFullYear());
   const rest = st.freibetrag - st.pflichtig;
   if (rest > 100) {
-    const kandidaten = pos.filter((x) => x.p.depot === ORDER.depot && ['ETF', 'Aktie'].includes(anlageart(x.p)) && x.wert > x.inv)
-      .map((x) => ({ ...x, anteil: ((x.wert - x.inv) / x.wert) * (anlageart(x.p) === 'ETF' ? 0.7 : 1) })) // steuerpflichtiger Gewinn je verkauftem Euro
+    const dk = hebelAngaben().depotKosten || {};
+    const etfDepot = Object.keys(dk).find((d) => dk[d].etfDepot);
+    const orderKosten = (d, betrag) => (d.grund || d.prozent ? Math.min(d.max || Infinity, Math.max(d.min || 0, (d.grund || 0) + (betrag * (d.prozent || 0)) / 100)) : 0) + (d.handelsplatz || 0);
+    const kaufKosten = (d, p, betrag) => orderKosten(d, betrag) + (betrag * ((((d.positionen || {})[p.id] || {}).kauf || 0) + (d.spanne || 0))) / 100;
+    const verkaufKosten = (d, p, betrag) => orderKosten(d, betrag) + (betrag * ((((d.positionen || {})[p.id] || {}).verkauf || 0) + (d.spanne || 0))) / 100;
+    const mitGewinn = pos.filter((x) => anlageart(x.p) !== 'Krypto' && x.wert > x.inv);
+    const ohneKosten = mitGewinn.filter((x) => !dk[x.p.depot]);
+    const kandidaten = mitGewinn.filter((x) => dk[x.p.depot])
+      .map((x) => ({ ...x, anteil: ((x.wert - x.inv) / x.wert) * (['ETF', 'Fonds'].includes(anlageart(x.p)) ? 0.7 : 1) })) // steuerpflichtiger Gewinn je verkauftem Euro
       .sort((x, y) => y.anteil - x.anteil);
-    const plan = [];
+    const plan = [], lohntNicht = [];
     let offen = rest;
     for (const x of kandidaten) {
       if (offen < 1) break;
+      const d = dk[x.p.depot];
       const verkauf = Math.min(x.wert, offen / x.anteil);
       const gewinn = verkauf * x.anteil;
-      const spanne = (anlageart(x.p) === 'ETF' ? ORDER.spanneEtf : ORDER.spanneAktie) / 100;
-      const kosten = 2 * orderKosten(verkauf) + 2 * spanne * verkauf;
-      if (gewinn * ABGELTUNG <= kosten) continue; // kleine Order: Gebühren größer als die gesparte Steuer
-      plan.push({ p: x.p, verkauf, gewinn, kosten });
+      const gleich = verkaufKosten(d, x.p, verkauf) + kaufKosten(d, x.p, verkauf);
+      const alsEtf = etfDepot && etfDepot !== x.p.depot ? verkaufKosten(d, x.p, verkauf) + kaufKosten(dk[etfDepot], {}, verkauf) : Infinity;
+      const kosten = Math.min(gleich, alsEtf);
+      if (gewinn * ABGELTUNG <= kosten) { lohntNicht.push({ p: x.p, kosten, gewinn }); continue; } // Gebühren größer als die gesparte Steuer
+      plan.push({ p: x.p, verkauf, gewinn, kosten, etf: alsEtf < gleich });
       offen -= gewinn;
     }
     const gewinn = plan.reduce((s2, x) => s2 + x.gewinn, 0), kosten = plan.reduce((s2, x) => s2 + x.kosten, 0);
     const netto = gewinn * ABGELTUNG - kosten;
+    const krypto = pos.some((x) => anlageart(x.p) === 'Krypto');
     if (plan.length && netto > 5) liste.push({
       titel: `${geldRund(rest)} Sparerpauschbetrag noch frei`,
-      text: `Gewinne steuerfrei mitnehmen und direkt wieder kaufen: nach Ordergebühren ≈ ${geldRund(netto)} weniger Steuer später.`,
+      text: `Gewinne steuerfrei mitnehmen und wieder anlegen: nach Gebühren ≈ ${geldRund(netto)} weniger Steuer später.`,
       gewicht: netto, aktion: 'steuer', euro: netto, art: 'jahr',
       detail: {
-        warum: 'Bis zum Sparerpauschbetrag sind Gewinne steuerfrei – aber nur im jeweiligen Jahr, der Rest verfällt am 31.12. Verkaufst du Anteile mit Gewinn und kaufst sie sofort wieder, ändert sich am Depot fast nichts. Nur dein Einstandskurs steigt: Beim späteren Verkauf ist der steuerpflichtige Gewinn kleiner. Dafür zahlst du heute zweimal Ordergebühren.',
-        zahlen: [['Noch frei bis 31.12.', geldRund(rest)],
-          ['Verkaufen und sofort wieder kaufen', ''],
-          ...plan.map((x) => [x.p.name, `≈ ${geldRund(x.verkauf)}`]),
-          ['Gewinn, der steuerfrei wird', `≈ ${geldRund(gewinn)}`],
-          ['Steuer, die später wegfällt', `≈ ${geldRund(gewinn * ABGELTUNG)}`],
-          ['Ordergebühren und Kursspanne (Verkauf + Kauf)', `− ${geld(kosten)}`],
-          ['Vorteil netto', `≈ ${geldRund(netto)}`]],
-        tun: [`<b>Verkaufen:</b> ${plan.map((x) => `${x.p.name} für ≈ ${geldRund(x.verkauf)}`).join(', ')} – als eine Order je Position.`,
-          '<b>Sofort wieder kaufen:</b> dieselbe Position zum gleichen Betrag, am besten am selben Handelsplatz und Tag.',
+        warum: 'Bis zum Sparerpauschbetrag sind Gewinne steuerfrei – aber nur im jeweiligen Jahr, der Rest verfällt am 31.12. Verkaufst du Anteile mit Gewinn und legst das Geld sofort wieder an, ändert sich am Depot fast nichts. Nur dein Einstandskurs steigt: Beim späteren Verkauf ist der steuerpflichtige Gewinn kleiner. Dafür zahlst du heute Gebühren – gerechnet mit den echten Kosten je Depot.',
+        zahlen: [['Noch frei bis 31.12.', geldRund(rest)], ['Verkaufen und wieder anlegen', ''],
+          ...plan.map((x) => [x.p.name + (x.etf ? ' → als breiter ETF' : ''), `≈\u00a0${geldRund(x.verkauf)}`]),
+          ['Gewinn, der steuerfrei wird', `≈\u00a0${geldRund(gewinn)}`],
+          ['Steuer, die später wegfällt', `≈\u00a0${geldRund(gewinn * ABGELTUNG)}`],
+          ['Gebühren, Aufschläge und Kursspanne', `−\u00a0${geld(kosten)}`],
+          ['Vorteil netto', `≈\u00a0${geldRund(netto)}`]],
+        tun: [`<b>Verkaufen:</b> ${plan.map((x) => `${x.p.name} für ≈\u00a0${geldRund(x.verkauf)}`).join(', ')} – eine Order je Position.`,
+          ...(plan.some((x) => !x.etf) ? ['<b>Sofort wieder kaufen:</b> dieselbe Position zum gleichen Betrag, am besten am selben Handelsplatz und Tag.'] : []),
+          ...(plan.some((x) => x.etf) ? [`<b>Statt Wiederkauf beim Fonds:</b> den Erlös als breiten ETF im ${etfDepot} anlegen – spart den Ausgabeaufschlag und senkt die laufenden Kosten.`] : []),
           '<b>Bis Mitte Dezember:</b> Die Abrechnung muss noch im alten Jahr gebucht werden.',
           '<b>Jedes Jahr wiederholen</b>, solange der Freibetrag nicht von Zinsen und Dividenden aufgebraucht wird.'],
-        beachte: [`Gebühren laut deinen Consorsbank-Abrechnungen: ${zahl(ORDER.grund, 2)} € + ${zahl(ORDER.prozent, 2)} % (mind. ${zahl(ORDER.min, 2)} €) + ${zahl(ORDER.handelsplatz, 2)} € Handelsplatz je Order – vor dem Handeln im aktuellen Preisverzeichnis prüfen.`,
+        beachte: [...lohntNicht.map((x) => `${x.p.name}: geprüft, lohnt sich nicht – Kosten ≈\u00a0${geld(x.kosten)} höher als die gesparte Steuer.`),
+          ...ohneKosten.map((x) => `${x.p.name} (${x.p.depot}): noch ohne Gebühren gerechnet – fehlen mir noch.`),
+          ...(krypto ? ['Bitcoin zählt nicht zum Sparerpauschbetrag: Gewinne sind nach einem Jahr Haltedauer ohnehin steuerfrei, davor gilt eine eigene Freigrenze von 1.000 € – ein Wiederkauf würde die Jahresfrist neu starten.'] : []),
+          `Gebühren aus deinen Abrechnungen (${[...new Set(plan.map((x) => dk[x.p.depot].quelle).filter(Boolean))].join('; ')}) – vor dem Handeln im aktuellen Preisverzeichnis prüfen.`,
           'Der Vorteil kommt erst, wenn du später verkaufst. Verkaufst du in der Rente nur kleine Beträge im Freibetrag, fällt dort ohnehin wenig Steuer an.',
-          'Verkauft werden zuerst die ältesten Anteile („first in, first out“) – die haben meist mehr Gewinn, du brauchst also eher weniger.',
-          'Bei ETFs zählen nur 70 % des Gewinns (Teilfreistellung) – schon eingerechnet.'],
+          'Verkauft werden zuerst die ältesten Anteile („first in, first out“) – die haben meist mehr Gewinn, du brauchst also eher weniger.'],
       },
     });
   }
