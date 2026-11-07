@@ -1497,7 +1497,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.2006'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.2017'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5410,7 +5410,10 @@ function befunde() {
   // 1. Tagesgeld: Zins nach Steuer gegen Inflation
   if (tg > 0) {
     // dauerhafter Zins: nach einer Aktion zählt der Anschlusszins (Aktionen laufen aus)
-    const zinsNetto = tgAktiv().reduce((s, k) => s + tgStand(k) * ((k.termin && k.zinsDanach != null ? k.zinsDanach : k.zins) || 0), 0) / tg * (1 - ABGELTUNG);
+    // Steuer nur, wenn der Sparerpauschbetrag schon ausgeschöpft ist – sonst sind die Zinsen steuerfrei
+    const stJahr = steuerUebersicht(heute().getFullYear());
+    const zinsFrei = stJahr.pflichtig < stJahr.freibetrag;
+    const zinsNetto = tgAktiv().reduce((s, k) => s + tgStand(k) * ((k.termin && k.zinsDanach != null ? k.zinsDanach : k.zins) || 0), 0) / tg * (zinsFrei ? 1 : 1 - ABGELTUNG);
     const real = zinsNetto - a.inflation;
     if (real < 0) liste.push({
       titel: `Tagesgeld verliert real ${zahl(-real, 1)} % pro Jahr`,
@@ -5422,7 +5425,7 @@ function befunde() {
       detail: {
         warum: 'Die Inflation macht Geld jedes Jahr weniger wert. Bringt das Tagesgeld nach Steuern weniger Zins, als die Inflation wegnimmt, kannst du dir von dem Geld jedes Jahr etwas weniger kaufen – auch wenn der Kontostand steigt. Aktionszinsen laufen aus; gerechnet ist mit dem Zins danach.',
         zahlen: [['Tagesgeld gesamt', geld(tg)], ['Anteil an deinem Vermögen', `${zahl((tg / gesamt) * 100, 0)} %`],
-          ['Zins dauerhaft, nach Steuer', `${zahl(zinsNetto, 2)} %`], ['Inflation (Annahme)', `${zahl(a.inflation, 1)} %`],
+          [zinsFrei ? 'Zins dauerhaft (steuerfrei im Freibetrag)' : 'Zins dauerhaft, nach Steuer', `${zahl(zinsNetto, 2)} %`], ['Inflation (Annahme)', `${zahl(a.inflation, 1)} %`],
           ['Kaufkraftverlust pro Jahr', `≈ ${geldRund((tg * -real) / 100)}`], ['Gedacht für', zweck ? TG_ZWECKE[zweck] : 'noch nicht angegeben']],
         tun: ['<b>Notgroschen abgrenzen:</b> 3–6 Monatsausgaben bleiben auf dem Tagesgeld – jederzeit verfügbar, kein Kursrisiko.',
           '<b>Geld für die nächsten 1–3 Jahre:</b> Festgeld oder ein Geldmarkt-ETF bringen nach Aktionsende oft etwas mehr als normales Tagesgeld.',
