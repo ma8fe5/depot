@@ -705,7 +705,7 @@
 
     <div id="angaben-hinweis" class="hinweis" hidden>
       <svg><use href="#i-kalender"/></svg>
-      <div><b>Angaben fehlen</b> · <span id="angaben-hinweis-text"></span><br>
+      <div><b>Zahlen für die Rentenrechnung</b> · <span id="angaben-hinweis-text"></span><br>
         <button class="knopf" data-aktion="angaben-eintragen">Jetzt eintragen</button></div>
       <button class="hinweis-weg" data-aktion="angaben-hinweis-weg" aria-label="Hinweis ausblenden">×</button>
     </div>
@@ -1052,7 +1052,7 @@
     <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
     <div class="titel"><h1>Hebel</h1><div class="unterzeile" id="hb-unter"></div></div>
     <div class="karte liste-karte"><ul class="liste hebel" id="hb-liste"></ul></div>
-    <div class="abschnitt">Angaben für die Rechnung</div>
+    <div class="abschnitt">Deine Angaben · zum Eintragen antippen</div>
     <div class="karte liste-karte"><ul class="liste" id="hb-angaben"></ul></div>
     <p class="fuss">Vergleich nach Kosten und Steuern bei gleicher Marktrendite. „ETF“ steht für einen breit gestreuten Aktien-ETF mit 0,2 % Kosten pro Jahr – als Gattung, kein bestimmtes Produkt. Keine Anlageberatung: Garantien, lebenslange Zahlung und Risiko wiegen nur in deiner Entscheidung.</p>
   </section>
@@ -1407,7 +1407,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1315'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1825'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3959,12 +3959,12 @@ function hebelAnzeigen() {
   // Angaben, die nur in Unterlagen stehen
   const angaben = hebelAngaben();
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
-  const zeilen = [{ id: 'zve', name: 'Zu versteuerndes Einkommen', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'letzter Steuerbescheid (für den Steuervorteil bei Rürup)' },
-    { id: 'tgZweck', name: 'Wofür ist das Tagesgeld?', wert: angaben.tgZweck ? TG_ZWECKE[angaben.tgZweck] : null, info: 'Notgroschen, geplante Ausgabe oder Rente (für den Check-up)' }];
+  const zeilen = [{ id: 'zve', name: 'Euer Einkommen laut Steuerbescheid', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'Steht im letzten Steuerbescheid: Zeile „zu versteuerndes Einkommen“' },
+    { id: 'tgZweck', name: 'Wofür ist dein Tagesgeld da?', wert: angaben.tgZweck ? TG_ZWECKE[angaben.tgZweck] : null, info: 'Notgroschen, Anschaffung oder Rente?' }];
   for (const v of vorsorge.filter((x) => x.dynamik)) {
     const fr = angaben[`frei:${v.id}`];
-    zeilen.push({ id: v.id, name: `${v.name}: beitragsfrei`, wert: fr ? `${geld(fr.wert)} bei ${zahl(fr.rendite, 1)} %` : null,
-      info: `${v.art === 'rente' ? 'Monatsrente' : 'Kapital'} bei Beitragsfreistellung laut Jahresmitteilung` });
+    zeilen.push({ id: v.id, name: `${v.name}: Wert, wenn du nicht mehr einzahlst`, wert: fr ? `${geld(fr.wert)} bei ${zahl(fr.rendite, 1)} %` : null,
+      info: `Steht im jährlichen Brief der Versicherung, meist unter „beitragsfrei“` });
   }
   const ul = document.getElementById('hb-angaben');
   ul.innerHTML = '';
@@ -3985,10 +3985,10 @@ let angabenHinweisWeg = false;
 function fehlendeAngaben() {
   const a = hebelAngaben();
   const fehlt = [];
-  if (!a.zve) fehlt.push('zu versteuerndes Einkommen');
-  if (tgAktiv().length && !a.tgZweck) fehlt.push('Zweck des Tagesgelds');
+  if (!a.zve) fehlt.push('dein Einkommen laut Steuerbescheid');
+  if (tgAktiv().length && !a.tgZweck) fehlt.push('wofür dein Tagesgeld da ist');
   for (const v of ((daten.rente && daten.rente.vorsorge) || []).filter((x) => x.dynamik)) {
-    if (!a[`frei:${v.id}`]) fehlt.push(`${v.name.replace(/ (.*)$/, '')} beitragsfrei`);
+    if (!a[`frei:${v.id}`]) fehlt.push(`eine Zahl aus dem Jahresbrief von ${v.name.replace(/ (.*)$/, '')}`);
   }
   return fehlt;
 }
@@ -3996,20 +3996,20 @@ function angabenHinweis() {
   const fehlt = fehlendeAngaben();
   document.getElementById('angaben-hinweis').hidden = angabenHinweisWeg || !fehlt.length;
   document.getElementById('angaben-hinweis-text').textContent =
-    `Für die Hebel-Rechnung fehlen noch: ${fehlt.join(', ')}.`;
+    `Mir fehlen noch ${fehlt.length === 1 ? 'eine Angabe' : `${fehlt.length} Angaben`} von dir. Dahinter steht bei jeder, wo du sie findest.`;
 }
 
 function hebelAngabeErfassen(id) {
   daten.rente = daten.rente || {};
   const h = (daten.rente.hebel = daten.rente.hebel || {});
   if (id === 'tgZweck') {
-    const t = prompt('Wofür ist das Tagesgeld gedacht?\n1 = Notgroschen\n2 = geplante Ausgabe (z. B. Auto, Renovierung)\n3 = Rente / langfristig', { notgroschen: '1', ausgabe: '2', rente: '3' }[h.tgZweck] || '');
+    const t = prompt('Wofür ist dein Tagesgeld da? Tippe die Zahl ein:\n1 = Notgroschen für Unvorhergesehenes\n2 = für eine geplante Anschaffung (z. B. Auto, Renovierung)\n3 = für die Rente, also langfristig', { notgroschen: '1', ausgabe: '2', rente: '3' }[h.tgZweck] || '');
     if (t == null) return;
     const z = { 1: 'notgroschen', 2: 'ausgabe', 3: 'rente' }[t.trim()];
     if (t.trim() && !z) { alert('Bitte 1, 2 oder 3 eingeben.'); return; }
     if (z) h.tgZweck = z; else delete h.tgZweck;
   } else if (id === 'zve') {
-    const t = prompt('Zu versteuerndes Einkommen laut letztem Steuerbescheid (€ pro Jahr, bei Zusammenveranlagung gemeinsam):', h.zve ? zahl(h.zve, 0) : '');
+    const t = prompt('Schau in euren letzten Steuerbescheid. Dort steht eine Zeile „zu versteuerndes Einkommen“. Trag diesen Betrag ein (Euro pro Jahr, für dich und Annika zusammen):', h.zve ? zahl(h.zve, 0) : '');
     if (t == null) return;
     const w = parseZahl(t);
     if (t.trim() && !(w > 0)) { alert('Bitte einen Betrag in Euro eintragen.'); return; }
@@ -4018,12 +4018,12 @@ function hebelAngabeErfassen(id) {
     const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => x.id === id);
     if (!v) return;
     const alt = h[`frei:${id}`];
-    const t = prompt(`${v.name}: ${v.art === 'rente' ? 'Monatsrente' : 'Kapital zum Rentenbeginn'} bei Beitragsfreistellung laut Jahresmitteilung (€):`, alt ? zahl(alt.wert, 2) : '');
+    const t = prompt(`${v.name}: Nimm den jährlichen Brief der Versicherung (Standmitteilung). Dort steht, wie viel ${v.art === 'rente' ? 'Rente pro Monat' : 'Geld zum Rentenbeginn'} du bekommst, wenn du ab jetzt nichts mehr einzahlst („beitragsfrei“). Trag diesen Betrag in Euro ein:`, alt ? zahl(alt.wert, 2) : '');
     if (t == null) return;
     if (!t.trim()) { delete h[`frei:${id}`]; }
     else {
       const wert = parseZahl(t);
-      const rt = prompt('Bei welcher Fondsrendite gilt dieser Wert (in %)? Steht in der Mitteilung neben der Hochrechnung.', alt ? zahl(alt.rendite, 1) : '4');
+      const rt = prompt('Im selben Brief steht, mit wie viel Prozent Wertentwicklung die Versicherung das gerechnet hat (oft mehrere Spalten, z. B. 0 %, 3 %, 6 %). Welche Prozentzahl gehört zu deinem Betrag?', alt ? zahl(alt.rendite, 1) : '4');
       if (rt == null) return;
       const rendite = parseZahl(rt);
       if (!(wert > 0) || !(rendite >= 0)) { alert('Bitte Betrag und Rendite als Zahl eintragen.'); return; }
@@ -5345,7 +5345,7 @@ function befunde() {
   const fehlt = fehlendeAngaben();
   if (fehlt.length) liste.push({
     titel: 'Noch nicht bewertbar',
-    text: `Es fehlen: ${fehlt.join(', ')}. Ohne diese Angaben bleibt offen, wie Rürup und Swiss Life im Vergleich dastehen.`,
+    text: `Mir fehlen noch: ${fehlt.join(', ')}. Ohne diese Zahlen kann ich nicht vergleichen, ob sich Rürup und Swiss Life lohnen.`,
     gewicht: 1, aktion: 'angaben-eintragen',
   });
   return liste.sort((x, y) => y.gewicht - x.gewicht);
