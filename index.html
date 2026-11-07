@@ -1456,7 +1456,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1918'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1938'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -2129,6 +2129,7 @@ async function kurseHolen() {
   if (daten) historieFortschreiben(preise);
   if (daten) bestandskopieSchreiben();
   if (daten && !window.pushGemeldet) { window.pushGemeldet = true; pushAboMelden().catch(() => {}); }
+  if (daten && !window.nachtragGeholt) { window.nachtragGeholt = true; nachtragHolen().catch(() => {}); }
   if (daten) hauptRendern(); // inzwischen gesperrt? dann nichts anzeigen
 }
 
@@ -6425,6 +6426,21 @@ async function pushEinschalten() {
 }
 
 // Meldet das Abo dieses Geräts (erneut) beim Vermittler an – z. B. nach Neuinstallation vom Home-Bildschirm
+// Angaben, die Claude aus deinen Unterlagen gelesen und im Vermittler abgelegt hat: einmal übernehmen, dann dort löschen
+async function nachtragHolen() {
+  if (!daten.vermittler || !daten.vermittlerToken) return;
+  const r = await vermittler('/nachtrag', { cache: 'no-store' });
+  if (!r.ok) return;
+  const j = await r.json();
+  if (!j || !j.hebel || typeof j.hebel !== 'object') return;
+  daten.rente = daten.rente || {};
+  daten.rente.hebel = { ...(daten.rente.hebel || {}), ...j.hebel };
+  speichern();
+  await vermittler('/nachtrag/erledigt', { method: 'POST' });
+  if (hauptseiteSichtbar()) hauptRendern();
+  alert(`Aus deinen Unterlagen übernommen:\n\n${j.quelle || 'Angaben für die Rentenrechnung'}`);
+}
+
 async function pushAboMelden() {
   const abo = await pushAbo();
   if (!abo || !daten.vermittler) return false;
