@@ -1052,9 +1052,14 @@
     <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
     <div class="titel"><h1>Hebel</h1><div class="unterzeile" id="hb-unter"></div></div>
     <div class="karte liste-karte"><ul class="liste hebel" id="hb-liste"></ul></div>
-    <div class="abschnitt">Deine Angaben · zum Eintragen antippen</div>
-    <div class="karte liste-karte"><ul class="liste" id="hb-angaben"></ul></div>
     <p class="fuss">Vergleich nach Kosten und Steuern bei gleicher Marktrendite. „ETF“ steht für einen breit gestreuten Aktien-ETF mit 0,2 % Kosten pro Jahr – als Gattung, kein bestimmtes Produkt. Keine Anlageberatung: Garantien, lebenslange Zahlung und Risiko wiegen nur in deiner Entscheidung.</p>
+  </section>
+
+  <!-- Deine Angaben: Zahlen aus Unterlagen (vom Start-Hinweis oder von den Hebeln aus) -->
+  <section id="ansicht-angaben" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="angaben-zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Deine Angaben</h1><div class="unterzeile" id="angaben-unter"></div></div>
+    <div class="karte liste-karte"><ul class="liste" id="hb-angaben"></ul></div>
   </section>
 
   <!-- Ebene 3: Annahmen -->
@@ -1407,7 +1412,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1825'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1829'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3947,7 +3952,8 @@ function hebelAnzeigen() {
     : 'Für die Rechnung fehlen noch Kurse oder dein Geburtsdatum.';
   const liste = document.getElementById('hb-liste');
   liste.innerHTML = '';
-  for (const h of hebel) {
+  const offen = hebel.filter((h) => h.effekt == null);
+  for (const h of hebel.filter((x) => x.effekt != null)) {
     const li = document.createElement('li');
     if (h.angabe) { li.className = 'tippbar'; li.dataset.hebelAngabe = h.angabe; }
     const wert = h.effekt == null ? 'eintragen' : `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')}`;
@@ -3956,7 +3962,21 @@ function hebelAnzeigen() {
     li.querySelector('small').textContent = h.info;
     liste.appendChild(li);
   }
-  // Angaben, die nur in Unterlagen stehen
+  if (offen.length) {
+    const li = document.createElement('li');
+    li.className = 'tippbar';
+    li.dataset.aktion = 'angaben-eintragen';
+    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert leise">eintragen</span>';
+    li.querySelector('.n').textContent = offen.length === 1 ? '1 Vergleich wartet auf deine Angaben' : `${offen.length} Vergleiche warten auf deine Angaben`;
+    li.querySelector('small').textContent = offen.map((h) => h.name.replace(/[:(].*$/, '').trim()).join(', ');
+    liste.appendChild(li);
+  }
+  angabenListe();
+}
+
+// Seite „Deine Angaben“: Zahlen, die nur in Unterlagen stehen
+let angabenVon = null;
+function angabenListe() {
   const angaben = hebelAngaben();
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
   const zeilen = [{ id: 'zve', name: 'Euer Einkommen laut Steuerbescheid', wert: angaben.zve ? geld(angaben.zve) + ' pro Jahr' : null, info: 'Steht im letzten Steuerbescheid: Zeile „zu versteuerndes Einkommen“' },
@@ -3978,6 +3998,10 @@ function hebelAnzeigen() {
     li.querySelector('.wert').textContent = z.wert || 'eintragen';
     ul.appendChild(li);
   }
+  const fehlt = fehlendeAngaben().length;
+  document.getElementById('angaben-unter').textContent = fehlt
+    ? 'Tippe eine Zeile an und trag die Zahl ein. Mit diesen Zahlen vergleicht die App, ob sich Rürup und Swiss Life lohnen.'
+    : 'Alles eingetragen. Die Ergebnisse siehst du unter Prognose → Hebel.';
 }
 
 // Angaben, die die Hebel-Rechnung noch braucht (Start-Hinweis bis alles eingetragen ist)
@@ -4031,7 +4055,7 @@ function hebelAngabeErfassen(id) {
     }
   }
   speichern();
-  hebelAnzeigen();
+  if (document.getElementById('ansicht-angaben').hidden) hebelAnzeigen(); else angabenListe();
 }
 
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
@@ -6561,10 +6585,11 @@ document.addEventListener('click', (e) => {
     checkup: checkupAnzeigen,
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
-      reiterZeigen('ansicht-rente');
-      rtUnterseite('ansicht-rt-hebel');
-      document.getElementById('hb-angaben').scrollIntoView({ block: 'center' });
+      angabenVon = document.getElementById('ansicht-rt-hebel').hidden ? null : 'ansicht-rt-hebel';
+      angabenListe();
+      zeige('ansicht-angaben');
     },
+    'angaben-zurueck': () => { if (angabenVon) rtUnterseite(angabenVon); else hauptAnzeigen(); },
     'steuer-hinweis-weg': () => { steuerHinweisWeg = true; hauptRendern(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'rt-einkommen': () => rtUnterseite('ansicht-rt-einkommen'),
