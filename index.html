@@ -180,6 +180,12 @@
   .knopf.zweit { background: var(--akzent-weich); color: var(--akzent); }
   .knoepfe { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .knoepfe .knopf { flex: 1; }
+  .foto-seiten { display: flex; flex-wrap: wrap; gap: 8px; }
+  .foto-seiten:not(:empty) { margin-bottom: 12px; }
+  .foto-seiten div { position: relative; }
+  .foto-seiten img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; display: block; box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.35); }
+  .foto-seiten button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0;
+    background: var(--text); color: var(--flaeche); font-size: 14px; line-height: 22px; padding: 0; cursor: pointer; }
   .textknopf { border: 0; background: none; color: var(--akzent); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px; }
 
   label.feldname { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 5px 2px; }
@@ -1062,6 +1068,29 @@
     <div class="karte liste-karte"><ul class="liste" id="hb-angaben"></ul></div>
   </section>
 
+  <!-- Eine Angabe per Foto: Seiten fotografieren, Claude liest die Zahl heraus, du übernimmst sie -->
+  <section id="ansicht-foto" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="foto-zurueck"><svg><use href="#i-zurueck"/></svg> Deine Angaben</button></div>
+    <div class="titel"><h1 id="foto-titel"></h1><div class="unterzeile" id="foto-unter"></div></div>
+    <div class="karte">
+      <div id="foto-seiten" class="foto-seiten"></div>
+      <input type="file" id="foto-datei" accept="image/*" multiple hidden>
+      <div class="knoepfe" style="margin-top: 0">
+        <button class="knopf zweit" data-aktion="foto-aufnehmen" id="foto-aufnehmen">Seite fotografieren</button>
+        <button class="knopf" data-aktion="foto-auswerten" id="foto-auswerten" disabled>Auslesen</button>
+      </div>
+      <p class="unter" id="foto-status" style="margin: 10px 0 0"></p>
+    </div>
+    <div class="karte" id="foto-ergebnis" hidden>
+      <div class="etikett">Gefunden</div>
+      <div class="betrag" id="foto-wert"></div>
+      <p class="unter" id="foto-fund" style="margin: 6px 0 0"></p>
+      <div class="knoepfe"><button class="knopf" data-aktion="foto-uebernehmen">Übernehmen</button></div>
+    </div>
+    <button class="textknopf" style="width: 100%" data-aktion="foto-tippen">Lieber selbst eintippen</button>
+    <p class="fuss">Die Fotos gehen über deinen Vermittler an Claude (Anthropic), werden nur zum Auslesen genutzt und nicht gespeichert. Kosten: wenige Cent pro Brief.</p>
+  </section>
+
   <!-- Ebene 3: Annahmen -->
   <section id="ansicht-rt-annahmen" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
@@ -1412,7 +1441,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1835'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1841'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5658,6 +5687,101 @@ function checkExtra(art) {
   zeige('ansicht-check-extra');
 }
 
+// ---------- Angaben per Foto ----------
+// Mehrere Seiten fotografieren, der Vermittler lässt Claude die eine Zahl heraussuchen; übernommen wird erst nach Bestätigung
+let foto = { id: null, seiten: [], ergebnis: null };
+
+function fotoSeite(id) {
+  const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => x.id === id);
+  foto = { id, seiten: [], ergebnis: null };
+  document.getElementById('foto-titel').textContent = id === 'zve' ? 'Steuerbescheid' : v.name.replace(/ \(.*$/, '');
+  document.getElementById('foto-unter').textContent = id === 'zve'
+    ? 'Fotografiere die Seiten eures letzten Steuerbescheids vom Finanzamt. Meist reichen die ersten zwei Seiten.'
+    : `Fotografiere den letzten jährlichen Brief von ${v.name.replace(/^.*\((.*)\).*$/, '$1')} (Standmitteilung). Wichtig ist die Seite, auf der „beitragsfrei“ steht – im Zweifel alle Seiten.`;
+  fotoZeichnen();
+  zeige('ansicht-foto');
+}
+
+function fotoZeichnen(status = '') {
+  const box = document.getElementById('foto-seiten');
+  box.innerHTML = '';
+  foto.seiten.forEach((b, i) => {
+    const d = document.createElement('div');
+    d.innerHTML = `<img alt="Seite ${i + 1}"><button data-foto-weg="${i}" aria-label="Seite entfernen">×</button>`;
+    d.querySelector('img').src = `data:image/jpeg;base64,${b}`;
+    box.appendChild(d);
+  });
+  const n = foto.seiten.length;
+  document.getElementById('foto-aufnehmen').textContent = n ? 'Weitere Seite' : 'Seite fotografieren';
+  document.getElementById('foto-auswerten').disabled = !n;
+  document.getElementById('foto-auswerten').textContent = n > 1 ? `${n} Seiten auslesen` : 'Auslesen';
+  document.getElementById('foto-status').textContent = status;
+  const e = foto.ergebnis;
+  document.getElementById('foto-ergebnis').hidden = !e;
+  if (e) {
+    document.getElementById('foto-wert').textContent = foto.id === 'zve'
+      ? `${eurGanz.format(e.wert)} pro Jahr`
+      : `${geld(e.wert)}${e.rendite != null ? ` bei ${zahl(e.rendite, 1)} %` : ''}`;
+    document.getElementById('foto-fund').textContent = [e.jahr ? (foto.id === 'zve' ? `Steuerjahr ${e.jahr}` : `Stand ${e.jahr}`) : '', e.fundstelle].filter(Boolean).join(' · ');
+  }
+}
+
+// Foto verkleinern (lange Seite max. 2000 px): Text bleibt lesbar, die Übertragung klein
+async function fotoVerkleinern(datei) {
+  const bild = await createImageBitmap(datei);
+  const faktor = Math.min(1, 2000 / Math.max(bild.width, bild.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bild.width * faktor);
+  c.height = Math.round(bild.height * faktor);
+  c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+async function fotoAuswerten() {
+  if (!daten.vermittler) { fotoZeichnen('Dafür braucht die App deinen Vermittler (Einstellungen).'); return; }
+  const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => x.id === foto.id);
+  foto.ergebnis = null;
+  fotoZeichnen('Wird gelesen … das dauert etwa eine halbe Minute.');
+  document.getElementById('foto-auswerten').disabled = true;
+  try {
+    const r = await vermittler('/lesen', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ art: foto.id === 'zve' ? 'zve' : 'frei', vertrag: v ? { name: v.name, art: v.art } : null,
+        bilder: foto.seiten.map((b) => ({ typ: 'image/jpeg', daten: b })) }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 501) throw new Error('Das Auslesen ist im Vermittler noch nicht eingerichtet.');
+    if (r.status === 401 || r.status === 403) throw new Error('Der Vermittler hat den Zugang abgelehnt.');
+    if (!r.ok) throw new Error(j.fehler || `Fehler ${r.status}`);
+    if (!j.gefunden || !(j.wert > 0)) { fotoZeichnen(`Nicht gefunden. ${j.fundstelle || ''} Fotografiere ggf. weitere Seiten oder tippe die Zahl selbst ein.`); return; }
+    foto.ergebnis = j;
+    fotoZeichnen('Bitte prüfen: Stimmt die Zahl mit dem Brief überein?');
+  } catch (err) {
+    fotoZeichnen(`Hat nicht geklappt: ${err.message}`);
+  }
+}
+
+function fotoUebernehmen() {
+  const e = foto.ergebnis;
+  if (!e) return;
+  daten.rente = daten.rente || {};
+  const h = (daten.rente.hebel = daten.rente.hebel || {});
+  if (foto.id === 'zve') h.zve = Math.round(e.wert);
+  else {
+    let rendite = e.rendite;
+    if (rendite == null) {
+      const t = prompt('Mit wie viel Prozent Wertentwicklung hat die Versicherung das gerechnet? Steht im selben Brief neben dem Betrag.', '');
+      if (t == null) return;
+      rendite = parseZahl(t);
+      if (!(rendite >= 0)) { alert('Bitte eine Prozentzahl eintragen.'); return; }
+    }
+    h[`frei:${foto.id}`] = { wert: e.wert, rendite };
+  }
+  speichern();
+  angabenListe();
+  zeige('ansicht-angaben');
+}
+
 // Neue Gebühr als offene Buchung anlegen und als Karte anhängen, ohne die übrigen Eingaben zu verlieren
 function gebuehrHinzufuegen() {
   const posId = document.getElementById('gebuehr-pos').value;
@@ -6513,7 +6637,10 @@ document.addEventListener('click', (e) => {
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
   const hba = e.target.closest('[data-hebel-angabe]')?.dataset.hebelAngabe;
-  if (hba) { hebelAngabeErfassen(hba); return; }
+  // auf „Deine Angaben“: Zahlen aus Briefen per Foto (Zweck des Tagesgelds bleibt eine Auswahl)
+  if (hba) { if (hba !== 'tgZweck' && e.target.closest('#ansicht-angaben')) fotoSeite(hba); else hebelAngabeErfassen(hba); return; }
+  const fw = e.target.closest('[data-foto-weg]')?.dataset.fotoWeg;
+  if (fw != null) { foto.seiten.splice(Number(fw), 1); foto.ergebnis = null; fotoZeichnen(); return; }
   const sj = e.target.closest('[data-steuer-jahr]')?.dataset.steuerJahr;
   if (sj) { steuerAnsichtJahr = Number(sj); steuerAnzeigen(); return; }
   const sp = e.target.closest('[data-steuer-posten]')?.dataset.steuerPosten;
@@ -6589,6 +6716,11 @@ document.addEventListener('click', (e) => {
       angabenListe();
       zeige('ansicht-angaben');
     },
+    'foto-zurueck': () => { angabenListe(); zeige('ansicht-angaben'); },
+    'foto-aufnehmen': () => document.getElementById('foto-datei').click(),
+    'foto-auswerten': fotoAuswerten,
+    'foto-uebernehmen': fotoUebernehmen,
+    'foto-tippen': () => { hebelAngabeErfassen(foto.id); angabenListe(); zeige('ansicht-angaben'); },
     'angaben-zurueck': () => { if (angabenVon) rtUnterseite(angabenVon); else hauptAnzeigen(); },
     'steuer-hinweis-weg': () => { steuerHinweisWeg = true; hauptRendern(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
@@ -6624,6 +6756,17 @@ document.getElementById('kauf-formular').addEventListener('input', (e) => {
   // einmal angefasst = eigene Eingabe, auch wenn das Feld gerade leer ist (kein Vorschlag mitten beim Neueintippen)
   if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = '1';
   kaufRechnen(e.target.id);
+});
+
+document.getElementById('foto-datei').addEventListener('change', async (e) => {
+  const dateien = [...e.target.files];
+  e.target.value = '';
+  fotoZeichnen('Seiten werden vorbereitet …');
+  try { for (const d of dateien) foto.seiten.push(await fotoVerkleinern(d)); }
+  catch { fotoZeichnen('Das Foto ließ sich nicht öffnen.'); return; }
+  foto.seiten = foto.seiten.slice(0, 8);
+  foto.ergebnis = null;
+  fotoZeichnen(foto.seiten.length >= 8 ? 'Mehr als 8 Seiten gehen nicht.' : '');
 });
 
 document.getElementById('datei').addEventListener('change', (e) => {
