@@ -1497,7 +1497,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.2031'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.2040'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5508,7 +5508,24 @@ function befunde() {
     const orderKosten = (d, betrag) => (d.grund || d.prozent ? Math.min(d.max || Infinity, Math.max(d.min || 0, (d.grund || 0) + (betrag * (d.prozent || 0)) / 100)) : 0) + (d.handelsplatz || 0);
     const kaufKosten = (d, p, betrag) => orderKosten(d, betrag) + (betrag * ((((d.positionen || {})[p.id] || {}).kauf || 0) + (d.spanne || 0))) / 100;
     const verkaufKosten = (d, p, betrag) => orderKosten(d, betrag) + (betrag * ((((d.positionen || {})[p.id] || {}).verkauf || 0) + (d.spanne || 0))) / 100;
-    const mitGewinn = pos.filter((x) => anlageart(x.p) !== 'Krypto' && x.wert > x.inv);
+    // Depots mit Haltefrist (Mitarbeiterprogramm): nur Käufe, deren Frist abgelaufen ist; Einstand inkl. Gratisaktien
+    // (die wurden bei Zuteilung als Lohn versteuert, ihr Wert ist also Teil der Anschaffungskosten)
+    const gesperrt = [];
+    const verfuegbar = (x) => {
+      const d = dk[x.p.depot];
+      if (!d || !d.haltejahre) return x;
+      const grenze = new Date(heute()); grenze.setFullYear(grenze.getFullYear() - d.haltejahre);
+      const kaeufe = daten.buchungen.filter((b) => b.posId === x.p.id && b.art !== 'gebuehr' && (b.status === 'historie' || b.status === 'bestaetigt') && b.stueck > 0);
+      const frei = kaeufe.filter((b) => b.datum <= isoDatum(grenze));
+      for (const b of kaeufe.filter((y) => y.datum > isoDatum(grenze))) {
+        const ab = new Date(b.datum); ab.setFullYear(ab.getFullYear() + d.haltejahre);
+        gesperrt.push({ p: x.p, ab, stueck: b.stueck });
+      }
+      const stueck = frei.reduce((s2, b) => s2 + b.stueck, 0);
+      const bestand = aktuellerBestand(x.p).stueck;
+      return stueck > 0 && bestand > 0 ? { ...x, wert: (x.wert * stueck) / bestand, inv: frei.reduce((s2, b) => s2 + b.betrag + gratisWert(b), 0) } : null;
+    };
+    const mitGewinn = pos.filter((x) => anlageart(x.p) !== 'Krypto').map(verfuegbar).filter((x) => x && x.wert > x.inv);
     const ohneKosten = mitGewinn.filter((x) => !dk[x.p.depot]);
     const kandidaten = mitGewinn.filter((x) => dk[x.p.depot])
       .map((x) => ({ ...x, anteil: ((x.wert - x.inv) / x.wert) * (['ETF', 'Fonds'].includes(anlageart(x.p)) ? 0.7 : 1) })) // steuerpflichtiger Gewinn je verkauftem Euro
@@ -5520,7 +5537,7 @@ function befunde() {
       const d = dk[x.p.depot];
       const verkauf = Math.min(x.wert, offen / x.anteil);
       const gewinn = verkauf * x.anteil;
-      const gleich = verkaufKosten(d, x.p, verkauf) + kaufKosten(d, x.p, verkauf);
+      const gleich = d.wiederkaufAnderswo ? Infinity : verkaufKosten(d, x.p, verkauf) + kaufKosten(d, x.p, verkauf); // z. B. Mitarbeiterprogramm: dort kein freier Kauf
       const alsEtf = etfDepot && etfDepot !== x.p.depot ? verkaufKosten(d, x.p, verkauf) + kaufKosten(dk[etfDepot], {}, verkauf) : Infinity;
       const kosten = Math.min(gleich, alsEtf);
       if (gewinn * ABGELTUNG <= kosten) { lohntNicht.push({ p: x.p, kosten, gewinn }); continue; } // Gebühren größer als die gesparte Steuer
@@ -5537,7 +5554,7 @@ function befunde() {
       detail: {
         warum: 'Bis zum Sparerpauschbetrag sind Gewinne steuerfrei – aber nur im jeweiligen Jahr, der Rest verfällt am 31.12. Verkaufst du Anteile mit Gewinn und legst das Geld sofort wieder an, ändert sich am Depot fast nichts. Nur dein Einstandskurs steigt: Beim späteren Verkauf ist der steuerpflichtige Gewinn kleiner. Dafür zahlst du heute Gebühren – gerechnet mit den echten Kosten je Depot.',
         zahlen: [['Noch frei bis 31.12.', geldRund(rest)], ['Verkaufen und wieder anlegen', ''],
-          ...plan.map((x) => [x.p.name + (x.etf ? ' → als breiter ETF' : ''), `≈\u00a0${geldRund(x.verkauf)}`]),
+          ...plan.map((x) => [x.p.name + (x.etf ? (dk[x.p.depot].wiederkaufAnderswo ? ` → im ${etfDepot} wieder anlegen` : ' → als breiter ETF') : ''), `≈\u00a0${geldRund(x.verkauf)}`]),
           ['Gewinn, der steuerfrei wird', `≈\u00a0${geldRund(gewinn)}`],
           ['Steuer, die später wegfällt', `≈\u00a0${geldRund(gewinn * ABGELTUNG)}`],
           ['Gebühren, Aufschläge und Kursspanne', `−\u00a0${geld(kosten)}`],
@@ -5547,7 +5564,12 @@ function befunde() {
           ...(plan.some((x) => x.etf) ? [`<b>Statt Wiederkauf beim Fonds:</b> den Erlös als breiten ETF im ${etfDepot} anlegen – spart den Ausgabeaufschlag und senkt die laufenden Kosten.`] : []),
           '<b>Bis Mitte Dezember:</b> Die Abrechnung muss noch im alten Jahr gebucht werden.',
           '<b>Jedes Jahr wiederholen</b>, solange der Freibetrag nicht von Zinsen und Dividenden aufgebraucht wird.'],
-        beachte: [...lohntNicht.map((x) => `${x.p.name}: geprüft, lohnt sich nicht – Kosten ≈\u00a0${geld(x.kosten)} höher als die gesparte Steuer.`),
+        beachte: [...[...new Set(gesperrt.map((g) => g.p))].map((p) => {
+            const g = gesperrt.filter((y) => y.p === p).sort((a2, b2) => a2.ab - b2.ab);
+            return `${p.name}: ${zahl(g.reduce((s2, y) => s2 + y.stueck, 0), 0)} Aktien noch gesperrt – nächste Freigabe ${deDatum(isoDatum(g[0].ab))} (${zahl(g[0].stueck, 0)} Stück).`;
+          }),
+          ...[...new Set(plan.map((x) => dk[x.p.depot].hinweis).filter(Boolean))],
+          ...lohntNicht.map((x) => `${x.p.name}: geprüft, lohnt sich nicht – Kosten ≈\u00a0${geld(x.kosten)} höher als die gesparte Steuer.`),
           ...ohneKosten.map((x) => `${x.p.name} (${x.p.depot}): noch ohne Gebühren gerechnet – fehlen mir noch.`),
           ...(krypto ? ['Bitcoin zählt nicht zum Sparerpauschbetrag: Gewinne sind nach einem Jahr Haltedauer ohnehin steuerfrei, davor gilt eine eigene Freigrenze von 1.000 € – ein Wiederkauf würde die Jahresfrist neu starten.'] : []),
           `Gebühren aus deinen Abrechnungen (${[...new Set(plan.map((x) => dk[x.p.depot].quelle).filter(Boolean))].join('; ')}) – vor dem Handeln im aktuellen Preisverzeichnis prüfen.`,
