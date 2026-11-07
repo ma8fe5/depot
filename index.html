@@ -353,6 +353,12 @@
     display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-3); font: inherit; font-size: 11px; font-weight: 600; }
   .tabbar button svg { width: 25px; height: 25px; }
   .tabbar button.aktiv { color: var(--akzent); }
+  /* Vermögen in der Mitte: erhöhter Kreis, deutlich abgesetzt von Prognose und Consultant */
+  .tabbar button.mitte { flex: 0 0 auto; width: 96px; margin: 0 14px; }
+  .mitte-kreis { width: 54px; height: 54px; margin-top: -26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--flaeche); color: var(--akzent); border: 1.5px solid var(--linie); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14); }
+  .mitte-kreis svg { width: 27px; height: 27px; }
+  .tabbar button.mitte.aktiv .mitte-kreis { background: var(--akzent); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(226, 0, 116, 0.35); }
   .tab-symbol { position: relative; display: block; height: 25px; }
   .tab-zahl { position: absolute; top: -4px; right: -10px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
     background: var(--akzent); color: #fff; font-size: 11px; line-height: 17px; text-align: center; }
@@ -1404,7 +1410,7 @@
 <!-- Tableiste unten -->
 <nav id="tabbar" class="tabbar" hidden aria-label="Hauptbereiche">
   <button data-tab="ansicht-rente"><svg><use href="#i-rente"/></svg><span>Prognose</span></button>
-  <button data-tab="ansicht-start"><svg><use href="#i-haus"/></svg><span>Vermögen</span></button>
+  <button data-tab="ansicht-start" class="mitte"><span class="mitte-kreis"><svg><use href="#i-haus"/></svg></span><span>Vermögen</span></button>
   <button data-tab="ansicht-checkup"><span class="tab-symbol"><svg><use href="#i-tipp"/></svg><b class="tab-zahl" id="tab-befunde" hidden></b></span><span>Consultant</span></button>
 </nav>
 
@@ -1453,7 +1459,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1949'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1952'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
