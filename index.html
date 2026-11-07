@@ -1393,7 +1393,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1122'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1149'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5587,13 +5587,18 @@ function checkKarte(b) {
       <div><label class="feldname">${gebuehr ? 'Verkaufte Stück' : 'Stück'}</label><input type="text" inputmode="decimal" class="c-stueck" value="${kurs && betrag ? zahl(betrag / kurs, stueckStellen(p)) : ''}"></div>
     </div>`;
   card.querySelector('.posname span').textContent = p.name;
-  const neuRechnen = () => {
+  // Kurs und Stück rechnen sich gegenseitig aus dem Betrag; das zuletzt eingetippte der beiden gilt
+  const neuRechnen = (e) => {
+    if (e.target.classList.contains('c-kurs')) card.dataset.zuletzt = 'kurs';
+    if (e.target.classList.contains('c-stueck')) card.dataset.zuletzt = 'stueck';
     const betrag = parseZahl(card.querySelector('.c-betrag').value);
     const k = parseZahl(card.querySelector('.c-kurs').value);
-    if (betrag > 0 && k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
+    const st = parseZahl(card.querySelector('.c-stueck').value);
+    if (!(betrag > 0)) return;
+    if (card.dataset.zuletzt === 'stueck') { if (st > 0) card.querySelector('.c-kurs').value = zahl(betrag / st, 4); }
+    else if (k > 0) card.querySelector('.c-stueck').value = zahl(betrag / k, stueckStellen(p));
   };
-  card.querySelector('.c-betrag').addEventListener('input', neuRechnen);
-  card.querySelector('.c-kurs').addEventListener('input', neuRechnen);
+  for (const feld of ['.c-betrag', '.c-kurs', '.c-stueck']) card.querySelector(feld).addEventListener('input', neuRechnen);
   // nichts vorbelegt: erst die eigene Wahl macht die Rate bestätigbar; unbeantwortet bleibt sie offen
   card.classList.add('aus');
   card.dataset.wahl = '';
@@ -5925,23 +5930,29 @@ function kaufFelderMitGratis(an) {
   document.getElementById('kauf-stueck').readOnly = an;
 }
 
-function kaufRechnen() {
+// Kurs und Stück rechnen sich gegenseitig aus dem Investment: Stück eingetippt → Kurs, Kurs eingetippt → Stück
+function kaufRechnen(feldId) {
   const wert = (id) => parseZahl(document.getElementById(id).value || '0');
-  const betrag = wert('kauf-betrag'), kurs = wert('kauf-kurs'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
+  const betrag = wert('kauf-betrag'), gratis = wert('kauf-gratis'), gebuehren = wert('kauf-gebuehren');
   const stueckEl = document.getElementById('kauf-stueck');
   const stellen = stueckStellen(daten.positionen.find((x) => x.id === positionId) || {});
   const mitGratis = !document.getElementById('kauf-gratis-feld').hidden;
+  const kursEl = document.getElementById('kauf-kurs');
+  const gekauftEl = mitGratis ? document.getElementById('kauf-bezahlt') : stueckEl; // gekaufte (bezahlte) Stück
+  if (feldId === 'kauf-kurs') gekauftEl.dataset.selbst = '';
+  if (gekauftEl.dataset.selbst) {
+    const st = parseZahl(gekauftEl.value || '0');
+    if ((feldId === 'kauf-betrag' || feldId === gekauftEl.id) && betrag > 0 && st > 0) kursEl.value = zahl(betrag / st, betrag / st < 1 ? 4 : 2);
+  } else if (betrag > 0 && wert('kauf-kurs') > 0) gekauftEl.value = zahl(betrag / wert('kauf-kurs'), stellen);
+  const kurs = wert('kauf-kurs');
   if (mitGratis) {
-    const bezahltEl = document.getElementById('kauf-bezahlt');
-    if (!bezahltEl.dataset.selbst && betrag > 0 && kurs > 0) bezahltEl.value = zahl(betrag / kurs, stellen);
+    const bezahltEl = gekauftEl;
     const bezahlt = parseZahl(bezahltEl.value || '0');
     stueckEl.value = bezahlt + (gratis || 0) > 0 ? zahl(bezahlt + (gratis || 0), stellen) : '';
     // Wert der Gratis-Aktien zum Kaufkurs (Kurs = Investment ÷ bezahlte Aktien, sonst eingetragener Kurs)
     const kaufkurs = bezahlt > 0 && betrag > 0 ? betrag / bezahlt : kurs;
     const wertEl = document.getElementById('kauf-gratis-wert'); // Vorschlag, solange nicht selbst eingetragen
     if (!wertEl.dataset.selbst) wertEl.value = gratis > 0 && kaufkurs > 0 ? zahl(gratis * kaufkurs, 2) : '';
-  } else if (!stueckEl.dataset.selbst && betrag > 0 && kurs > 0) {
-    stueckEl.value = zahl(betrag / kurs, stellen);
   }
   const info = [];
   if (betrag > 0) info.push(`Investiert steigt um ${geld(betrag + (gebuehren || 0))}${gebuehren ? ' (inkl. Gebühren)' : ''}`);
@@ -6542,11 +6553,11 @@ document.addEventListener('click', (e) => {
   })[aktion]?.();
 });
 
-// Kaufformular: Stückzahl mitrechnen; selbst eingetragene Stückzahl wird nicht mehr überschrieben
+// Kaufformular: Stück und Kurs gegenseitig mitrechnen; eingetippte Stückzahl bleibt, bis der Kurs eingetippt wird
 document.getElementById('kauf-formular').addEventListener('input', (e) => {
   // einmal angefasst = eigene Eingabe, auch wenn das Feld gerade leer ist (kein Vorschlag mitten beim Neueintippen)
   if (['kauf-stueck', 'kauf-bezahlt', 'kauf-gratis-wert'].includes(e.target.id)) e.target.dataset.selbst = '1';
-  kaufRechnen();
+  kaufRechnen(e.target.id);
 });
 
 document.getElementById('datei').addEventListener('change', (e) => {
