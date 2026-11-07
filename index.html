@@ -501,6 +501,10 @@
   .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
   .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
+  .bf-text { margin: 0; line-height: 1.5; }
+  .bf-punkte { margin: 0; padding-left: 20px; line-height: 1.5; }
+  .bf-punkte li + li { margin-top: 8px; }
+  .bf-punkte.leise { color: var(--text-2); }
   .cu-zahlen { display: flex; gap: 22px; align-items: baseline; line-height: 1.05; }
   #cu-summe { padding-top: 16px; padding-bottom: 16px; }
   .cu-zahlen small { display: block; font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0; }
@@ -1219,6 +1223,23 @@
     <p class="fuss">Rang nach Wirkung über 5 Jahre · ohne Zinseszins · keine Anlageberatung</p>
   </section>
 
+  <!-- Consultant, eine Ebene tiefer: ein Hinweis ausführlich -->
+  <section id="ansicht-befund" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="befund-zurueck"><svg><use href="#i-zurueck"/></svg> Consultant</button></div>
+    <div class="titel"><h1 id="bf-titel" class="lang"></h1></div>
+    <div class="karte held" id="bf-wirkung"><div class="etikett">Was es bringt</div><div class="betrag cu-zahlen" id="bf-betrag"></div></div>
+    <div class="abschnitt">Worum es geht</div>
+    <div class="karte"><p class="bf-text" id="bf-warum"></p></div>
+    <div class="abschnitt">Deine Zahlen</div>
+    <div class="karte liste-karte"><dl class="zeilen" id="bf-zahlen"></dl></div>
+    <div class="abschnitt">Was du tun kannst</div>
+    <div class="karte"><ul class="bf-punkte" id="bf-tun"></ul></div>
+    <div class="abschnitt">Beachte</div>
+    <div class="karte"><ul class="bf-punkte leise" id="bf-beachte"></ul></div>
+    <div class="knoepfe"><button class="knopf breit" id="bf-knopf"></button></div>
+    <p class="fuss">Möglichkeiten nach allgemeinen Grundsätzen, keine Anlageberatung – entscheiden tust du.</p>
+  </section>
+
   <!-- Steuer: Kapitalerträge eines Jahres, erst geschätzt, dann mit den Jahressteuerbescheinigungen bestätigt -->
   <section id="ansicht-steuer" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
@@ -1476,7 +1497,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.2000'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.2006'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5349,6 +5370,30 @@ function hauptRendern() {
 // Jeder Befund: Grundsatz + deine Zahlen + wohin man tippt. Keine Handlungsanweisung – nur, wo der Ist-Stand auffällt.
 const TG_ZWECKE = { notgroschen: 'Notgroschen', ausgabe: 'eine geplante Ausgabe', rente: 'die Rente' };
 
+// Detailseite für einen Vertrag aus der Hebel-Rechnung (beitragsfrei + ETF, Rente statt Kapital)
+function vertragDetail(h) {
+  const v = ((daten.rente && daten.rente.vorsorge) || []).find((x) => h.name.startsWith(x.name));
+  const frei = v ? hebelAngaben()[`frei:${v.id}`] : null;
+  const beitrag = v ? v.beitrag || (v.dynamik && v.dynamik.beitrag) : null;
+  const zahlen = [...(beitrag ? [['Beitrag heute', `${geld(beitrag)} pro Monat`]] : []),
+    ...(frei ? [['Wert, wenn du nichts mehr einzahlst', `${geld(frei.wert)}${v.art === 'rente' ? ' Rente/Monat' : ''} (bei ${zahl(frei.rendite, 1)} %)`]] : []),
+    ['Wirkung auf die Monatsrente', `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} (heutige Kaufkraft, nach Steuern)`]];
+  if (/Rente statt Kapital/.test(h.name)) return {
+    warum: `Statt das Kapital über die Entnahmejahre aufzubrauchen, bekommst du lebenslang eine feste Rente – ${h.info}. Laut Rechnung ist das unterm Strich mehr.`,
+    zahlen, tun: ['<b>Vor Rentenbeginn entscheiden:</b> Bei der bAV wählst du die Auszahlungsform meist einige Jahre vorher.'],
+    beachte: ['Eine Rente endet mit dem Tod; Kapital kann vererbt werden.'],
+  };
+  return {
+    warum: 'Der Vertrag läuft weiter, du zahlst aber nichts mehr ein. Denselben Betrag, den dich der Beitrag nach Steuern kostet, legst du stattdessen in einen breiten ETF. Laut Rechnung bringt das wegen geringerer Kosten mehr Rente.',
+    zahlen,
+    tun: ['<b>Beitragsfrei stellen:</b> formlos beim Versicherer oder über den Betreuer.',
+      '<b>Gleichen Betrag in ETF-Sparplan:</b> sonst geht der Vorteil verloren.',
+      '<b>Zwischenschritt:</b> Dynamik ablehnen – der Beitrag steigt dann nicht weiter.'],
+    beachte: [v && v.art === 'rente' ? 'Rürup ist steuerlich gefördert; die Rechnung berücksichtigt den Steuervorteil.' : 'Garantien und Todesfallschutz fallen beim ETF weg.',
+      'Eine lebenslange Rente gibt es beim ETF nicht – das Geld kann aufgebraucht werden.', 'Rückgängig machen geht meist nur begrenzt – vorher mit dem Versicherer klären.'],
+  };
+}
+
 function befunde() {
   const liste = [];
   if (!kurse) return liste;
@@ -5374,6 +5419,18 @@ function befunde() {
         ' Grundsatz: Geld mit langem Horizont wird meist nicht dauerhaft auf dem Tagesgeld gehalten.',
       gewicht: tg * -real / 100, aktion: 'tagesgeld',
       ...(zweck === 'notgroschen' ? {} : { euro: (tg * -real) / 100, art: 'jahr' }), // Kaufkraft, die nicht mehr verloren geht
+      detail: {
+        warum: 'Die Inflation macht Geld jedes Jahr weniger wert. Bringt das Tagesgeld nach Steuern weniger Zins, als die Inflation wegnimmt, kannst du dir von dem Geld jedes Jahr etwas weniger kaufen – auch wenn der Kontostand steigt. Aktionszinsen laufen aus; gerechnet ist mit dem Zins danach.',
+        zahlen: [['Tagesgeld gesamt', geld(tg)], ['Anteil an deinem Vermögen', `${zahl((tg / gesamt) * 100, 0)} %`],
+          ['Zins dauerhaft, nach Steuer', `${zahl(zinsNetto, 2)} %`], ['Inflation (Annahme)', `${zahl(a.inflation, 1)} %`],
+          ['Kaufkraftverlust pro Jahr', `≈ ${geldRund((tg * -real) / 100)}`], ['Gedacht für', zweck ? TG_ZWECKE[zweck] : 'noch nicht angegeben']],
+        tun: ['<b>Notgroschen abgrenzen:</b> 3–6 Monatsausgaben bleiben auf dem Tagesgeld – jederzeit verfügbar, kein Kursrisiko.',
+          '<b>Geld für die nächsten 1–3 Jahre:</b> Festgeld oder ein Geldmarkt-ETF bringen nach Aktionsende oft etwas mehr als normales Tagesgeld.',
+          '<b>Geld für die Rente:</b> Ein breit gestreuter Aktien-ETF lag über 15 Jahre und mehr historisch deutlich über der Inflation.',
+          '<b>Zins-Hopping:</b> Neukunden-Aktionen anderer Banken mitnehmen, solange du beim Tagesgeld bleibst.'],
+        beachte: ['Aktien können zwischendurch 30–50 % fallen – nur Geld anlegen, das du lange nicht brauchst.',
+          'Auch Zinsen sind steuerpflichtig, sobald der Sparerpauschbetrag aufgebraucht ist.'],
+      },
     });
   }
   // 2. Klumpen: größte Einzelaktie, besonders beim eigenen Arbeitgeber
@@ -5387,6 +5444,15 @@ function befunde() {
       text: `${geldRund(x.wert)} in einer einzelnen Aktie${arbeitgeber ? ' – und auch deine bAV läuft über dieses Unternehmen' : ''}.` +
         ' Grundsatz: Ein großer Anteil an einem Unternehmen (erst recht am Arbeitgeber) bündelt das Risiko.',
       gewicht: x.wert * 0.02, aktion: 'gewinn-liste', art: 'risiko',
+      detail: {
+        warum: `Geht es diesem einen Unternehmen schlecht, trifft es einen großen Teil deines Depots auf einmal.${arbeitgeber ? ' Weil es dein Arbeitgeber ist und auch deine bAV dort läuft, hängen Gehalt, Betriebsrente und Depot am selben Unternehmen.' : ''} Ein breiter ETF verteilt dasselbe Geld auf Hunderte Firmen.`,
+        zahlen: [['Wert', geld(x.wert)], ['Anteil am Depot', `${zahl((x.wert / depot) * 100, 0)} %`],
+          ['Anteil am Gesamtvermögen', `${zahl((x.wert / gesamt) * 100, 0)} %`], ['Investiert', geld(x.inv)]],
+        tun: ['<b>Nicht weiter aufstocken:</b> Neue Sparraten in breite ETFs statt in diese Aktie.',
+          '<b>Obergrenze festlegen:</b> z. B. höchstens 10 % des Depots in einer Einzelaktie.',
+          '<b>Schrittweise abbauen:</b> Gewinne jedes Jahr im Rahmen des Sparerpauschbetrags steuerfrei mitnehmen.'],
+        beachte: ['Mitarbeiterprogramme bringen oft Rabatt oder Gratisaktien – Haltefristen vor dem Verkauf prüfen.'],
+      },
     });
   }
   // 3. ETF-Überschneidung: mehrere breite Welt-/US-Indizes
@@ -5395,6 +5461,13 @@ function befunde() {
     titel: `${breit.length} breite Index-ETFs mit großer Überschneidung`,
     text: `${breit.map((x) => x.p.name).join(', ')} enthalten zu einem großen Teil dieselben Unternehmen (vor allem große US-Werte). Grundsatz: Mehr Produkte heißt hier nicht mehr Streuung.`,
     gewicht: 5, aktion: 'gewinn-liste', art: 'risiko',
+    detail: {
+      warum: 'Diese ETFs bilden ähnliche Indizes ab: Apple, Microsoft, Nvidia & Co. stecken in allen. Du hast dadurch nicht mehr Streuung, sondern nur mehr Positionen, Sparpläne und Gebühren-Kleinteile.',
+      zahlen: breit.map((x) => [x.p.name, geld(x.wert)]),
+      tun: ['<b>Neue Sparraten bündeln:</b> künftig in einen breiten Welt-ETF statt in mehrere.',
+        '<b>Bestand behalten:</b> Verkaufen nur, um aufzuräumen, kostet Steuer – meist nicht nötig.'],
+      beachte: ['Das ist kein Schaden, nur unnötig unübersichtlich.'],
+    },
   });
   // 4. Teure Fonds (mit Effekt aus der Hebel-Rechnung)
   const hb = hebelListe().hebel;
@@ -5406,6 +5479,18 @@ function befunde() {
       titel: `${x.p.name}: ${zahl(kostenSatz(x.p), 2)} % Kosten pro Jahr`,
       text: `Ein breiter ETF kostet typischerweise ≈ 0,2 %.${h && h.effekt != null ? ` Umschichten wäre laut Hebel-Rechnung ${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (nach Steuer beim Verkauf).` : ''} Grundsatz: Kosten sind sicher, Rendite nicht.`,
       gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'rt-hebel', euro: ersparnis, art: 'jahr',
+      detail: {
+        warum: `Fondskosten werden jedes Jahr vom Fondsvermögen abgezogen – egal ob der Fonds gut läuft. ${zahl(kostenSatz(x.p), 2)} % klingen wenig, über Jahrzehnte fressen sie aber einen großen Teil der Rendite. Ein breiter ETF kostet ≈ ${zahl(ETF_KOSTEN, 1)} %.`,
+        zahlen: [['Wert heute', geld(x.wert)], ['Kosten pro Jahr', `${zahl(kostenSatz(x.p), 2)} % ≈ ${geldRund((x.wert * kostenSatz(x.p)) / 100)}`],
+          ['Mit breitem ETF', `${zahl(ETF_KOSTEN, 1)} % ≈ ${geldRund((x.wert * ETF_KOSTEN) / 100)}`],
+          ...(plan ? [['Depotgebühr pro Jahr', geld(plan.betrag * plan.monate.length)]] : []),
+          ['Steuer beim Umschichten heute', `≈ ${geldRund(Math.max(0, x.wert - x.inv) * 0.7 * ABGELTUNG)}`],
+          ...(h && h.effekt != null ? [['Wirkung auf die Monatsrente', mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')]] : [])],
+        tun: ['<b>Sparplan umleiten:</b> neue Raten in einen breiten ETF statt in diesen Fonds – kostet nichts.',
+          '<b>Bestand umschichten:</b> verkaufen und in einen breiten ETF – lohnt sich laut Rechnung trotz Steuer.',
+          '<b>In Etappen:</b> jedes Jahr so viel verkaufen, dass der Gewinn im Sparerpauschbetrag bleibt.'],
+        beachte: ['Bei FNZ fällt die Depotgebühr nur weg, wenn dort nichts mehr liegt.', 'Ein aktiver Fonds kann seine Kosten theoretisch wieder hereinholen – auf lange Sicht schaffen das nur wenige.'],
+      },
     });
   }
   // 5. Freibetrag: was bis Jahresende verfällt
@@ -5418,6 +5503,15 @@ function befunde() {
       titel: `${geldRund(rest)} Sparerpauschbetrag noch frei`,
       text: `Von ${geld(st.freibetrag)} sind ${heute().getFullYear()} ≈ ${geldRund(st.pflichtig)} genutzt; der Rest verfällt am 31.12. Steuerpflichtige Buchgewinne im Depot: ≈ ${geldRund(gewinne)}. Grundsatz: Gewinne bis zum Freibetrag sind steuerfrei.`,
       gewicht: Math.min(rest, gewinne) * ABGELTUNG, aktion: 'steuer', euro: Math.min(rest, gewinne) * ABGELTUNG, art: 'jahr',
+      detail: {
+        warum: 'Bis zum Sparerpauschbetrag sind Kapitalerträge steuerfrei – aber nur im jeweiligen Jahr. Was am 31.12. nicht genutzt ist, verfällt. Wer Gewinne im Depot hat, kann sie bis zur Grenze „mitnehmen“ und sofort wieder kaufen: Der Kaufkurs steigt, spätere Steuer sinkt.',
+        zahlen: [['Sparerpauschbetrag (gemeinsam)', geld(st.freibetrag)], [`Genutzt ${heute().getFullYear()}`, `≈ ${geldRund(st.pflichtig)}`],
+          ['Noch frei bis 31.12.', geldRund(rest)], ['Steuerpflichtige Buchgewinne', `≈ ${geldRund(gewinne)}`], ['Steuer, die du so sparst', `≈ ${geldRund(Math.min(rest, gewinne) * ABGELTUNG)}`]],
+        tun: ['<b>Gewinne realisieren:</b> Positionen mit Gewinn teilweise verkaufen, bis der Gewinn den freien Betrag erreicht.',
+          '<b>Direkt wieder kaufen:</b> gleiche Position oder breiter ETF – das Geld bleibt investiert.',
+          '<b>Vor dem 31.12.:</b> Ausführung und Gutschrift brauchen ein paar Tage.'],
+        beachte: ['Verkauft wird nach „first in, first out“: zuerst die ältesten Anteile.', 'Bei ETFs zählen nur 70 % des Gewinns (Teilfreistellung) – die App rechnet das schon ein.', 'Ordergebühren und Kursspanne fressen einen Teil des Vorteils.'],
+      },
     });
   }
   // 6. Große Verluste bei Einzelaktien (Verlustverrechnung)
@@ -5425,12 +5519,20 @@ function befunde() {
     titel: `${x.p.name}: ${zahl((x.wert / x.inv - 1) * 100, 0)} %`,
     text: `${geld(x.inv)} investiert, heute ${geld(x.wert)}. Grundsatz: Realisierte Aktienverluste (hier ≈ ${geldRund(x.inv - x.wert)}) lassen sich mit Aktiengewinnen verrechnen.`,
     gewicht: (x.inv - x.wert) * ABGELTUNG * 0.5, aktion: 'positionen', euro: (x.inv - x.wert) * ABGELTUNG, art: 'einmal',
+    detail: {
+      warum: 'Ein Verlust zählt steuerlich erst, wenn du verkaufst. Dann kommt er in den Aktien-Verlusttopf deiner Bank und wird mit späteren Aktiengewinnen verrechnet – auf diese Gewinne zahlst du dann keine Steuer.',
+      zahlen: [['Investiert', geld(x.inv)], ['Wert heute', geld(x.wert)], ['Verlust', geldRund(x.inv - x.wert)], ['Steuer, die du später sparen kannst', `≈ ${geldRund((x.inv - x.wert) * ABGELTUNG)}`]],
+      tun: ['<b>Verkaufen und Verlust realisieren</b>, wenn du nicht mehr an eine Erholung glaubst.',
+        '<b>Mit Gewinnen verrechnen:</b> z. B. bei einem Teilverkauf einer Aktie mit Gewinn im selben Depot.'],
+      beachte: ['Aktienverluste lassen sich nur mit Aktiengewinnen verrechnen, nicht mit ETF-Gewinnen oder Zinsen.', 'Der Verlusttopf gilt pro Bank; bei einem Wechsel eine Verlustbescheinigung anfordern.'],
+    },
   });
   // 7. Verträge: beitragsfrei + ETF oder Rente statt Kapital, wenn es laut Hebel-Rechnung mehr Rente bringt
   for (const h of hb.filter((z) => z.effekt > 10 && !/mehr sparen|→ ETF/.test(z.name))) liste.push({
     titel: h.name.replace(/ \(.*?\)/, '').replace(': beitragsfrei + ETF', ' beitragsfrei stellen, Beitrag in ETF'),
     text: `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (heutige Kaufkraft, nach Steuern) – ${h.info}.`,
     gewicht: h.effekt * 12, aktion: 'rt-hebel', euro: h.effekt * 12, art: 'rente',
+    detail: vertragDetail(h),
   });
   // 8. Was sich noch nicht bewerten lässt
   const fehlt = fehlendeAngaben();
@@ -5443,6 +5545,37 @@ function befunde() {
   // Punkte ohne Eurobetrag (Risiko, fehlende Angaben) danach
   const punkte = (b) => (b.euro > 0 ? (b.art === 'jahr' ? 5 : 1) * b.euro : -1e9 + b.gewicht);
   return liste.sort((x, y) => punkte(y) - punkte(x));
+}
+
+// Detailseite eines Hinweises: Wirkung, Erklärung, Zahlen, Möglichkeiten, Haken, Knopf zur passenden Seite
+const BEFUND_ZIEL = { tagesgeld: 'Zum Tagesgeld', 'gewinn-liste': 'Zu deinen Positionen', 'rt-hebel': 'Zur Hebel-Rechnung', steuer: 'Zu den Kapitalerträgen', positionen: 'Zu den Positionen' };
+function befundAnzeigen(i) {
+  const b = befunde()[i];
+  if (!b) return;
+  const ziel = rentenbeginn() || heute();
+  const jahre = Math.max(0, (ziel - heute()) / (365.25 * 864e5));
+  document.getElementById('bf-titel').textContent = b.titel;
+  document.getElementById('bf-wirkung').hidden = !(b.euro > 0);
+  if (b.euro > 0) document.getElementById('bf-betrag').innerHTML = b.art === 'jahr'
+    ? `<span>+${eurGanz.format(b.euro)}<small>pro Jahr</small></span><span>+${eurGanz.format(b.euro * jahre)}<small>bis ${ziel.getFullYear()}</small></span>`
+    : `<span>+${eurGanz.format(b.euro)}<small>${b.art === 'einmal' ? 'einmalig' : `pro Jahr ab ${ziel.getFullYear()}`}</small></span>`;
+  const d = b.detail;
+  document.getElementById('bf-warum').textContent = d.warum;
+  const dl = document.getElementById('bf-zahlen');
+  dl.innerHTML = '';
+  for (const [k, w] of d.zahlen) {
+    const reihe = document.createElement('div');
+    reihe.innerHTML = '<dt></dt><dd></dd>';
+    reihe.querySelector('dt').textContent = k;
+    reihe.querySelector('dd').textContent = w;
+    dl.appendChild(reihe);
+  }
+  document.getElementById('bf-tun').innerHTML = d.tun.map((t) => `<li>${t}</li>`).join(''); // feste Texte aus befunde()
+  document.getElementById('bf-beachte').innerHTML = d.beachte.map((t) => `<li>${t}</li>`).join('');
+  const knopf = document.getElementById('bf-knopf');
+  knopf.textContent = BEFUND_ZIEL[b.aktion] || 'Zur passenden Seite';
+  knopf.dataset.aktion = b.aktion;
+  zeige('ansicht-befund');
 }
 
 const CONSULTANT_ZEIGEN = 4; // passt ohne Scrollen aufs iPhone
@@ -5466,7 +5599,7 @@ function checkupAnzeigen() {
   for (const [i, b] of alle.entries()) {
     const li = document.createElement('li');
     li.className = 'tippbar';
-    li.dataset.aktion = b.aktion;
+    if (b.detail) li.dataset.befund = i; else li.dataset.aktion = b.aktion;
     li.hidden = i >= CONSULTANT_ZEIGEN && !consultantAlle;
     // unter dem Titel: was die Umsetzung bringt (Details auf der verlinkten Seite)
     const betrag = b.euro > 0 ? `<b class="pos">+${eurGanz.format(b.euro)}</b> ${{ jahr: 'pro Jahr', einmal: 'einmalig', rente: `pro Jahr ab ${ziel.getFullYear()}` }[b.art]}${b.art === 'jahr' ? ` · bis ${ziel.getFullYear()} +${eurGanz.format(b.euro * jahre)}` : ''}`
@@ -6775,6 +6908,8 @@ document.addEventListener('click', (e) => {
   }
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
+  const bf = e.target.closest('[data-befund]')?.dataset.befund;
+  if (bf != null) { befundAnzeigen(Number(bf)); return; }
   const hba = e.target.closest('[data-hebel-angabe]')?.dataset.hebelAngabe;
   // auf „Deine Angaben“: Zahlen aus Briefen per Foto (Zweck des Tagesgelds bleibt eine Auswahl)
   if (hba) { if (hba !== 'tgZweck' && e.target.closest('#ansicht-angaben')) fotoSeite(hba); else hebelAngabeErfassen(hba); return; }
@@ -6850,6 +6985,7 @@ document.addEventListener('click', (e) => {
     steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
     checkup: checkupAnzeigen,
     'consultant-alle': () => { consultantAlle = true; checkupAnzeigen(); },
+    'befund-zurueck': () => reiterZeigen('ansicht-checkup'),
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
       angabenVon = document.getElementById('ansicht-rt-hebel').hidden ? null : 'ansicht-rt-hebel';
