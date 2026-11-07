@@ -501,6 +501,10 @@
   .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
   .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
+  .cu-zahlen { display: flex; gap: 22px; align-items: baseline; line-height: 1.05; }
+  #cu-summe { padding-top: 16px; padding-bottom: 16px; }
+  .cu-zahlen small { display: block; font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0; }
+  .cu-zahlen span + span { font-size: 0.7em; }
   .liste.befunde .rang { flex: 0 0 22px; height: 22px; border-radius: 50%; background: var(--flaeche-2); color: var(--text-2);
     font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-right: 10px; align-self: flex-start; margin-top: 1px; }
   .liste.befunde li:first-child .rang { background: var(--akzent); color: #fff; }
@@ -1208,11 +1212,11 @@
     <div class="titel"><h1>Consultant</h1></div>
     <div class="karte held" id="cu-summe">
       <div class="etikett">Wenn du alles umsetzt</div>
-      <div class="betrag" id="cu-jahr"></div>
+      <div class="betrag cu-zahlen" id="cu-jahr"></div>
       <div class="unter" id="cu-dazu" style="margin-top: 4px"></div>
     </div>
     <div class="karte liste-karte"><ul class="liste befunde" id="cu-liste"></ul></div>
-    <p class="fuss">Reihenfolge nach Wirkung über 5 Jahre · Schätzung, keine Anlageberatung</p>
+    <p class="fuss">Rang nach Wirkung über 5 Jahre · ohne Zinseszins · keine Anlageberatung</p>
   </section>
 
   <!-- Steuer: Kapitalerträge eines Jahres, erst geschätzt, dann mit den Jahressteuerbescheinigungen bestätigt -->
@@ -1472,7 +1476,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1956'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.2000'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5456,13 +5460,16 @@ function checkupAnzeigen() {
   const ul = document.getElementById('cu-liste');
   ul.innerHTML = '';
   const alle = befunde();
+  // bis zur Rente: jährliche Wirkung × Jahre bis Rentenbeginn (ohne Zinseszins), einmalige Wirkung einmal
+  const ziel = rentenbeginn() || heute();
+  const jahre = Math.max(0, (ziel - heute()) / (365.25 * 864e5));
   for (const [i, b] of alle.entries()) {
     const li = document.createElement('li');
     li.className = 'tippbar';
     li.dataset.aktion = b.aktion;
     li.hidden = i >= CONSULTANT_ZEIGEN && !consultantAlle;
     // unter dem Titel: was die Umsetzung bringt (Details auf der verlinkten Seite)
-    const betrag = b.euro > 0 ? `<b class="pos">+${eurGanz.format(b.euro)}</b> ${{ jahr: 'pro Jahr', einmal: 'einmalig', rente: `pro Jahr ab ${(rentenbeginn() || heute()).getFullYear()}` }[b.art]}`
+    const betrag = b.euro > 0 ? `<b class="pos">+${eurGanz.format(b.euro)}</b> ${{ jahr: 'pro Jahr', einmal: 'einmalig', rente: `pro Jahr ab ${ziel.getFullYear()}` }[b.art]}${b.art === 'jahr' ? ` · bis ${ziel.getFullYear()} +${eurGanz.format(b.euro * jahre)}` : ''}`
       : b.art === 'risiko' ? 'Risiko – kein Eurobetrag' : '';
     li.innerHTML = `<span class="rang">${i + 1}</span><span class="name"><span class="n"></span><small>${betrag}</small></span>`;
     li.querySelector('.n').textContent = b.titel;
@@ -5472,9 +5479,8 @@ function checkupAnzeigen() {
   befundeZahl(alle.length);
   const summe = (art) => alle.filter((b) => b.art === art && b.euro > 0).reduce((s, b) => s + b.euro, 0);
   document.getElementById('cu-summe').hidden = !alle.some((b) => b.euro > 0);
-  document.getElementById('cu-jahr').innerHTML = `+${eurGanz.format(summe('jahr'))} <span class="unter" style="font-size: 17px">pro Jahr</span>`;
-  document.getElementById('cu-dazu').textContent = [summe('einmal') ? `einmalig +${eurGanz.format(summe('einmal'))}` : '',
-    summe('rente') ? `ab ${(rentenbeginn() || heute()).getFullYear()} +${eurGanz.format(summe('rente'))} pro Jahr` : ''].filter(Boolean).join(' · ') || 'nach Steuern, beim heutigen Stand';
+  document.getElementById('cu-jahr').innerHTML = `<span>+${eurGanz.format(summe('jahr'))}<small>pro Jahr</small></span><span>+${eurGanz.format(summe('jahr') * jahre + summe('einmal'))}<small>bis ${ziel.getFullYear()}</small></span>`;
+  document.getElementById('cu-dazu').textContent = summe('rente') ? `danach als Rente +${eurGanz.format(summe('rente'))} pro Jahr` : 'nach Steuern, beim heutigen Stand';
   if (alle.length > CONSULTANT_ZEIGEN && !consultantAlle) {
     const li = document.createElement('li');
     li.className = 'tippbar mehr-befunde';
