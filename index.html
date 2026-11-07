@@ -192,7 +192,7 @@
   .feld { margin-bottom: 12px; }
   .posname { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
   .posname span { font-weight: 650; font-size: 17px; }
-  .posname small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
+  .posname small { color: var(--text-2); font-size: 13px; text-align: right; } /* darf umbrechen statt über den Rand zu laufen */
   .karte.aus .raster { opacity: 0.35; pointer-events: none; }
   .c-wahl { display: flex; gap: 8px; margin: 4px 0 12px; }
   .c-wahl .chip { flex: 1; padding: 9px 10px; }
@@ -1182,19 +1182,31 @@
       <p class="unter" style="margin: -2px 18px 12px">Aktueller Kontostand je Konto. Hat er sich geändert, trag ein, wie viel davon Zinsen waren.</p>
       <div id="check-tg"></div>
     </div>
-    <div class="abschnitt">Anderer Kauf</div>
-    <div class="karte">
-      <p class="unter" style="margin: 0 0 12px">Einmalkauf oder eine Sparrate, die hier (noch) nicht steht.</p>
-      <div class="feld"><select id="kauf-pos-wahl"></select></div>
-      <button class="knopf zweit breit" data-aktion="check-kauf-neu">Kauf erfassen</button>
-    </div>
-    <div class="abschnitt">Gebühr nachtragen</div>
-    <div class="karte">
-      <p class="unter" style="margin: 0 0 12px">Für Gebühren, die als Anteilsverkauf abgezogen wurden.</p>
-      <div class="feld"><select id="gebuehr-pos"></select></div>
-      <button class="knopf zweit breit" data-aktion="gebuehr-neu">Gebühr hinzufügen</button>
-    </div>
+    <div class="abschnitt">Sonstiges</div>
+    <div class="karte liste-karte"><ul class="liste">
+      <li class="tippbar" data-aktion="check-extra-kauf"><span class="name"><span class="n">Einmalkauf erfassen</span><small>oder eine Sparrate, die hier nicht steht</small></span></li>
+      <li class="tippbar" data-aktion="check-extra-gebuehr"><span class="name"><span class="n">Gebühr nachtragen</span><small>als Anteilsverkauf abgezogen</small></span></li>
+    </ul></div>
     <div class="knoepfe"><button class="knopf breit" data-aktion="check-bestaetigen">Bestätigen</button></div>
+  </section>
+
+  <!-- Monats-Check, eine Ebene tiefer: Einmalkauf oder Gebühr; Zurück behält die Eingaben im Check -->
+  <section id="ansicht-check-extra" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="check-zurueck"><svg><use href="#i-zurueck"/></svg> Monats-Check</button></div>
+    <div id="check-extra-kauf">
+      <div class="titel"><h1>Einmalkauf</h1><div class="unterzeile">Einmalkauf oder eine Sparrate, die im Check (noch) nicht steht.</div></div>
+      <div class="karte">
+        <div class="feld"><select id="kauf-pos-wahl"></select></div>
+        <button class="knopf breit" data-aktion="check-kauf-neu">Kauf erfassen</button>
+      </div>
+    </div>
+    <div id="check-extra-gebuehr">
+      <div class="titel"><h1>Gebühr nachtragen</h1><div class="unterzeile">Für Gebühren, die als Anteilsverkauf abgezogen wurden. Die Gebühr erscheint danach als Karte im Monats-Check.</div></div>
+      <div class="karte">
+        <div class="feld"><select id="gebuehr-pos"></select></div>
+        <button class="knopf breit" data-aktion="gebuehr-neu">Gebühr hinzufügen</button>
+      </div>
+    </div>
   </section>
 
   <!-- Nach dem Check: Backup -->
@@ -1393,7 +1405,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.1149'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-07.1152'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5610,6 +5622,13 @@ function checkKarte(b) {
   return card;
 }
 
+// Unterseite des Monats-Checks: Einmalkauf oder Gebühr (Auswahllisten füllt checkAnzeigen)
+function checkExtra(art) {
+  document.getElementById('check-extra-kauf').hidden = art !== 'kauf';
+  document.getElementById('check-extra-gebuehr').hidden = art !== 'gebuehr';
+  zeige('ansicht-check-extra');
+}
+
 // Neue Gebühr als offene Buchung anlegen und als Karte anhängen, ohne die übrigen Eingaben zu verlieren
 function gebuehrHinzufuegen() {
   const posId = document.getElementById('gebuehr-pos').value;
@@ -5620,6 +5639,7 @@ function gebuehrHinzufuegen() {
   };
   daten.buchungen.push(b);
   speichern();
+  zeige('ansicht-check');
   document.querySelector('#check-liste .leer')?.remove();
   const karte = checkKarte(b);
   document.getElementById('check-liste').appendChild(karte);
@@ -6478,6 +6498,9 @@ document.addEventListener('click', (e) => {
     zurueck: hauptAnzeigen,
     check: checkAnzeigen,
     'check-bestaetigen': checkBestaetigen,
+    'check-extra-kauf': () => checkExtra('kauf'),
+    'check-extra-gebuehr': () => checkExtra('gebuehr'),
+    'check-zurueck': () => zeige('ansicht-check'),
     'check-kauf-neu': () => { positionAnzeigen(document.getElementById('kauf-pos-wahl').value); kaufNeu(); },
     aktualisieren: kurseHolen,
     'vermoegen-liste': vermoegenAnzeigen,
