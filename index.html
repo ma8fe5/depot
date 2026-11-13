@@ -1097,6 +1097,13 @@
     </div>
   </section>
 
+  <!-- Meine Daten: Gebühren je Depot, mit denen die App rechnet (z. B. Freibetrag-Plan) -->
+  <section id="ansicht-gebuehren" class="ansicht" hidden>
+    <div class="navi"><button class="zurueck" data-aktion="zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
+    <div class="titel"><h1>Gebühren je Depot</h1><div class="unterzeile">Damit rechnet die App, z. B. beim Freibetrag-Plan. Stand und Quelle stehen jeweils dabei.</div></div>
+    <div class="karte liste-karte"><ul class="liste befunde" id="gb-liste"></ul></div>
+  </section>
+
   <!-- Deine Angaben: Zahlen aus Unterlagen (vom Start-Hinweis oder vom Consultant aus) -->
   <section id="ansicht-angaben" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="angaben-zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
@@ -1479,14 +1486,21 @@
         <li class="tippbar" data-aktion="kosten"><span class="kachel kg-zurueck"><svg><use href="#i-kosten"/></svg></span><span class="name">Kosten<small id="mehr-kosten"></small></span></li>
       </ul>
     </div>
-    <div class="abschnitt">Pflegen</div>
+    <div class="abschnitt">Regelmäßig</div>
     <div class="karte liste-karte">
       <ul class="liste menue">
-        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Termine & Sparpläne<small id="mehr-sparplaene"></small></span></li>
         <li class="tippbar" data-aktion="check"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Monats-Check<small id="mehr-check"></small></span></li>
-        <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
-        <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen<small>Käufe erfassen, Angaben pflegen</small></span></li>
+        <li class="tippbar" data-aktion="sparplaene"><span class="kachel kg-heute"><svg><use href="#i-kalender"/></svg></span><span class="name">Termine & Sparpläne<small id="mehr-sparplaene"></small></span></li>
         <li class="tippbar" data-aktion="export"><span class="kachel kg-heute"><svg><use href="#i-wolke"/></svg></span><span class="name">Backup sichern<small id="mehr-backup"></small></span></li>
+      </ul>
+    </div>
+    <div class="abschnitt">Meine Daten</div>
+    <div class="karte liste-karte">
+      <ul class="liste menue">
+        <li class="tippbar" data-aktion="angaben-eintragen"><span class="kachel kg-heute"><svg><use href="#i-kosten"/></svg></span><span class="name">Deine Angaben<small id="mehr-angaben"></small></span></li>
+        <li class="tippbar" data-aktion="gebuehren"><span class="kachel kg-heute"><svg><use href="#i-kosten"/></svg></span><span class="name">Gebühren je Depot<small id="mehr-gebuehren"></small></span></li>
+        <li class="tippbar" data-aktion="positionen"><span class="kachel kg-heute"><svg><use href="#i-chart"/></svg></span><span class="name">Positionen<small>Käufe erfassen, Angaben pflegen</small></span></li>
+        <li class="tippbar" data-aktion="tg-konten"><span class="kachel kg-heute"><svg><use href="#i-bank"/></svg></span><span class="name">Tagesgeld-Konten<small id="mehr-tagesgeld"></small></span></li>
       </ul>
     </div>
     <div class="karte liste-karte" style="margin-top: 24px">
@@ -1507,7 +1521,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-13.1838'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-13.1840'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5317,6 +5331,12 @@ function hauptRendern() {
   angabenHinweis();
   const anzahlBefunde = befundeOffen().length;
   befundeZahl(anzahlBefunde);
+  const fehlt = fehlendeAngaben().length;
+  document.getElementById('mehr-angaben').textContent = fehlt ? `${fehlt} ${fehlt === 1 ? 'fehlt' : 'fehlen'} noch` : 'vollständig';
+  const dk = hebelAngaben().depotKosten || {};
+  const depots = [...new Set(daten.positionen.map((p) => p.depot))];
+  const ohne = depots.filter((d) => !dk[d]).length;
+  document.getElementById('mehr-gebuehren').textContent = ohne ? `${ohne} von ${depots.length} Depots ohne Angaben` : `${depots.length} Depots hinterlegt`;
   naechsterSchritt();
 
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
@@ -5671,6 +5691,35 @@ function befundAnzeigen(schluessel) {
 
 const CONSULTANT_ZEIGEN = 4; // passt ohne Scrollen aufs iPhone
 let consultantAlle = false;
+
+// Gebühren je Depot in Worten (aus rente.hebel.depotKosten)
+function gebuehrText(d) {
+  const teile = [];
+  if (d.grund || d.prozent) teile.push(`${d.grund ? `${zahl(d.grund, 2)} €` : ''}${d.grund && d.prozent ? ' + ' : ''}${d.prozent ? `${zahl(d.prozent, 2)} %` : ''}${d.min ? ` (mind. ${zahl(d.min, 2)} €${d.max ? `, max. ${zahl(d.max, 0)} €` : ''})` : ''} je Order`);
+  if (d.handelsplatz) teile.push(`+ ${zahl(d.handelsplatz, 2)} € Börse`);
+  for (const [id, k] of Object.entries(d.positionen || {})) {
+    const p = daten.positionen.find((x) => x.id === id);
+    teile.push(`${p ? p.name : id}: Kauf ${zahl(k.kauf || 0, 2)} %, Verkauf ${zahl(k.verkauf || 0, 2)} %`);
+  }
+  if (d.haltejahre) teile.push(`Haltefrist ${d.haltejahre} Jahre je Kauf`);
+  return teile.join(' · ') || 'keine Gebühren';
+}
+
+function gebuehrenAnzeigen() {
+  const dk = hebelAngaben().depotKosten || {};
+  const depots = [...new Set(daten.positionen.map((p) => p.depot))];
+  const ul = document.getElementById('gb-liste');
+  ul.innerHTML = '';
+  for (const name of depots) {
+    const d = dk[name];
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span>';
+    li.querySelector('.n').textContent = name;
+    li.querySelector('small').textContent = d ? `${gebuehrText(d)}${d.quelle ? ` – Quelle: ${d.quelle.replace(/^[^:]*:\s*/, '')}` : ''}` : 'Noch keine Gebühren hinterlegt';
+    ul.appendChild(li);
+  }
+  zeige('ansicht-gebuehren');
+}
 
 // Startseite: wichtigster offener Punkt mit Eurobetrag, der nichts kostet – öffnet dessen Detailseite
 function naechsterSchritt() {
@@ -7119,6 +7168,7 @@ document.addEventListener('click', (e) => {
     'rt-sim': () => rtUnterseite('ansicht-rt-sim'),
     'rt-annahmen': () => rtUnterseite('ansicht-rt-annahmen'),
     consultant: () => reiterZeigen('ansicht-checkup'),
+    gebuehren: gebuehrenAnzeigen,
     'rt-zurueck': () => reiterZeigen(letzterReiter === 'ansicht-checkup' ? 'ansicht-checkup' : 'ansicht-rente'), // vom Consultant kommend dorthin zurück
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
     'push-an': pushEinschalten,
