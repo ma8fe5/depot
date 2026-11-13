@@ -501,6 +501,10 @@
   .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
   .liste.befunde li.befund-zu .n { color: var(--text-2); }
+  .naechster { padding-top: 12px; padding-bottom: 12px; }
+  .naechster-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
+  .naechster-zeile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .naechster-zeile b { white-space: nowrap; font-size: 15px; }
   .bf-text { margin: 0; line-height: 1.5; }
   .bf-punkte { margin: 0; padding-left: 20px; line-height: 1.5; }
   .bf-punkte li + li { margin-top: 8px; }
@@ -779,6 +783,11 @@
         <div class="etikett">Tagesgeld <svg class="chevron"><use href="#i-weiter"/></svg></div>
         <div class="wert" id="start-tagesgeld"></div>
       </div>
+    </div>
+    <!-- Brücke zum Consultant: der wichtigste offene Punkt -->
+    <div class="karte tippbar naechster" id="naechster-schritt" role="button" tabindex="0" hidden>
+      <div class="etikett">Dein nächster Schritt <svg class="chevron"><use href="#i-weiter"/></svg></div>
+      <div class="naechster-zeile"><span id="naechster-titel"></span><b class="pos" id="naechster-betrag"></b></div>
     </div>
     <div class="karte tippbar arten-karte" data-aktion="arten" role="button" tabindex="0">
       <div class="etikett">Anlagearten <svg class="chevron"><use href="#i-weiter"/></svg></div>
@@ -1216,7 +1225,7 @@
 
   <!-- Consultant, eine Ebene tiefer: ein Hinweis ausführlich -->
   <section id="ansicht-befund" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="befund-zurueck"><svg><use href="#i-zurueck"/></svg> Consultant</button></div>
+    <div class="navi"><button class="zurueck" data-aktion="befund-zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1 id="bf-titel" class="lang"></h1></div>
     <div class="karte held" id="bf-wirkung"><div class="etikett">Was es bringt</div><div class="betrag cu-zahlen" id="bf-betrag"></div></div>
     <div class="abschnitt">Worum es geht</div>
@@ -1498,7 +1507,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-13.1836'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-13.1838'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5308,6 +5317,7 @@ function hauptRendern() {
   angabenHinweis();
   const anzahlBefunde = befundeOffen().length;
   befundeZahl(anzahlBefunde);
+  naechsterSchritt();
 
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   const daten_ = Object.values(kurse.preise).map((k) => k.datum).filter(Boolean).sort();
@@ -5619,7 +5629,7 @@ function befundStatusSetzen(status) {
     daten.consultant[befundAktuell] = { status, datum: isoDatum(heute()), ...(status === 'spaeter' ? { bis: isoDatum(bis) } : {}) };
   }
   speichern();
-  if (status === 'offen') befundAnzeigen(befundAktuell); else reiterZeigen('ansicht-checkup');
+  if (status === 'offen') befundAnzeigen(befundAktuell); else reiterZeigen(letzterReiter);
 }
 
 // Detailseite eines Hinweises: Wirkung, Erklärung, Zahlen, Möglichkeiten, Haken, Knopf zur passenden Seite
@@ -5661,6 +5671,17 @@ function befundAnzeigen(schluessel) {
 
 const CONSULTANT_ZEIGEN = 4; // passt ohne Scrollen aufs iPhone
 let consultantAlle = false;
+
+// Startseite: wichtigster offener Punkt mit Eurobetrag, der nichts kostet – öffnet dessen Detailseite
+function naechsterSchritt() {
+  const b = befundeOffen().find((x) => x.euro > 0 && x.detail && !x.einsatz);
+  const karte = document.getElementById('naechster-schritt');
+  karte.hidden = !b;
+  if (!b) return;
+  karte.dataset.befund = b.schluessel;
+  document.getElementById('naechster-titel').textContent = b.titel;
+  document.getElementById('naechster-betrag').textContent = `+${eurGanz.format(b.euro)}${b.art === 'jahr' ? ' / Jahr' : b.art === 'einmal' ? ' einmalig' : ' / Jahr in Rente'}`;
+}
 
 // Zahl der Befunde am Consultant-Reiter
 function befundeZahl(n) {
@@ -7078,7 +7099,7 @@ document.addEventListener('click', (e) => {
     steuer: () => { steuerAnsichtJahr = null; steuerAnzeigen(); },
     checkup: checkupAnzeigen,
     'consultant-alle': () => { consultantAlle = true; checkupAnzeigen(); },
-    'befund-zurueck': () => reiterZeigen('ansicht-checkup'),
+    'befund-zurueck': () => reiterZeigen(letzterReiter), // zurück zum Consultant oder zur Startseite
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
       angabenListe();
