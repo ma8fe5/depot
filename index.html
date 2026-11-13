@@ -1521,7 +1521,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-13.1840'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-13.1847'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3458,6 +3458,8 @@ function tgTerminListe() {
         text: `Heute kommen die Zinsen – ${eur.format(k.stand)} zur neuen Bank umziehen. In der App: Tagesgeld → Wechsel.` });
     }
   }
+  // weitere Erinnerungen, die Claude per Nachtrag abgelegt hat (z. B. Monats-Check, Freibetrag-Plan)
+  for (const e of hebelAngaben().erinnerungen || []) if (e.datum >= ab) liste.push({ datum: e.datum, titel: e.titel, text: e.text });
   return liste.sort((x, y) => x.datum.localeCompare(y.datum)).slice(0, 20); // Vermittler nimmt höchstens 20
 }
 
@@ -6785,6 +6787,7 @@ async function nachtragHolen() {
   daten.rente = daten.rente || {};
   daten.rente.hebel = { ...(daten.rente.hebel || {}), ...j.hebel };
   speichern();
+  tgTermineAbgleichen(); // neue Erinnerungen gleich an den Vermittler
   await vermittler('/nachtrag/erledigt', { method: 'POST' });
   if (hauptseiteSichtbar()) hauptRendern();
   alert(`Aus deinen Unterlagen übernommen:\n\n${j.quelle || 'Angaben für die Rentenrechnung'}`);
