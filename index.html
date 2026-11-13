@@ -500,6 +500,7 @@
   .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
   .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
+  .liste.befunde li.befund-zu .n { color: var(--text-2); }
   .bf-text { margin: 0; line-height: 1.5; }
   .bf-punkte { margin: 0; padding-left: 20px; line-height: 1.5; }
   .bf-punkte li + li { margin-top: 8px; }
@@ -1205,7 +1206,7 @@
   <section id="ansicht-checkup" class="ansicht" hidden>
     <div class="titel"><h1>Consultant</h1></div>
     <div class="karte held" id="cu-summe">
-      <div class="etikett">Wenn du alles umsetzt</div>
+      <div class="etikett" id="cu-etikett">Wenn du alles umsetzt</div>
       <div class="betrag cu-zahlen" id="cu-jahr"></div>
       <div class="unter" id="cu-dazu" style="margin-top: 4px"></div>
     </div>
@@ -1226,7 +1227,17 @@
     <div class="karte"><ul class="bf-punkte" id="bf-tun"></ul></div>
     <div class="abschnitt">Beachte</div>
     <div class="karte"><ul class="bf-punkte leise" id="bf-beachte"></ul></div>
-    <div class="knoepfe"><button class="knopf breit" id="bf-knopf"></button></div>
+    <div class="abschnitt">Umsetzung</div>
+    <div class="karte">
+      <div class="unter" id="bf-status-text" style="margin: 0 0 10px"></div>
+      <div class="knoepfe" id="bf-status-knoepfe" style="margin-top: 0">
+        <button class="knopf" data-befund-status="erledigt">Erledigt</button>
+        <button class="knopf zweit" data-befund-status="spaeter">Später</button>
+        <button class="knopf zweit" data-befund-status="nein">Passt nicht</button>
+      </div>
+      <button class="textknopf" id="bf-status-zurueck" data-befund-status="offen" style="padding: 0">Wieder als offen markieren</button>
+    </div>
+    <div class="knoepfe"><button class="knopf zweit breit" id="bf-knopf"></button></div>
     <p class="fuss">Möglichkeiten nach allgemeinen Grundsätzen, keine Anlageberatung – entscheiden tust du.</p>
   </section>
 
@@ -1487,7 +1498,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-13.1829'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-13.1836'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5295,7 +5306,7 @@ function hauptRendern() {
   document.getElementById('mehr-steuer').textContent = `${heute().getFullYear()}: ${zahl((st.pflichtig / st.freibetrag) * 100, 0)} % vom Freibetrag`;
   steuerHinweis();
   angabenHinweis();
-  const anzahlBefunde = befunde().length;
+  const anzahlBefunde = befundeOffen().length;
   befundeZahl(anzahlBefunde);
 
   const zeit = new Date(kurse.abgerufen).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
@@ -5379,7 +5390,7 @@ function befunde() {
       text: `${zahl((tg / gesamt) * 100, 0)} % deines Vermögens (${geldRund(tg)}) bringen dauerhaft (nach Aktionszinsen) nach Steuer ≈ ${zahl(zinsNetto, 2)} %, die Inflation liegt bei ${zahl(a.inflation, 1)} %.` +
         (zweck ? ` Gedacht für ${TG_ZWECKE[zweck]}.` : ' Wofür ist das Geld gedacht? Unter „Angaben fehlen“ eintragen.') +
         ' Grundsatz: Geld mit langem Horizont wird meist nicht dauerhaft auf dem Tagesgeld gehalten.',
-      gewicht: tg * -real / 100, aktion: 'tagesgeld',
+      gewicht: tg * -real / 100, aktion: 'tagesgeld', schluessel: 'tagesgeld',
       ...(zweck === 'notgroschen' ? {} : { euro: (tg * -real) / 100, art: 'jahr' }), // Kaufkraft, die nicht mehr verloren geht
       detail: {
         warum: 'Die Inflation macht Geld jedes Jahr weniger wert. Bringt das Tagesgeld nach Steuern weniger Zins, als die Inflation wegnimmt, kannst du dir von dem Geld jedes Jahr etwas weniger kaufen – auch wenn der Kontostand steigt. Aktionszinsen laufen aus; gerechnet ist mit dem Zins danach.',
@@ -5405,7 +5416,7 @@ function befunde() {
       titel: `${x.p.name}: ${zahl((x.wert / depot) * 100, 0)} % deines Depots`,
       text: `${geldRund(x.wert)} in einer einzelnen Aktie${arbeitgeber ? ' – und auch deine bAV läuft über dieses Unternehmen' : ''}.` +
         ' Grundsatz: Ein großer Anteil an einem Unternehmen (erst recht am Arbeitgeber) bündelt das Risiko.',
-      gewicht: x.wert * 0.02, aktion: 'gewinn-liste', art: 'risiko',
+      gewicht: x.wert * 0.02, aktion: 'gewinn-liste', art: 'risiko', schluessel: `klumpen:${x.p.id}`,
       detail: {
         warum: `Geht es diesem einen Unternehmen schlecht, trifft es einen großen Teil deines Depots auf einmal.${arbeitgeber ? ' Weil es dein Arbeitgeber ist und auch deine bAV dort läuft, hängen Gehalt, Betriebsrente und Depot am selben Unternehmen.' : ''} Ein breiter ETF verteilt dasselbe Geld auf Hunderte Firmen.`,
         zahlen: [['Wert', geld(x.wert)], ['Anteil am Depot', `${zahl((x.wert / depot) * 100, 0)} %`],
@@ -5422,7 +5433,7 @@ function befunde() {
   if (breit.length >= 2) liste.push({
     titel: `${breit.length} breite Index-ETFs mit großer Überschneidung`,
     text: `${breit.map((x) => x.p.name).join(', ')} enthalten zu einem großen Teil dieselben Unternehmen (vor allem große US-Werte). Grundsatz: Mehr Produkte heißt hier nicht mehr Streuung.`,
-    gewicht: 5, aktion: 'gewinn-liste', art: 'risiko',
+    gewicht: 5, aktion: 'gewinn-liste', art: 'risiko', schluessel: 'ueberschneidung',
     detail: {
       warum: 'Diese ETFs bilden ähnliche Indizes ab: Apple, Microsoft, Nvidia & Co. stecken in allen. Du hast dadurch nicht mehr Streuung, sondern nur mehr Positionen, Sparpläne und Gebühren-Kleinteile.',
       zahlen: breit.map((x) => [x.p.name, geld(x.wert)]),
@@ -5440,7 +5451,7 @@ function befunde() {
     liste.push({
       titel: `${x.p.name}: ${zahl(kostenSatz(x.p), 2)} % Kosten pro Jahr`,
       text: `Ein breiter ETF kostet typischerweise ≈ 0,2 %.${h && h.effekt != null ? ` Umschichten wäre laut Hebel-Rechnung ${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (nach Steuer beim Verkauf).` : ''} Grundsatz: Kosten sind sicher, Rendite nicht.`,
-      gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'kosten', euro: ersparnis, art: 'jahr',
+      gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'kosten', euro: ersparnis, art: 'jahr', schluessel: `kosten:${x.p.id}`,
       detail: {
         warum: `Fondskosten werden jedes Jahr vom Fondsvermögen abgezogen – egal ob der Fonds gut läuft. ${zahl(kostenSatz(x.p), 2)} % klingen wenig, über Jahrzehnte fressen sie aber einen großen Teil der Rendite. Ein breiter ETF kostet ≈ ${zahl(ETF_KOSTEN, 1)} %.`,
         zahlen: [['Wert heute', geld(x.wert)], ['Kosten pro Jahr', `${zahl(kostenSatz(x.p), 2)} % ≈ ${geldRund((x.wert * kostenSatz(x.p)) / 100)}`],
@@ -5509,7 +5520,7 @@ function befunde() {
     if (plan.length && netto > 5) liste.push({
       titel: `${geldRund(rest)} Sparerpauschbetrag noch frei`,
       text: `Gewinne steuerfrei mitnehmen und wieder anlegen: nach Gebühren ≈ ${geldRund(netto)} weniger Steuer später.`,
-      gewicht: netto, aktion: 'steuer', euro: netto, art: 'jahr',
+      gewicht: netto, aktion: 'steuer', euro: netto, art: 'jahr', schluessel: `freibetrag:${heute().getFullYear()}`,
       detail: {
         warum: 'Bis zum Sparerpauschbetrag sind Gewinne steuerfrei – aber nur im jeweiligen Jahr, der Rest verfällt am 31.12. Verkaufst du Anteile mit Gewinn und legst das Geld sofort wieder an, ändert sich am Depot fast nichts. Nur dein Einstandskurs steigt: Beim späteren Verkauf ist der steuerpflichtige Gewinn kleiner. Dafür zahlst du heute Gebühren – gerechnet mit den echten Kosten je Depot.',
         zahlen: [['Noch frei bis 31.12.', geldRund(rest)], ['Verkaufen und wieder anlegen', ''],
@@ -5541,7 +5552,7 @@ function befunde() {
   for (const x of pos.filter((y) => anlageart(y.p) === 'Aktie' && y.inv > 0 && y.wert / y.inv < 0.5)) liste.push({
     titel: `${x.p.name}: ${zahl((x.wert / x.inv - 1) * 100, 0)} %`,
     text: `${geld(x.inv)} investiert, heute ${geld(x.wert)}. Grundsatz: Realisierte Aktienverluste (hier ≈ ${geldRund(x.inv - x.wert)}) lassen sich mit Aktiengewinnen verrechnen.`,
-    gewicht: (x.inv - x.wert) * ABGELTUNG * 0.5, aktion: 'positionen', euro: (x.inv - x.wert) * ABGELTUNG, art: 'einmal',
+    gewicht: (x.inv - x.wert) * ABGELTUNG * 0.5, aktion: 'positionen', euro: (x.inv - x.wert) * ABGELTUNG, art: 'einmal', schluessel: `verlust:${x.p.id}`,
     detail: {
       warum: 'Ein Verlust zählt steuerlich erst, wenn du verkaufst. Dann kommt er in den Aktien-Verlusttopf deiner Bank und wird mit späteren Aktiengewinnen verrechnet – auf diese Gewinne zahlst du dann keine Steuer.',
       zahlen: [['Investiert', geld(x.inv)], ['Wert heute', geld(x.wert)], ['Verlust', geldRund(x.inv - x.wert)], ['Steuer, die du später sparen kannst', `≈ ${geldRund((x.inv - x.wert) * ABGELTUNG)}`]],
@@ -5554,7 +5565,7 @@ function befunde() {
   for (const h of hb.filter((z) => z.effekt > 10 && !/mehr sparen|→ ETF/.test(z.name))) liste.push({
     titel: h.name.replace(/ \(.*?\)/, '').replace(': beitragsfrei + ETF', ' beitragsfrei stellen, Beitrag in ETF'),
     text: `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (heutige Kaufkraft, nach Steuern) – ${h.info}.`,
-    gewicht: h.effekt * 12, aktion: 'rente', euro: h.effekt * 12, art: 'rente',
+    gewicht: h.effekt * 12, aktion: 'rente', euro: h.effekt * 12, art: 'rente', schluessel: `vertrag:${h.name}`,
     detail: vertragDetail(h),
   });
   // 8. Mehr sparen: kostet heute Geld, bringt mehr Rente – eigene Gruppe, zählt nicht zur Summe „alles umsetzen“
@@ -5564,7 +5575,7 @@ function befunde() {
     liste.push({
       titel: `${mehr} € pro Monat mehr sparen`,
       text: `${mitVorzeichen(Math.round(sparen.effekt / 10) * 10).replace(/,00/, '')} Monatsrente – ${sparen.info}.`,
-      gewicht: sparen.effekt * 12, aktion: 'rt-sim', euro: sparen.effekt * 12, art: 'rente', einsatz: mehr * 12,
+      gewicht: sparen.effekt * 12, aktion: 'rt-sim', euro: sparen.effekt * 12, art: 'rente', einsatz: mehr * 12, schluessel: 'sparen',
       detail: {
         warum: `Mehr sparen kostet heute Geld – dafür arbeitet jeder zusätzliche Euro über Zinseszins bis zur Rente. Gerechnet mit ${mehr} € pro Monat ${sparen.info}, nach Kosten und Steuern, in heutiger Kaufkraft.`,
         zahlen: [['Zusätzlich pro Monat', geld(mehr)], ['Kostet dich pro Jahr', geld(mehr * 12)],
@@ -5590,11 +5601,38 @@ function befunde() {
   return liste.sort((x, y) => punkte(y) - punkte(x));
 }
 
+// Umsetzungsstatus je Hinweis (daten.consultant[schluessel] = { status: 'erledigt' | 'spaeter' | 'nein', datum, bis }):
+// erledigt und „passt nicht“ wandern nach unten, „später“ für 30 Tage; der Freibetrag hat je Jahr eine neue Kennung
+const STATUS_TEXT = { erledigt: 'Umgesetzt', spaeter: 'Später', nein: 'Passt nicht für mich' };
+const befundStatus = (b) => {
+  const st = b.schluessel && daten.consultant && daten.consultant[b.schluessel];
+  return st && !(st.status === 'spaeter' && st.bis <= isoDatum(heute())) ? st : null;
+};
+const befundeOffen = () => befunde().filter((b) => !befundStatus(b));
+let befundAktuell = null;
+
+function befundStatusSetzen(status) {
+  daten.consultant = daten.consultant || {};
+  if (status === 'offen') delete daten.consultant[befundAktuell];
+  else {
+    const bis = new Date(heute()); bis.setDate(bis.getDate() + 30);
+    daten.consultant[befundAktuell] = { status, datum: isoDatum(heute()), ...(status === 'spaeter' ? { bis: isoDatum(bis) } : {}) };
+  }
+  speichern();
+  if (status === 'offen') befundAnzeigen(befundAktuell); else reiterZeigen('ansicht-checkup');
+}
+
 // Detailseite eines Hinweises: Wirkung, Erklärung, Zahlen, Möglichkeiten, Haken, Knopf zur passenden Seite
 const BEFUND_ZIEL = { tagesgeld: 'Zum Tagesgeld', 'gewinn-liste': 'Zu deinen Positionen', kosten: 'Zu den Kosten', rente: 'Zur Prognose', 'rt-sim': 'Sparraten durchspielen', steuer: 'Zu den Kapitalerträgen', positionen: 'Zu den Positionen' };
-function befundAnzeigen(i) {
-  const b = befunde()[i];
+function befundAnzeigen(schluessel) {
+  const b = befunde().find((x) => x.schluessel === schluessel);
   if (!b) return;
+  befundAktuell = schluessel;
+  const st = befundStatus(b);
+  document.getElementById('bf-status-text').textContent = st
+    ? `${STATUS_TEXT[st.status]} – ${deDatum(st.datum)}${st.bis ? `, kommt am ${deDatum(st.bis)} wieder` : ''}` : 'Hast du das umgesetzt?';
+  document.getElementById('bf-status-knoepfe').hidden = !!st;
+  document.getElementById('bf-status-zurueck').hidden = !st;
   const ziel = rentenbeginn() || heute();
   const jahre = Math.max(0, (ziel - heute()) / (365.25 * 864e5));
   document.getElementById('bf-titel').textContent = b.titel;
@@ -5635,34 +5673,43 @@ function checkupAnzeigen() {
   zeige('ansicht-checkup');
   const ul = document.getElementById('cu-liste');
   ul.innerHTML = '';
-  const alle = befunde();
+  const liste = befunde();
+  const offen = liste.filter((b) => !befundStatus(b));
+  const zu = liste.filter((b) => befundStatus(b)).sort((x, y) => ['spaeter', 'erledigt', 'nein'].indexOf(befundStatus(x).status) - ['spaeter', 'erledigt', 'nein'].indexOf(befundStatus(y).status));
+  const alle = [...offen, ...zu];
   // bis zur Rente: jährliche Wirkung × Jahre bis Rentenbeginn (ohne Zinseszins), einmalige Wirkung einmal
   const ziel = rentenbeginn() || heute();
   const jahre = Math.max(0, (ziel - heute()) / (365.25 * 864e5));
   for (const [i, b] of alle.entries()) {
     const li = document.createElement('li');
     li.className = 'tippbar';
-    if (b.detail) li.dataset.befund = i; else li.dataset.aktion = b.aktion;
-    li.hidden = i >= CONSULTANT_ZEIGEN && !consultantAlle;
+    const st = befundStatus(b);
+    if (b.detail) li.dataset.befund = b.schluessel; else li.dataset.aktion = b.aktion;
+    li.hidden = (st || i >= CONSULTANT_ZEIGEN) && !consultantAlle;
+    if (st) li.classList.add('befund-zu');
     // unter dem Titel: was die Umsetzung bringt (Details auf der verlinkten Seite)
     const betrag = b.euro > 0 ? `<b class="pos">+${eurGanz.format(b.euro)}</b> ${{ jahr: 'pro Jahr', einmal: 'einmalig', rente: `pro Jahr ab ${ziel.getFullYear()}` }[b.art]}${b.art === 'jahr' ? ` · bis ${ziel.getFullYear()} +${eurGanz.format(b.euro * jahre)}` : ''}`
       : b.art === 'risiko' ? 'Risiko – kein Eurobetrag' : '';
     const betragMitEinsatz = b.einsatz ? `${betrag} · kostet ${eurGanz.format(b.einsatz)} pro Jahr` : betrag;
-    li.innerHTML = `<span class="rang">${i + 1}</span><span class="name"><span class="n"></span><small>${betragMitEinsatz}</small></span>`;
+    li.innerHTML = `<span class="rang">${st ? { erledigt: '✓', spaeter: '…', nein: '–' }[st.status] : i + 1}</span><span class="name"><span class="n"></span><small>${st ? `${STATUS_TEXT[st.status]} · ` : ''}${betragMitEinsatz}</small></span>`;
     li.querySelector('.n').textContent = b.titel;
     if (!betrag) li.querySelector('small').textContent = b.text;
     ul.appendChild(li);
   }
-  befundeZahl(alle.length);
-  const summe = (art) => alle.filter((b) => b.art === art && b.euro > 0 && !b.einsatz).reduce((s, b) => s + b.euro, 0);
+  befundeZahl(offen.length);
+  const summe = (art, auswahl = offen) => auswahl.filter((b) => b.art === art && b.euro > 0 && !b.einsatz).reduce((s, b) => s + b.euro, 0);
+  const erledigt = zu.filter((b) => befundStatus(b).status === 'erledigt');
+  document.getElementById('cu-etikett').textContent = erledigt.length ? 'Wenn du den Rest umsetzt' : 'Wenn du alles umsetzt';
   document.getElementById('cu-summe').hidden = !alle.some((b) => b.euro > 0);
   document.getElementById('cu-jahr').innerHTML = `<span>+${eurGanz.format(summe('jahr'))}<small>pro Jahr</small></span><span>+${eurGanz.format(summe('jahr') * jahre + summe('einmal'))}<small>bis ${ziel.getFullYear()}</small></span>`;
-  document.getElementById('cu-dazu').textContent = summe('rente') ? `danach als Rente +${eurGanz.format(summe('rente'))} pro Jahr` : 'nach Steuern, beim heutigen Stand';
-  if (alle.length > CONSULTANT_ZEIGEN && !consultantAlle) {
+  document.getElementById('cu-dazu').textContent = [summe('rente') ? `danach als Rente +${eurGanz.format(summe('rente'))} pro Jahr` : '',
+    erledigt.length ? `✓ umgesetzt: +${eurGanz.format(summe('jahr', erledigt))} pro Jahr` : ''].filter(Boolean).join(' · ') || 'nach Steuern, beim heutigen Stand';
+  const versteckt = [...ul.children].filter((li) => li.hidden).length;
+  if (versteckt && !consultantAlle) {
     const li = document.createElement('li');
     li.className = 'tippbar mehr-befunde';
     li.dataset.aktion = 'consultant-alle';
-    li.innerHTML = `<span class="name"><span class="n">${alle.length - CONSULTANT_ZEIGEN} weitere anzeigen</span></span>`;
+    li.innerHTML = `<span class="name"><span class="n">${versteckt} weitere anzeigen${zu.length ? ` (davon ${zu.length} erledigt oder zurückgestellt)` : ''}</span></span>`;
     ul.appendChild(li);
   }
   if (!ul.children.length) ul.innerHTML = '<li><span class="name unter">Keine Auffälligkeiten.</span></li>';
@@ -6953,7 +7000,9 @@ document.addEventListener('click', (e) => {
   const zb = e.target.closest('[data-zinsbuch]')?.dataset.zinsbuch;
   if (zb) { zinsbuchAnzeigen(zb); return; }
   const bf = e.target.closest('[data-befund]')?.dataset.befund;
-  if (bf != null) { befundAnzeigen(Number(bf)); return; }
+  if (bf != null) { befundAnzeigen(bf); return; }
+  const bfs = e.target.closest('[data-befund-status]')?.dataset.befundStatus;
+  if (bfs) { befundStatusSetzen(bfs); return; }
   const hba = e.target.closest('[data-hebel-angabe]')?.dataset.hebelAngabe;
   // auf „Deine Angaben“: Zahlen aus Briefen per Foto (Zweck des Tagesgelds bleibt eine Auswahl)
   if (hba) { if (hba !== 'tgZweck' && e.target.closest('#ansicht-angaben')) fotoSeite(hba); else hebelAngabeErfassen(hba); return; }
