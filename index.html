@@ -497,7 +497,6 @@
   /* aufklappbare Erklärungen (Prognose) */
   .rt-luecke .betrag { font-size: 30px; margin: 0; }
   .rt-2052 { font-size: 13px; color: var(--text-2); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
-  .liste.hebel li { align-items: flex-start; }
   .liste.befunde .name, .liste.befunde .name small { white-space: normal; }
   .liste.befunde .name small { line-height: 1.4; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
@@ -517,8 +516,7 @@
   .liste.befunde .wert small { display: block; font-size: 11px; color: var(--text-3); font-weight: 500; }
   .liste.befunde .name .n { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .liste.befunde .name small { -webkit-line-clamp: 1 !important; }
-  .liste.hebel .wert { font-size: 17px; }
-  .liste.hebel .name, .liste.hebel .name small, #hb-angaben .name, #hb-angaben .name small { white-space: normal; }
+  #hb-angaben .name, #hb-angaben .name small { white-space: normal; }
   .rt-schliessen { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linie); font-size: 14px; color: var(--text-2); }
   .rt-schliessen b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
   .rt-annahme { display: flex; align-items: center; gap: 8px; margin: -4px 4px 12px; font-size: 13px; color: var(--text-2); cursor: pointer; }
@@ -1019,7 +1017,7 @@
       <div class="tg-legende" id="rt-mix-legende"></div>
     </div>
     <!-- Lücke zum Ziel und wie sie sich schließt (Tippen → Sparraten durchspielen) -->
-    <div class="karte szenario ziel tippbar rt-luecke" data-aktion="rt-hebel">
+    <div class="karte szenario ziel tippbar rt-luecke" data-aktion="consultant">
       <div class="etikett"><span id="rt-c-titel"></span> <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="betrag mittel-gross" id="rt-c"></div>
       <div class="rt-2052" id="rt-c-2052"></div>
@@ -1089,15 +1087,7 @@
     </div>
   </section>
 
-  <!-- Ebene 3: Hebel – was die Lücke wie stark verändert (nach Kosten und Steuern, heutige Kaufkraft) -->
-  <section id="ansicht-rt-hebel" class="ansicht" hidden>
-    <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
-    <div class="titel"><h1>Hebel</h1><div class="unterzeile" id="hb-unter"></div></div>
-    <div class="karte liste-karte"><ul class="liste hebel" id="hb-liste"></ul></div>
-    <p class="fuss">Vergleich nach Kosten und Steuern bei gleicher Marktrendite. „ETF“ steht für einen breit gestreuten Aktien-ETF mit 0,2 % Kosten pro Jahr – als Gattung, kein bestimmtes Produkt. Keine Anlageberatung: Garantien, lebenslange Zahlung und Risiko wiegen nur in deiner Entscheidung.</p>
-  </section>
-
-  <!-- Deine Angaben: Zahlen aus Unterlagen (vom Start-Hinweis oder von den Hebeln aus) -->
+  <!-- Deine Angaben: Zahlen aus Unterlagen (vom Start-Hinweis oder vom Consultant aus) -->
   <section id="ansicht-angaben" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="angaben-zurueck"><svg><use href="#i-zurueck"/></svg> Zurück</button></div>
     <div class="titel"><h1>Deine Angaben</h1><div class="unterzeile" id="angaben-unter"></div></div>
@@ -1497,7 +1487,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-07.2040'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-13.1829'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -3717,7 +3707,7 @@ function rentenfaktor(a) {
 const kaufkraft = (a, jahre) => Math.pow(1 + a.inflation / 100, jahre);
 
 // Ebene 3 der Prognose; renteAnzeigen rechnet alles neu, wechselt aber nicht von einer Unterseite weg
-const RT_SEITEN = ['ansicht-rt-einkommen', 'ansicht-rt-depot', 'ansicht-rt-sim', 'ansicht-rt-annahmen', 'ansicht-rt-hebel'];
+const RT_SEITEN = ['ansicht-rt-einkommen', 'ansicht-rt-depot', 'ansicht-rt-sim', 'ansicht-rt-annahmen'];
 function rtUnterseite(id) {
   zeige(id);
   renteAnzeigen(); // Diagramm erst zeichnen, wenn die Seite sichtbar ist (echte Breite)
@@ -3827,7 +3817,6 @@ function renteAnzeigen() {
     }
   }
   einkommenAnzeigen(a, beginn, inflation, faktor, bisher);
-  if (!document.getElementById('ansicht-rt-hebel').hidden) hebelAnzeigen();
   document.getElementById('rt-annahme-text').textContent = simAngepasst()
     ? `Mit durchgespielten Sparraten: ${geldRund(sparplanSumme)} / Monat`
     : `Mit deinen heutigen Sparraten: ${geldRund(sparplanSumme)} / Monat`;
@@ -4033,37 +4022,7 @@ function hebelListe() {
   return { R, hebel };
 }
 
-function hebelAnzeigen() {
-  const { R, hebel } = hebelListe();
-  document.getElementById('hb-unter').textContent = R
-    ? `Wie stark sich dein Einkommen in der Rente verändert – pro Monat, heutige Kaufkraft, nach Steuern. Szenario ${RENDITE_SZENARIEN[renditeSzenario].name} (${zahl(R.rendite, 0)} %).`
-    : 'Für die Rechnung fehlen noch Kurse oder dein Geburtsdatum.';
-  const liste = document.getElementById('hb-liste');
-  liste.innerHTML = '';
-  const offen = hebel.filter((h) => h.effekt == null);
-  for (const h of hebel.filter((x) => x.effekt != null)) {
-    const li = document.createElement('li');
-    if (h.angabe) { li.className = 'tippbar'; li.dataset.hebelAngabe = h.angabe; }
-    const wert = h.effekt == null ? 'eintragen' : `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')}`;
-    li.innerHTML = `<span class="name"><span class="n"></span><small></small></span><span class="wert ${h.effekt == null ? 'leise' : klasse(h.effekt)}">${wert}</span>`;
-    li.querySelector('.n').textContent = h.name;
-    li.querySelector('small').textContent = h.info;
-    liste.appendChild(li);
-  }
-  if (offen.length) {
-    const li = document.createElement('li');
-    li.className = 'tippbar';
-    li.dataset.aktion = 'angaben-eintragen';
-    li.innerHTML = '<span class="name"><span class="n"></span><small></small></span><span class="wert leise">eintragen</span>';
-    li.querySelector('.n').textContent = offen.length === 1 ? '1 Vergleich wartet auf deine Angaben' : `${offen.length} Vergleiche warten auf deine Angaben`;
-    li.querySelector('small').textContent = offen.map((h) => h.name.replace(/[:(].*$/, '').trim()).join(', ');
-    liste.appendChild(li);
-  }
-  angabenListe();
-}
-
 // Seite „Deine Angaben“: Zahlen, die nur in Unterlagen stehen
-let angabenVon = null;
 function angabenListe() {
   const angaben = hebelAngaben();
   const vorsorge = (daten.rente && daten.rente.vorsorge) || [];
@@ -4143,7 +4102,7 @@ function hebelAngabeErfassen(id) {
     }
   }
   speichern();
-  if (document.getElementById('ansicht-angaben').hidden) hebelAnzeigen(); else angabenListe();
+  angabenListe();
 }
 
 // ---------- Netto im Ruhestand (heutige Kaufkraft, Steuerrecht 2026) ----------
@@ -5481,7 +5440,7 @@ function befunde() {
     liste.push({
       titel: `${x.p.name}: ${zahl(kostenSatz(x.p), 2)} % Kosten pro Jahr`,
       text: `Ein breiter ETF kostet typischerweise ≈ 0,2 %.${h && h.effekt != null ? ` Umschichten wäre laut Hebel-Rechnung ${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (nach Steuer beim Verkauf).` : ''} Grundsatz: Kosten sind sicher, Rendite nicht.`,
-      gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'rt-hebel', euro: ersparnis, art: 'jahr',
+      gewicht: h && h.effekt != null ? Math.abs(h.effekt) * 12 : 20, aktion: 'kosten', euro: ersparnis, art: 'jahr',
       detail: {
         warum: `Fondskosten werden jedes Jahr vom Fondsvermögen abgezogen – egal ob der Fonds gut läuft. ${zahl(kostenSatz(x.p), 2)} % klingen wenig, über Jahrzehnte fressen sie aber einen großen Teil der Rendite. Ein breiter ETF kostet ≈ ${zahl(ETF_KOSTEN, 1)} %.`,
         zahlen: [['Wert heute', geld(x.wert)], ['Kosten pro Jahr', `${zahl(kostenSatz(x.p), 2)} % ≈ ${geldRund((x.wert * kostenSatz(x.p)) / 100)}`],
@@ -5595,9 +5554,29 @@ function befunde() {
   for (const h of hb.filter((z) => z.effekt > 10 && !/mehr sparen|→ ETF/.test(z.name))) liste.push({
     titel: h.name.replace(/ \(.*?\)/, '').replace(': beitragsfrei + ETF', ' beitragsfrei stellen, Beitrag in ETF'),
     text: `${mitVorzeichen(Math.round(h.effekt / 10) * 10).replace(/,00/, '')} Monatsrente (heutige Kaufkraft, nach Steuern) – ${h.info}.`,
-    gewicht: h.effekt * 12, aktion: 'rt-hebel', euro: h.effekt * 12, art: 'rente',
+    gewicht: h.effekt * 12, aktion: 'rente', euro: h.effekt * 12, art: 'rente',
     detail: vertragDetail(h),
   });
+  // 8. Mehr sparen: kostet heute Geld, bringt mehr Rente – eigene Gruppe, zählt nicht zur Summe „alles umsetzen“
+  const sparen = hb.filter((z) => /mehr sparen/.test(z.name) && z.effekt > 0).sort((x, y) => y.effekt - x.effekt)[0];
+  if (sparen) {
+    const mehr = parseInt(sparen.name, 10);
+    liste.push({
+      titel: `${mehr} € pro Monat mehr sparen`,
+      text: `${mitVorzeichen(Math.round(sparen.effekt / 10) * 10).replace(/,00/, '')} Monatsrente – ${sparen.info}.`,
+      gewicht: sparen.effekt * 12, aktion: 'rt-sim', euro: sparen.effekt * 12, art: 'rente', einsatz: mehr * 12,
+      detail: {
+        warum: `Mehr sparen kostet heute Geld – dafür arbeitet jeder zusätzliche Euro über Zinseszins bis zur Rente. Gerechnet mit ${mehr} € pro Monat ${sparen.info}, nach Kosten und Steuern, in heutiger Kaufkraft.`,
+        zahlen: [['Zusätzlich pro Monat', geld(mehr)], ['Kostet dich pro Jahr', geld(mehr * 12)],
+          ['Mehr Rente pro Monat ab Rentenbeginn', mitVorzeichen(Math.round(sparen.effekt / 10) * 10).replace(/,00/, '')],
+          ['Mehr Rente pro Jahr', `≈\u00a0${geldRund(sparen.effekt * 12)}`]],
+        tun: ['<b>Sparplan erhöhen:</b> den bestehenden ETF-Sparplan um den Betrag aufstocken.',
+          '<b>Bei Gehaltserhöhungen:</b> einen Teil direkt in den Sparplan – fällt im Alltag kaum auf.',
+          '<b>Selbst durchspielen:</b> unter „Sparraten durchspielen“ andere Beträge testen.'],
+        beachte: ['Erst den Notgroschen sichern, dann mehr anlegen.', 'Aktien schwanken – das Geld sollte bis zur Rente liegen bleiben können.'],
+      },
+    });
+  }
   // 8. Was sich noch nicht bewerten lässt
   const fehlt = fehlendeAngaben();
   if (fehlt.length) liste.push({
@@ -5607,12 +5586,12 @@ function befunde() {
   });
   // Rangfolge: Wirkung über 5 Jahre (jährlich ×5, einmalig ×1, Rente wie jährlich, aber erst ab Rentenbeginn: ×1);
   // Punkte ohne Eurobetrag (Risiko, fehlende Angaben) danach
-  const punkte = (b) => (b.euro > 0 ? (b.art === 'jahr' ? 5 : 1) * b.euro : -1e9 + b.gewicht);
+  const punkte = (b) => (b.euro > 0 ? (b.einsatz ? -1e6 : 0) + (b.art === 'jahr' ? 5 : 1) * b.euro : -1e9 + b.gewicht);
   return liste.sort((x, y) => punkte(y) - punkte(x));
 }
 
 // Detailseite eines Hinweises: Wirkung, Erklärung, Zahlen, Möglichkeiten, Haken, Knopf zur passenden Seite
-const BEFUND_ZIEL = { tagesgeld: 'Zum Tagesgeld', 'gewinn-liste': 'Zu deinen Positionen', 'rt-hebel': 'Zur Hebel-Rechnung', steuer: 'Zu den Kapitalerträgen', positionen: 'Zu den Positionen' };
+const BEFUND_ZIEL = { tagesgeld: 'Zum Tagesgeld', 'gewinn-liste': 'Zu deinen Positionen', kosten: 'Zu den Kosten', rente: 'Zur Prognose', 'rt-sim': 'Sparraten durchspielen', steuer: 'Zu den Kapitalerträgen', positionen: 'Zu den Positionen' };
 function befundAnzeigen(i) {
   const b = befunde()[i];
   if (!b) return;
@@ -5668,13 +5647,14 @@ function checkupAnzeigen() {
     // unter dem Titel: was die Umsetzung bringt (Details auf der verlinkten Seite)
     const betrag = b.euro > 0 ? `<b class="pos">+${eurGanz.format(b.euro)}</b> ${{ jahr: 'pro Jahr', einmal: 'einmalig', rente: `pro Jahr ab ${ziel.getFullYear()}` }[b.art]}${b.art === 'jahr' ? ` · bis ${ziel.getFullYear()} +${eurGanz.format(b.euro * jahre)}` : ''}`
       : b.art === 'risiko' ? 'Risiko – kein Eurobetrag' : '';
-    li.innerHTML = `<span class="rang">${i + 1}</span><span class="name"><span class="n"></span><small>${betrag}</small></span>`;
+    const betragMitEinsatz = b.einsatz ? `${betrag} · kostet ${eurGanz.format(b.einsatz)} pro Jahr` : betrag;
+    li.innerHTML = `<span class="rang">${i + 1}</span><span class="name"><span class="n"></span><small>${betragMitEinsatz}</small></span>`;
     li.querySelector('.n').textContent = b.titel;
     if (!betrag) li.querySelector('small').textContent = b.text;
     ul.appendChild(li);
   }
   befundeZahl(alle.length);
-  const summe = (art) => alle.filter((b) => b.art === art && b.euro > 0).reduce((s, b) => s + b.euro, 0);
+  const summe = (art) => alle.filter((b) => b.art === art && b.euro > 0 && !b.einsatz).reduce((s, b) => s + b.euro, 0);
   document.getElementById('cu-summe').hidden = !alle.some((b) => b.euro > 0);
   document.getElementById('cu-jahr').innerHTML = `<span>+${eurGanz.format(summe('jahr'))}<small>pro Jahr</small></span><span>+${eurGanz.format(summe('jahr') * jahre + summe('einmal'))}<small>bis ${ziel.getFullYear()}</small></span>`;
   document.getElementById('cu-dazu').textContent = summe('rente') ? `danach als Rente +${eurGanz.format(summe('rente'))} pro Jahr` : 'nach Steuern, beim heutigen Stand';
@@ -7052,7 +7032,6 @@ document.addEventListener('click', (e) => {
     'befund-zurueck': () => reiterZeigen('ansicht-checkup'),
     'angaben-hinweis-weg': () => { angabenHinweisWeg = true; hauptRendern(); },
     'angaben-eintragen': () => {
-      angabenVon = document.getElementById('ansicht-rt-hebel').hidden ? null : 'ansicht-rt-hebel';
       angabenListe();
       zeige('ansicht-angaben');
     },
@@ -7062,14 +7041,14 @@ document.addEventListener('click', (e) => {
     'foto-auswerten': fotoAuswerten,
     'foto-uebernehmen': fotoUebernehmen,
     'foto-tippen': () => { hebelAngabeErfassen(foto.id); angabenListe(); zeige('ansicht-angaben'); },
-    'angaben-zurueck': () => { if (angabenVon) rtUnterseite(angabenVon); else hauptAnzeigen(); },
+    'angaben-zurueck': () => hauptAnzeigen(),
     'steuer-hinweis-weg': () => { steuerHinweisWeg = true; hauptRendern(); },
     rente: () => { zeige('ansicht-rente'); renteAnzeigen(); },
     'rt-einkommen': () => rtUnterseite('ansicht-rt-einkommen'),
     'rt-depot': () => rtUnterseite('ansicht-rt-depot'),
     'rt-sim': () => rtUnterseite('ansicht-rt-sim'),
     'rt-annahmen': () => rtUnterseite('ansicht-rt-annahmen'),
-    'rt-hebel': () => rtUnterseite('ansicht-rt-hebel'),
+    consultant: () => reiterZeigen('ansicht-checkup'),
     'rt-zurueck': () => reiterZeigen(letzterReiter === 'ansicht-checkup' ? 'ansicht-checkup' : 'ansicht-rente'), // vom Consultant kommend dorthin zurück
     'sim-reset': () => { delete daten.simulation; speichern(); renteAnzeigen(); toast('Zurück auf deine echten Sparpläne', null, null, 1800); },
     'push-an': pushEinschalten,
