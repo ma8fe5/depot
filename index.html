@@ -504,6 +504,7 @@
   .liste.befunde li.mehr-befunde .n { color: var(--akzent); }
   .liste.befunde li.befund-zu .n { color: var(--text-2); }
   .kachel.kg-daten { background: linear-gradient(145deg, #6aa8ff, #2f6fe0); }
+  #gb-liste .name small { -webkit-line-clamp: unset; display: block; white-space: normal; }
   .naechster { padding-top: 10px; padding-bottom: 10px; }
   .naechster .etikett { margin-bottom: 2px; }
   .naechster-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; line-height: 1.3; }
@@ -1529,7 +1530,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-14.0931'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-14.1036'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -5584,9 +5585,8 @@ function befunde() {
           ['Steuer, die später wegfällt', `≈\u00a0${geldRund(gewinn * ABGELTUNG)}`],
           ['Gebühren, Aufschläge und Kursspanne', `−\u00a0${geld(kosten)}`],
           ['Vorteil netto', `≈\u00a0${geldRund(netto)}`]],
-        tun: [`<b>Verkaufen:</b> ${plan.map((x) => `${x.p.name} für ≈\u00a0${geldRund(x.verkauf)}`).join(', ')} – eine Order je Position.`,
-          ...(plan.some((x) => !x.etf) ? ['<b>Sofort wieder kaufen:</b> dieselbe Position zum gleichen Betrag, am besten am selben Handelsplatz und Tag.'] : []),
-          ...(plan.some((x) => x.etf) ? [`<b>Statt Wiederkauf beim Fonds:</b> den Erlös als breiten ETF im ${etfDepot} anlegen – spart den Ausgabeaufschlag und senkt die laufenden Kosten.`] : []),
+        tun: [...plan.map((x) => `<b>${x.p.name}:</b> für ≈\u00a0${geldRund(x.verkauf)} verkaufen und ${!x.etf ? 'sofort wieder kaufen – gleicher Betrag, gleicher Handelsplatz, gleicher Tag.'
+            : dk[x.p.depot].wiederkaufAnderswo ? `den Erlös im ${etfDepot} wieder anlegen.` : `den Erlös als breiten ETF im ${etfDepot} anlegen – spart den Ausgabeaufschlag und senkt die laufenden Kosten.`}`),
           '<b>Bis Mitte Dezember:</b> Die Abrechnung muss noch im alten Jahr gebucht werden.',
           '<b>Jedes Jahr wiederholen</b>, solange der Freibetrag nicht von Zinsen und Dividenden aufgebraucht wird.'],
         beachte: [...[...new Set(gesperrt.map((g) => g.p))].map((p) => {
@@ -5597,7 +5597,7 @@ function befunde() {
           ...lohntNicht.map((x) => `${x.p.name}: geprüft, lohnt sich nicht – Kosten ≈\u00a0${geld(x.kosten)} höher als die gesparte Steuer.`),
           ...ohneKosten.map((x) => `${x.p.name} (${x.p.depot}): noch ohne Gebühren gerechnet – fehlen mir noch.`),
           ...(krypto ? ['Bitcoin zählt nicht zum Sparerpauschbetrag: Gewinne sind nach einem Jahr Haltedauer ohnehin steuerfrei, davor gilt eine eigene Freigrenze von 1.000 € – ein Wiederkauf würde die Jahresfrist neu starten.'] : []),
-          `Gebühren aus deinen Abrechnungen (${[...new Set(plan.map((x) => dk[x.p.depot].quelle).filter(Boolean))].join('; ')}) – vor dem Handeln im aktuellen Preisverzeichnis prüfen.`,
+          'Gerechnet mit den Gebühren unter Menü → Meine Daten → Gebühren je Depot – vor dem Handeln kurz im Preisverzeichnis prüfen.',
           'Der Vorteil kommt erst, wenn du später verkaufst. Verkaufst du in der Rente nur kleine Beträge im Freibetrag, fällt dort ohnehin wenig Steuer an.',
           'Verkauft werden zuerst die ältesten Anteile („first in, first out“) – die haben meist mehr Gewinn, du brauchst also eher weniger.'],
       },
