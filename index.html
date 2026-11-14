@@ -1091,7 +1091,7 @@
   <!-- Ebene 3: Sparraten je Position durchspielen -->
   <section id="ansicht-rt-sim" class="ansicht" hidden>
     <div class="navi"><button class="zurueck" data-aktion="rt-zurueck"><svg><use href="#i-zurueck"/></svg> Prognose</button></div>
-    <div class="titel"><h1>Sparraten durchspielen</h1><div class="unterzeile">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = gewähltes Szenario. Deine echten Sparpläne bleiben unverändert.</div></div>
+    <div class="titel"><h1>Sparraten durchspielen</h1><div class="unterzeile">Sparrate pro Monat und Rendite pro Jahr. Leere Rendite = gewähltes Szenario. Pink umrandet = von dir geändert. Deine echten Sparpläne bleiben unverändert.</div></div>
     <div class="karte tippbar" data-aktion="rt-depot" role="button" tabindex="0">
       <div class="etikett">Depot bei Rentenbeginn <svg class="chevron"><use href="#i-weiter"/></svg></div>
       <div class="wert-gross" id="rt-nav-depot" style="font-size: 28px"></div>
@@ -1529,7 +1529,7 @@
 <script>
 'use strict';
 
-const APP_VERSION = '2026-11-13.1857'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
+const APP_VERSION = '2026-11-14.0931'; // wird beim Veröffentlichen von werkzeuge/veroeffentlichen.ps1 gesetzt
 const SPEICHER = 'depot-v1';
 const KURS_SPEICHER = 'depot-kurse-v1';
 const BACKUP_TAGE = 30;
@@ -4432,13 +4432,13 @@ function einkommenAnzeigen(a, beginn, inflation, faktor, bisher) {
 // Eingabeliste: je Position Sparrate und Rendite, darunter ihr Wert bei Rentenbeginn
 function simListeAnzeigen(jePosition, summeRate, summeWert) {
   const liste = document.getElementById('rt-sim');
-  liste.innerHTML = `<li class="kopf"><span class="name">Position · Wert bei Rentenbeginn</span><span class="eingaben"><span>€/Monat</span><span>% p. a.</span></span></li>`;
+  liste.innerHTML = `<li class="kopf"><span class="name">Position · Wert 2052</span><span class="eingaben"><span>€/Monat</span><span>% p. a.</span></span></li>`;
   for (const p of daten.positionen) {
     if (!(p.id in jePosition)) continue;
     const s = simEinstellung(p);
     const li = document.createElement('li');
     li.dataset.sim = p.id;
-    li.innerHTML = `<span class="name"><span class="n"></span><small>${geld(jePosition[p.id])}</small></span>
+    li.innerHTML = `<span class="name"><span class="n"></span><small>${geldRund(jePosition[p.id])}</small></span>
       <span class="eingaben">
         <input type="text" inputmode="decimal" class="sim-rate${s.rate != null ? ' geaendert' : ''}" value="${zahl(simRate(p), 0)}" aria-label="Sparrate pro Monat">
         <input type="text" inputmode="decimal" class="sim-rendite${s.rendite != null ? ' geaendert' : ''}"
@@ -4449,7 +4449,7 @@ function simListeAnzeigen(jePosition, summeRate, summeWert) {
   }
   const summe = document.createElement('li');
   summe.className = 'summe';
-  summe.innerHTML = `<span class="name">Summe<small>${geld(summeWert)}</small></span><span class="wert">${geld(summeRate)}<small>pro Monat</small></span>`;
+  summe.innerHTML = `<span class="name">Summe<small>${geldRund(summeWert)} in Euro von 2052</small></span><span class="wert">${geld(summeRate)}<small>pro Monat</small></span>`;
   liste.appendChild(summe);
 
   const auswahl = document.getElementById('rt-ziel-pos');
@@ -5874,7 +5874,7 @@ function steuerPosten(jahr) {
     if (!k) continue;
     const v = vorabpauschale(p, k, jahr - 1);
     if (v.betrag != null && v.betrag < 0.005 && !bestaetigt[`vap:${p.id}`]) continue;
-    posten.push({ schluessel: `vap:${p.id}`, name: `Vorabpauschale ${p.name}`, art: `für ${jahr - 1} · 30 % steuerfrei`, schaetzung: v.betrag, hinweis: v.grund, anteil: 0.7 });
+    posten.push({ schluessel: `vap:${p.id}`, name: p.name, art: `Vorabpauschale für ${jahr - 1} · 30 % steuerfrei`, schaetzung: v.betrag, hinweis: v.grund, anteil: 0.7 });
   }
   for (const x of posten) {
     const b = bestaetigt[x.schluessel];
@@ -5929,7 +5929,7 @@ function steuerPostenBestaetigen(schluessel) {
   const x = steuerPosten(steuerAnsichtJahr).find((p) => p.schluessel === schluessel);
   if (!x) return;
   const vorschlag = x.betrag != null ? zahl(x.betrag, 2) : '';
-  const text = prompt(`${x.name} ${steuerAnsichtJahr}: Betrag laut Jahressteuerbescheinigung (€)${x.bestaetigt != null ? '\nLeer lassen = wieder schätzen' : ''}`, vorschlag);
+  const text = prompt(`${x.schluessel.startsWith('vap:') ? 'Vorabpauschale ' : ''}${x.name} ${steuerAnsichtJahr}: Betrag laut Jahressteuerbescheinigung (€)${x.bestaetigt != null ? '\nLeer lassen = wieder schätzen' : ''}`, vorschlag);
   if (text == null) return;
   daten.steuer = daten.steuer || {};
   const jahr = (daten.steuer[steuerAnsichtJahr] = daten.steuer[steuerAnsichtJahr] || {});
